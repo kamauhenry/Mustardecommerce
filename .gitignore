@@ -1,0 +1,80 @@
+# Python/Django
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venvm/
+ENV/
+env.bak/
+venv.bak/
+
+# Django-specific
+*.log
+*.pot
+*.pyc
+db.sqlite3
+migrations/
+*.sqlite3
+*.sqlite3-journal
+
+# Media and Static Files
+media/
+staticfiles/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+
+# Virtual Environment
+venv/
+venv.bak/
+
+# PostgreSQL Local Files
+*.dump
+*.sql
+*.sql.gz
+pgdata/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Dependency Management
+pip-log.txt
+Pipfile.lock
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+
+# Sensitive Files
+.env
+*.env
+secrets.json
+settings_local.py
+local_settings.py
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Miscellaneous
+*.bak
+*.cache
+*.pid
+*.seed
+*.pid.lock
+*.log.*
