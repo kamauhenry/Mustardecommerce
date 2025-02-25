@@ -50,9 +50,7 @@ var/
 wheels/
 *.whl
 
-# Sensitive Files
-.env
-*.env
+
 
 # OS Generated Files
 .DS_Store
