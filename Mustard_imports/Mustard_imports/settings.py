@@ -9,7 +9,9 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import psycopg2
+from dotenv import load_dotenv
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,11 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-50e2ituix^^l)ugqk*8j-nlcy!!zf#xwsa6mv2=$&m9&6qi$90'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = []
 
@@ -72,11 +70,20 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
+# Load environment variables from .env
+load_dotenv()
+# Database configuration using .env, inspired by your guide
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('dbname'),
+        'USER': os.environ.get('user'),
+        'PASSWORD': os.environ.get('password'),
+        'HOST': os.environ.get('host'),
+        'PORT': os.environ.get('port'),
+        'OPTIONS': {
+            'sslmode': 'require', 
+        },
     }
 }
 
