@@ -6,6 +6,7 @@ __pycache__/
 *.pyd
 .Python
 env/
+venv/
 venvm/
 ENV/
 env.bak/
@@ -50,8 +51,6 @@ var/
 wheels/
 *.whl
 
-
-
 # OS Generated Files
 .DS_Store
 Thumbs.db
@@ -66,6 +65,18 @@ Thumbs.db
 *.pid.lock
 *.log.*
 
-
-
 proj_struct.txt
+
+# Local
+.DS_Store
+*.local
+*.log*
+
+# Dist
+node_modules
+dist/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
