@@ -17,10 +17,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from django.views.generic import TemplateView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+
     path('api/v1/', include('ecommerce.api.urls')),
     path('', include('ecommerce.urls')),
+
+    path('', TemplateView.as_view(template_name='../frontend/index.html'), name='react-frontend'),
+
 ]
 
 # Serve static and media files in development

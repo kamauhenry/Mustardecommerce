@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'ecommerce',
+    'corsheaders',
 ]
 # Django REST Framework settings
 REST_FRAMEWORK = {
@@ -64,6 +65,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
 ]
 
 ROOT_URLCONF = 'Mustard_imports.urls'
@@ -152,3 +159,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REACT_APP_DIR = os.path.join(BASE_DIR, 'frontend', 'build')
+
+if os.path.exists(REACT_APP_DIR):
+    STATICFILES_DIRS = [os.path.join(REACT_APP_DIR, 'static')]
