@@ -1,12 +1,11 @@
 /* eslint-disable vue/multi-word-component-names */
 import './assets/main.css'
-import './assets/admindashboard.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import Sidebar from './components/Sidebar.vue';
-import OrdersTable from './components/OrdersTable.vue';
-import StatsPanel from './components/StatsPanel.vue';
+import Sidebar from './components/adminDashboardComponents/Sidebar.vue';
+import OrdersTable from './components/adminDashboardComponents/OrdersTable.vue';
+import StatsPanel from './components/adminDashboardComponents/StatsPanel.vue';
 
 const app = createApp(App);
 

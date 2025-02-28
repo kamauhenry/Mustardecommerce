@@ -1,0 +1,11 @@
+@import url('base.css');
+@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Signika+Negative:wght@300..700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  font-family: "Comic Neue", cursive;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 20px;
+}

@@ -26,7 +26,3 @@
     </table>
   </div>
 </template>
-
-<style scoped>
-
-</style>

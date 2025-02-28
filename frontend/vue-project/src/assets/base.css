@@ -19,10 +19,28 @@
   --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
   --vt-c-text-dark-1: var(--vt-c-white);
   --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
+
+  /* Color Palette from figma design */
+
+  /* Navigation */
+  --background-color-one: #f2f2f2;
+  --background-color-two: #ffd700;
+  --background-color-three: #d9d9d9;
+  --text-color-one: #db4619;
+  --text-color-two: #838636;
+
+  /* Home */
+  --background-color-four: #85ce7e;
+  --background-color-five: rgb(152, 91, 17, .5);
+  --text-color-three: #bf6a02;
+  --text-color-four: #5E5500;
+  --text-color-five: #999998;
+  --text-color-six: #FCF6F6;
+  --text-color-seven: #5C3535;
 }
 
-/* semantic color variables for this project */
 :root {
+  /* semantic color variables for this project */
   --color-background: var(--vt-c-white);
   --color-background-soft: var(--vt-c-white-soft);
   --color-background-mute: var(--vt-c-white-mute);
@@ -59,22 +77,13 @@
 }
 
 body {
-  min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
+  color: var(--vt-c-black-soft);
+  background: var(--vt-c-white-soft);
   transition:
     color 0.5s,
     background-color 0.5s;
   line-height: 1.6;
   font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
     'Fira Sans',
     'Droid Sans',
     'Helvetica Neue',

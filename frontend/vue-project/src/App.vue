@@ -1,17 +1,20 @@
 <script>
-import AdminDashboard from "./AdminDashboard.vue";
+// import AdminDashboard from "./AdminDashboard.vue";
+import HomePage from "./HomePage.vue";
 
 export default {
   name: "app",
   components: {
-    AdminDashboard,
+    HomePage,
+    // AdminDashboard,
   },
 };
 </script>
 
 <template>
   <div id="app">
-    <AdminDashboard></AdminDashboard>
+    <HomePage></HomePage>
+    <!-- <AdminDashboard></AdminDashboard> -->
   </div>
 </template>
 

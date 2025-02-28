@@ -14,7 +14,3 @@
     </ul>
   </aside>
 </template>
-
-<style scoped>
-
-</style>
