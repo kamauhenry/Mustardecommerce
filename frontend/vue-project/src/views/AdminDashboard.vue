@@ -9,9 +9,9 @@
 </template>
 
 <script>
-  import Sidebar from './components/adminDashboardComponents/Sidebar.vue';
-  import OrdersTable from './components/adminDashboardComponents/OrdersTable.vue';
-  import StatsPanel from './components/adminDashboardComponents/StatsPanel.vue';
+  import Sidebar from '../components/adminDashboardComponents/Sidebar.vue';
+  import OrdersTable from '../components/adminDashboardComponents/OrdersTable.vue';
+  import StatsPanel from '../components/adminDashboardComponents/StatsPanel.vue';
 
   export default {
     components: {
