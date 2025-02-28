@@ -53,10 +53,7 @@ export default {
 .category-list {
   display: flex;
   flex-direction: column;
-}
-
-.category-list-item {
-  margin: 5px 0;
+  gap: .4rem;
 }
 
 .category-p {
