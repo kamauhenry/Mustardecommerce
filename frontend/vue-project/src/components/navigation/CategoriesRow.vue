@@ -32,8 +32,9 @@ export default {
 .categories {
   display: flex;
   align-items: flex-start;
+  gap: 2rem;
   justify-content: space-around;
-  padding: .7rem .2rem;
+  padding: .7rem 1rem;
   background-color: var(--background-color-three);
   font-weight: 700;
 }

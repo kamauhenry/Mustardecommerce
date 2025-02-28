@@ -29,7 +29,7 @@
 <style scoped>
 .navbar {
   background-color: var(--vt-c-white);
-  padding: 1.1rem;
+  padding: .1rem;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
