@@ -1,4 +1,15 @@
-django>=4.2
+django
 psycopg2
 python-dotenv
 pillow 
+django-cors-headers
+asgiref                        
+Django              
+django-cors-headers 
+djangorestframework         
+pillow                 
+psycopg2            
+psycopg2-binary     
+pylint             
+python-dotenv      
+            
