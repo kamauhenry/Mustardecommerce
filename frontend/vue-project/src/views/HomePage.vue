@@ -16,7 +16,7 @@ import TopRow from "../components/navigation/TopRow.vue";
 import PagesRow from "../components/navigation/PagesRow.vue";
 import CategoriesRow from "../components/navigation/CategoriesRow.vue";
 import HamburgerMenu from "../components/navigation/HamburgerMenu.vue";
-import CookiesConsent from "../components/CookiesConsent.vue";
+import CookiesConsent from "../views/CookiesConsent.vue";
 
 export default {
   components: {

@@ -1,14 +1,14 @@
 <template>
   <div class="page-list">
     <ul>
-      <li><a href="">Home</a></li>
-      <li><a href="">MOQ Campaigns</a></li>
-      <li><a href="">My Profile</a></li>
-      <li><a href="">My Orders</a></li>
-      <li><a href="">Request MOQ Campaign</a></li>
-      <li><a href="">Track Order</a></li>
-      <li><a href="">About Us</a></li>
-      <li><a href="">Contact Us</a></li>
+      <li><router-link class="nav-link" to="/">Home</router-link></li>
+      <li><router-link class="nav-link" to="/moq-campaigns">MOQ Campaigns</router-link></li>
+      <li><router-link class="nav-link" to="/profile">My Profile</router-link></li>
+      <li><router-link class="nav-link" to="/orders">My Orders</router-link></li>
+      <li><router-link class="nav-link" to="/request-moq">Request MOQ Campaign</router-link></li>
+      <li><router-link class="nav-link" to="/track-order">Track Order</router-link></li>
+      <li><router-link class="nav-link" to="/about">About Us</router-link></li>
+      <li><router-link class="nav-link" to="/contact">Contact Us</router-link></li>
     </ul>
   </div>
 </template>
@@ -32,10 +32,14 @@
     padding: .3rem;
   }
 
-  .page-list ul li a {
+  .nav-link {
     color: var(--vt-c-black);
     text-decoration: none;
     font-weight: 700;
     text-transform: uppercase;
+  }
+
+  .nav-link :hover {
+    color: var(--background-color-three);
   }
 </style>
