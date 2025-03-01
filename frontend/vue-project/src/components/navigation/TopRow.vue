@@ -1,20 +1,25 @@
 <script setup>
-  import SearchBar from "./SearchBar.vue";
-  import IconDarkMode from "../icons/IconDarkMode.vue";
-  import IconCart from "../icons/IconCart.vue";
-  import IconLogin from "../icons/IconLogin.vue";
-
+import SearchBar from './SearchBar.vue'
+import IconLightMode from '../icons/IconLightMode.vue'
+import IconCart from '../icons/IconCart.vue'
+import IconLogin from '../icons/IconLogin.vue'
 </script>
 
 <template>
   <div class="navbar">
     <div class="logo-image">
-      <img src="../../assets/images/mustard-imports.jpg" alt="Mustard Imports Logo" class="main-logo">
+      <router-link to="/">
+        <img
+          src="../../assets/images/mustard-imports.png"
+          alt="Mustard Imports Logo"
+          class="main-logo"
+        />
+      </router-link>
     </div>
     <SearchBar></SearchBar>
     <div class="nav-icons">
       <div class="icon">
-        <IconDarkMode></IconDarkMode>
+        <IconLightMode></IconLightMode>
       </div>
       <div class="icon">
         <IconCart></IconCart>
@@ -28,8 +33,7 @@
 
 <style scoped>
 .navbar {
-  background-color: var(--vt-c-white);
-  padding: 1.1rem;
+  padding: 0.1rem;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
@@ -47,7 +51,7 @@
 
 .nav-icons .icon {
   border: none;
-  border-radius: 10%;
+  border-radius: 30%;
   background-color: var(--background-color-one);
   padding: 5px;
   display: flex;

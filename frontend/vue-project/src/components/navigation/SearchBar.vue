@@ -24,10 +24,10 @@ export default {
 .search-container {
   display: flex;
   align-items: center;
-  min-width: 65vw;
+  min-width: 60vw;
   background-color: var(--background-color-one);
   border-radius: 100px;
-  padding: .3rem 1.8rem;
+  padding: .1rem 1.1rem;
   border: 1px solid transparent;
 }
 

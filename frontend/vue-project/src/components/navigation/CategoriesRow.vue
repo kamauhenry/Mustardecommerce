@@ -5,7 +5,9 @@
     </div>
     <div v-for="(group, index) in categoryGroups" :key="index" class="category-list">
       <p v-for="(category, i) in group" :key="i" class="category-list-p">
-        <a href="#" class="category-link">{{ category }}</a>
+        <router-link :to="getCategoryRoute(category)" class="category-link">
+          {{ category }}
+        </router-link>
       </p>
     </div>
   </div>
@@ -25,6 +27,11 @@ export default {
       ],
     };
   },
+  methods: {
+    getCategoryRoute(category) {
+      return `/category/${category.toLowerCase().replace(/[\s,&]+/g, "-")}`;
+    },
+  },
 };
 </script>
 
@@ -32,15 +39,15 @@ export default {
 .categories {
   display: flex;
   align-items: flex-start;
+  gap: 2rem;
   justify-content: space-around;
-  padding: .7rem .2rem;
-  background-color: var(--background-color-three);
+  padding: .7rem 1rem;
   font-weight: 700;
 }
 
 .category-title {
   font-weight: bold;
-  color: #ff4500;
+  color: var(--text-color-one);
   margin-right: 20px;
   min-width: 120px;
 }
@@ -59,16 +66,13 @@ export default {
 .category-p {
   color: var(--text-color-one);
   font-weight: 700;
+  font-size: 1.1rem;
 }
 
 .category-link {
+  font-size: 1.1rem;
   text-decoration: none;
-  color: #838636;
   font-weight: 700;
   transition: color 0.3s ease-in-out;
-}
-
-.category-link:hover {
-  color: #696b2b;
 }
 </style>
