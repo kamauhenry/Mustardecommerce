@@ -1,4 +1,4 @@
 django>=4.2
 psycopg2
 python-dotenv
-pillow 
+pillow

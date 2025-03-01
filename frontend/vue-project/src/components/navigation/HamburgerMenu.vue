@@ -137,6 +137,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 0 1rem;
   background-color: var(--vt-c-white);
+  z-index: 99;
 }
 
 .nav-bar-one {

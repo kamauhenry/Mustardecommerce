@@ -6,6 +6,10 @@
       <CategoriesRow />
     </template>
     <HamburgerMenu v-if="isMobile" :isOpen="isSidebarOpen" @close-menu="isSidebarOpen = false" />
+    <div class="handsome">
+      <p>I am very handsome</p>
+    </div>
+    <FooterPage></FooterPage>
     <CookiesConsent />
   </div>
 </template>
@@ -16,6 +20,7 @@ import TopRow from "../components/navigation/TopRow.vue";
 import PagesRow from "../components/navigation/PagesRow.vue";
 import CategoriesRow from "../components/navigation/CategoriesRow.vue";
 import HamburgerMenu from "../components/navigation/HamburgerMenu.vue";
+import FooterPage from "../components/footer/FooterPage.vue";
 import CookiesConsent from "../views/CookiesConsent.vue";
 
 export default {
@@ -24,6 +29,7 @@ export default {
     PagesRow,
     CategoriesRow,
     HamburgerMenu,
+    FooterPage,
     CookiesConsent,
   },
   setup() {
@@ -46,3 +52,11 @@ export default {
   },
 };
 </script>
+
+<style>
+.handsome {
+  flex: 1;
+  overflow-y: auto;
+  height: 50rem;
+}
+</style>

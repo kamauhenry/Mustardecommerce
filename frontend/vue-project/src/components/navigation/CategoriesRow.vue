@@ -64,7 +64,6 @@ export default {
 }
 
 .category-p {
-  color: var(--text-color-one);
   font-weight: 700;
   font-size: 1.1rem;
 }

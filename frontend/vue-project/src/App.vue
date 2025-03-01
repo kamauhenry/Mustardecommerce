@@ -25,6 +25,7 @@
   --text-color-ten: var(--vt-c-white); /* #ffffff white */
   --text-color-eleven: var(--vt-c-white); /* #ffffff white */
   --text-color-twelve: var(--vt-c-grey); /* grey */
+  --text-color-thirteen: var(--text-color-category-hover);
 }
 
 [data-theme="light"] {
@@ -36,16 +37,21 @@
   --text-color-ten: var(--vt-c-black-soft); /* #3d3d3d dark grey */
   --text-color-eleven: var(--text-color-two); /* #838636 darkish green */
   --text-color-twelve: var(--text-color-four); /* darker green */
+  --text-color-thirteen: var(--text-color-one);
 }
 
 .navbar {
-  background-color: var(--top-row-bg);
+  background-color: var(--categories-bg);
   transition: background-color 0.3s, color 0.3s;
 }
 
 .categories {
   background-color: var(--categories-bg);
   transition: background-color 0.3s, color 0.3s;
+}
+
+.category-p {
+  color: var(--text-color-thirteen);
 }
 
 .category-link {
@@ -60,6 +66,8 @@
 #app {
   background-color: var(--main-body-bg);
   transition: background-color 0.3s, color 0.3s;
-  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 </style>
