@@ -82,6 +82,7 @@ const currentYear = ref(new Date().getFullYear());
 .social-media {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
 }
 
 /* Add vertical dividers */
@@ -105,7 +106,8 @@ h3 {
 .icons {
   font-size: 1.5rem;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -135,7 +137,7 @@ h3 {
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 540px) {
   .footer-container {
     grid-template-columns: 1fr;
     text-align: center;
@@ -145,8 +147,11 @@ h3 {
   .social-media,
   .quick-links,
   .contact-info {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    flex-direction: column;
     border-right: none;
-    text-align: center;
   }
 }
 </style>

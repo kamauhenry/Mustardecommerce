@@ -33,10 +33,16 @@ import IconLogin from '../icons/IconLogin.vue'
 
 <style scoped>
 .navbar {
-  padding: 0.1rem;
+  padding: .3rem 0.1rem;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
+}
+
+.logo-image {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
 }
 
 .main-logo {

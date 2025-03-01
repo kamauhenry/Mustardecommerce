@@ -1,7 +1,9 @@
 <template>
   <header class="navbar">
     <div class="nav-bar-one">
-      <button class="hamburger" @click="isSidebarOpen = !isSidebarOpen">☰</button>
+      <button class="hamburger" @click="isSidebarOpen = !isSidebarOpen">
+        <IconHamburger></IconHamburger>
+      </button>
       <div class="logo">
         <img
           src="../../assets/images/mustard-imports.png"
@@ -98,9 +100,11 @@
       </ul>
     </nav>
   </aside>
+  <div v-if="isSidebarOpen" class="overlay" @click="isSidebarOpen = false"></div>
 </template>
 
 <script setup>
+import IconHamburger from '../icons/IconHamburger.vue'
 import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
 import IconLogin from '../icons/IconLogin.vue'
@@ -136,15 +140,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 1rem;
-  background-color: var(--vt-c-white);
-  z-index: 99;
 }
 
 .nav-bar-one {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 1.5rem;
+  gap: .3rem;
 }
 
 nav {
@@ -171,12 +173,25 @@ nav {
   align-items: center;
 }
 
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  z-index: 50;
+}
+
 .hamburger {
-  font-size: 2rem;
-  background: none;
   border: none;
-  cursor: pointer;
-  display: none;
+  border-radius: 30%;
+  background-color: var(--background-color-one);
+  padding: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Sidebar */
@@ -186,11 +201,11 @@ nav {
   left: -100%;
   width: 250px;
   height: 100vh;
-  background: white;
   transition: left 0.3s ease-in-out;
   padding: 1rem;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
   overflow-y: auto;
+  z-index: 99;
 }
 
 .sidebar.open {
@@ -229,7 +244,6 @@ nav {
 .page-list a,
 .category-list a {
   text-decoration: none;
-  color: black;
   font-weight: 700;
   display: block;
 }
@@ -243,6 +257,11 @@ nav {
   .hamburger {
     display: block;
   }
+
+  .nav-icons .icon {
+    width: 2.2rem;
+    border-radius: 30%;
+  }
 }
 
 @media (min-width: 360px) and (max-width: 539px) {
@@ -253,6 +272,7 @@ nav {
 
   .nav-icons .icon {
     width: 2.2rem;
+    border-radius: 30%;
   }
 }
 
@@ -264,6 +284,7 @@ nav {
 
   .nav-icons .icon {
     width: 2.2rem;
+    border-radius: 30%;
   }
 }
 
