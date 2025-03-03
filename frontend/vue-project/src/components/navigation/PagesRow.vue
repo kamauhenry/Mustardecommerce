@@ -19,6 +19,7 @@
 
 <style scoped>
   .page-list {
+    padding: 0 2%;
     background-color: var(--background-color-two);
   }
 

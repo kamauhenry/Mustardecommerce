@@ -41,7 +41,7 @@ export default {
   align-items: flex-start;
   gap: 2rem;
   justify-content: space-around;
-  padding: .7rem 1rem;
+  padding: 1.3rem 3.3rem;
   font-weight: 700;
 }
 

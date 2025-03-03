@@ -25,14 +25,14 @@ export default {
   display: flex;
   align-items: center;
   min-width: 60vw;
-  background-color: var(--background-color-one);
+  background-color: var(--vt-c-white);
   border-radius: 100px;
   padding: .1rem 1.1rem;
   border: 1px solid transparent;
 }
 
 .search-input {
-  background-color: var(--background-color-one);
+  background-color: var(--vt-c-white);
   flex: 1;
   border: none;
   padding: .8rem;

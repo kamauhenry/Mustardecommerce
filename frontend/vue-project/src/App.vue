@@ -37,12 +37,12 @@
   --text-color-eight: var(--text-color-two); /* #838636 darkish green */
   --text-color-nine: var(--text-color-two); /* #838636 darkish green */
   --text-color-ten: var(--vt-c-black-soft); /* #3d3d3d dark grey */
-  --text-color-eleven: var(--text-color-two); /* #838636 darkish green */
+  --text-color-eleven: #787a30; /* #838636 darkish green */
   --text-color-twelve: var(--text-color-four); /* darker green */
   --text-color-thirteen: var(--text-color-one);
 }
 
-.navbar {
+.navbar, .categories, .product-campaigns, .product-searches {
   background-color: var(--categories-bg);
   transition: background-color 0.3s, color 0.3s;
 }
@@ -51,15 +51,10 @@
   background-color: var(--main-body-bg);
   transition: background-color 0.3s, color 0.3s;
 }
-
-.page-list a,
-.category-list a {
-  color: var(--sidebar-text-color);
-}
-
-.categories {
-  background-color: var(--categories-bg);
-  transition: background-color 0.3s, color 0.3s;
+@media (max-width: 768px) {
+  .page-list a, .category-list a {
+    color: var(--sidebar-text-color);
+  }
 }
 
 .category-p {
@@ -73,6 +68,10 @@
 
 .category-link:hover {
   color: var(--text-color-twelve);
+}
+
+.campaigns-title, .searches-title {
+  color: var(--text-color-eleven);
 }
 
 #app {
