@@ -11,7 +11,7 @@
 
 <template>
   <div id="app">
-    <HomePage></HomePage>
+    <HomePage :key="$route.fullPath" />
   </div>
 </template>
 

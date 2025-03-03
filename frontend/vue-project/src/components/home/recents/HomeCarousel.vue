@@ -9,6 +9,7 @@
         v-for="(item, index) in slides"
         :key="index"
         :style="{ backgroundImage: `url(${item.image})` }"
+        @click="goToCategory(item.name)"
       >
         <div class="slide-content">
           <p class="slide-title">{{ item.name }}</p>
@@ -40,67 +41,67 @@ export default {
       categories: [
         {
           name: "Agriculture, Food & Drinks",
-          description: "Products and tools for farming and agriculture.",
+          description: "Explore a diverse range of products and tools tailored for modern farming and agriculture.",
           image: agriculture,
         },
         {
           name: "Baby, Kids & Games",
-          description: "Products for babies and infants.",
+          description: "Discover a delightful selection of products designed for babies, children, and engaging play.",
           image: babies,
         },
         {
           name: "Swag/Branded Gift Items",
-          description: "Customized gifts for marketing and branding.",
+          description: "Elevate your brand with our customizable swag and branded gift items, perfect for any occasion.",
           image: brandedGifts,
         },
         {
           name: "Buy4me",
-          description: "Service for purchasing products on your behalf.",
+          description: "Let us handle your shopping with our convenient Buy4me service, making online purchases a breeze.",
           image: buy4Me,
         },
         {
           name: "Clothes & Apparels",
-          description: "Fashionable clothing for all ages.",
+          description: "Find fashionable clothing and apparel for all ages and styles.",
           image: clothes,
         },
         {
           name: "Beauty, Personal & Health",
-          description: "Health and wellness products.",
+          description: "Enhance your well-being with our range of beauty, personal care, and health products.",
           image: health,
         },
         {
           name: "IKEA",
-          description: "Furniture and home goods from IKEA.",
+          description: "Transform your home with the latest furniture and stylish home goods from IKEA.",
           image: ikea,
         },
         {
           name: "Machine & Industrials",
-          description: "Industrial machinery and equipment.",
+          description: "Create your dream space with our extensive collection of home and kitchen appliances and essentials.",
           image: industrial,
         },
         {
           name: "Home & Kitchen",
-          description: "Kitchen appliances and cookware.",
+          description: "Discover innovative home appliances designed to simplify your daily routines and enhance your living space.",
           image: kitchen,
         },
         {
           name: "Electronics",
-          description: "High-performance laptops for all needs.",
+          description: "Explore the latest electronics and gadgets designed to make your life easier, more productive, and more enjoyable.",
           image: laptops,
         },
         {
           name: "Office",
-          description: "Office supplies and furniture.",
+          description: "Optimize your workspace with our range of office supplies and ergonomic furniture solutions.",
           image: office,
         },
         {
           name: "Bags & Footwear",
-          description: "Footwear for all occasions.",
+          description: "Step out in style with our fashionable bags and footwear for every occasion.",
           image: shoes,
         },
         {
           name: "Sports, Hardware & Entertainment",
-          description: "Sports equipment and apparel.",
+          description: "Gear up for your next adventure with our sports, hardware, and entertainment products.",
           image: sports,
         },
       ],
@@ -122,7 +123,11 @@ export default {
     startAutoSlide() {
       setInterval(() => {
         this.currentSlide = (this.currentSlide + 1) % this.slides.length;
-      }, 3000);
+      }, 5000);
+    },
+    goToCategory(categoryName) {
+      const urlFriendlyName = categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      this.$router.push(`/category/${urlFriendlyName}`);
     },
   },
 };
@@ -148,7 +153,7 @@ export default {
   background-size: cover;
   background-position: center;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   flex-direction: column;
 }
@@ -161,14 +166,15 @@ export default {
   font-family: "Roboto", sans-serif;
   font-size: 2rem;
   font-weight: 900;
-  color: var(--vt-c-white-soft);
+  color: var(--vt-c-category-carousel);
   padding-bottom: .1rem;
 }
 
 .slide-description {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: white;
-  padding-bottom: 2rem;
+  font-family: "Roboto", sans-serif;
+  margin: 0 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--vt-c-category-carousel);
 }
 </style>

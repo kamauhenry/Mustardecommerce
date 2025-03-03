@@ -5,7 +5,8 @@
     </div>
     <div v-for="(group, index) in categoryGroups" :key="index" class="category-list">
       <p v-for="(category, i) in group" :key="i" class="category-list-p">
-        <router-link :to="getCategoryRoute(category)" class="category-link">
+        <router-link :to="getCategoryRoute(category)" :key="$route.fullPath"
+        class="category-link">
           {{ category }}
         </router-link>
       </p>
@@ -29,7 +30,8 @@ export default {
   },
   methods: {
     getCategoryRoute(category) {
-      return `/category/${category.toLowerCase().replace(/[\s,&]+/g, "-")}`;
+      const urlFriendlyName = category.toLowerCase().replace(/[\s,&]+/g, "-");
+      return `/category/${urlFriendlyName}`;
     },
   },
 };
