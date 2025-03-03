@@ -2,26 +2,41 @@
   <div class="recent-searches">
     <p class="searches-title">Recent Searches</p>
     <div class="products-searches">
-      <div class="product-searches">
-        <img src="" alt="Product 1" class="product-search-img" width="50" height="50">
-        <p class="search-p">Product 1</p>
-      </div>
-      <div class="product-searches">
-        <img src="" alt="Product 1" class="product-search-img" width="50" height="50">
-        <p class="search-p">Product 1</p>
-      </div>
-      <div class="product-searches">
-        <img src="" alt="Product 1" class="product-search-img" width="50" height="50">
-        <p class="search-p">Product 1</p>
+      <div class="product-searches" v-for="(item, index) in searches" :key="index">
+        <img :src="item.image" alt="Product 1" class="product-search-img" width="50" height="50">
+        <div class="slide-content">
+          <p class="search-p">{{ item.product }}</p>
+        </div>
       </div>
     </div>
   </div>
 </template>
-<script>
-export default {
 
-}
+<script>
+import placeholder from "../../../assets/images/placeholder.png";
+
+export default {
+  data() {
+    return {
+      searches: [
+        {
+          image: placeholder,
+          product: "Product 4",
+        },
+        {
+          image: placeholder,
+          product: "Product 5",
+        },
+        {
+          image: placeholder,
+          product: "Product 6",
+        },
+      ],
+    };
+  },
+};
 </script>
+
 <style scoped>
   .recent-searches {
     padding: 1rem;
