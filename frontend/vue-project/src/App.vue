@@ -27,6 +27,7 @@
   --text-color-eleven: var(--vt-c-white); /* #ffffff white */
   --text-color-twelve: var(--vt-c-grey); /* grey */
   --text-color-thirteen: var(--text-color-category-hover);
+  --text-color-fourteen: var(--vt-c-white);
 }
 
 [data-theme="light"] {
@@ -40,6 +41,7 @@
   --text-color-eleven: #787a30; /* #838636 darkish green */
   --text-color-twelve: var(--text-color-four); /* darker green */
   --text-color-thirteen: var(--text-color-one);
+  --text-color-fourteen: var(--vt-c-black-soft);
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -72,6 +74,11 @@
 
 .campaigns-title, .searches-title {
   color: var(--text-color-eleven);
+}
+
+.campaign-p, .search-p {
+  color: var(--text-color-fourteen);
+  font-weight: 700;
 }
 
 #app {

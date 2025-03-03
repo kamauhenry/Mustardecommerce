@@ -66,5 +66,7 @@ export default {
   margin: 1% 3%;
   display: flex;
   gap: 2rem;
+  justify-content: center;
+  align-items: center;
 }
 </style>

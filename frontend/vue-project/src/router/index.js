@@ -8,7 +8,7 @@ import TrackOrder from "@/components/modals/TrackOrder.vue";
 import About from "@/views/About.vue";
 import Contact from "@/views/Contact.vue";
 import Cart from "@/views/Cart.vue";
-import CategoryPage from "@/views/CategoryPage.vue"; // Import Category Page
+import CategoryPage from "@/views/CategoryPage.vue";
 
 const routes = [
   { path: "/", component: Home },
