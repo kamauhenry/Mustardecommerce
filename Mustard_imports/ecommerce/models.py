@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.core.files import File
+from PIL import Image
+from io import BytesIO
 
 
 class User(AbstractUser):
@@ -18,10 +21,7 @@ class User(AbstractUser):
     location = models.CharField(max_length=255, blank=True)
 
 
-    
-    picture = models.ImageField(upload_to='user_images/', blank=True, null=True)
-
-    
+       
     def __str__(self):
         return self.username
 
@@ -30,10 +30,14 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     
     class Meta:
-        verbose_name_plural = "Categories"
+        verbose_name_plural = "Categories",
+        ordering = ('name',)
     
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        return f'/{self.name}'
 
 
 class Product(models.Model):
@@ -50,12 +54,16 @@ class Product(models.Model):
     below_moq_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='not_applicable')
-    moq_per_person = models.IntegerField(default=1, help_text="Maximum quantity allowed per person in group buy")
-    picture = models.ImageField(upload_to='product_images/', blank=True, null=True)
+    moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
+    picture = models.ImageField(upload_to='media/product_images/', blank=True, null=True)
+    thumbnail = models.ImageField(upload_to='media/product_images/', blank=True, null=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     
+    class  Meta:
+        ordering = ('-created_at',)
+
     def __str__(self):
         return self.name
     
@@ -80,6 +88,41 @@ class Product(models.Model):
         return min(100, int((current / self.moq) * 100))
 
 
+    
+    def get_absolute_url(self):
+        return f'/{self.category.name}/{self.name}/'
+
+    def get_image(self):
+        if self.picture:
+            return 'http://127.0.0.1:8000' + self.picture.url
+        return ''
+
+    def get_thumbnail(self):
+        if self.thumbnail:
+            return 'http://127.0.0.1:8000' + self.thumbnail.url
+        else:
+            if self.image:
+                self.thumbnail = self.make_thumbnail(self.picture)
+                self.save()
+
+                return 'http://127.0.0.1:8000' + self.thumbnail.url
+            else:
+                return ''
+    
+    def make_thumbnail(self, picture, size=(300, 200)):
+        img = Image.open(picture)
+        img.convert('RGB')
+        img.thumbnail(size)
+
+        thumb_io = BytesIO()
+        img.save(thumb_io, 'JPEG', quality=85)
+
+        thumbnail = File(thumb_io, name=picture.name)
+
+        return thumbnail
+    
+ 
+
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     color = models.CharField(max_length=50)
@@ -92,14 +135,6 @@ class ProductVariant(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.color} - {self.size}"
 
-
-class ProductImage(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='product_images/')
-    is_primary = models.BooleanField(default=False)
-    
-    def __str__(self):
-        return f"Image for {self.product.name}"
 
 
 class Cart(models.Model):
@@ -288,10 +323,3 @@ class MOQRequest(models.Model):
         return f"MOQ Request: {self.product_name}"
 
 
-class MOQRequestImage(models.Model):
-    request = models.ForeignKey(MOQRequest, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='moq_request_images/')
-    
-    def __str__(self):
-        return f"Image for MOQ Request #{self.request.id}"
-pip

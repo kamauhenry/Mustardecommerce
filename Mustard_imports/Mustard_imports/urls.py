@@ -14,8 +14,10 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.conf.urls.static import static
 
 from django.views.generic import TemplateView
 
@@ -23,13 +25,10 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('api/v1/', include('ecommerce.api.urls')),
+    path('api/v1', include('djoser.urls')),
+    path('api/v1', include('djoser.urls.authtoken')),
     path('', include('ecommerce.urls')),
 
     path('', TemplateView.as_view(template_name='../frontend/index.html'), name='react-frontend'),
+] +static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-]
-
-# Serve static and media files in development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
