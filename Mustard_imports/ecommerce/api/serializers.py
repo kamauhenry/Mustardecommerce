@@ -20,10 +20,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
     class Meta:
         model = Category
-        fields = ['id', 'name']
+        fields = ['id', 'name','products']
 
+    def get_products(self, obj):
+        latest_products = Product.object.filter(category=obj).order_by('-created_at')[:4]
+        return ProductSerializer(latest_products, many=True, context=self.context).data
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,7 +50,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'price', 'below_moq_price',
                  'moq', 'moq_status', 'moq_per_person', 'picture',
                  'rating', 'category', 'category_name', 'variants', 
-                 'picture','thumbnail', 'moq_progress', 'created_at']
+                 'thumbnail', 'moq_progress', 'created_at']
     
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':

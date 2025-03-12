@@ -20,6 +20,12 @@ from .serializers import (
     CartItemSerializer
 )
 
+class CategoriesWithProductsViewSet(APIView):
+    def get(self, request, format=None):
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True, context={'request': request})
+        return Response(serializer.data)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
