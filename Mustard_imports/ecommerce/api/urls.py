@@ -19,6 +19,8 @@ urlpatterns = [
     # Include all router-generated routes
     path('', include(router.urls)),
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
+    path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
+    path('category/<int:category_id>/products/', CategoryProductsView.as_view(), name='category-products'),
     
 
     # Optional: Include DRF's authentication endpoints (e.g., login/logout)

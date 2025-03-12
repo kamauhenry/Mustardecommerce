@@ -26,6 +26,19 @@ class CategoriesWithProductsViewSet(APIView):
         serializer = CategorySerializer(categories, many=True, context={'request': request})
         return Response(serializer.data)
 
+class CategoryProductsView(APIView):
+    def get(self, request, category_id, *args, **kwargs):
+        try:
+            category = Category.objects.get(id=category_id)
+            products = Product.objects.filter(category=category).order_by('-created_at')
+            serializer = ProductSerializer(products, many=True, context={'request': request})
+            return Response({
+                'category': {'id': category.id, 'name': category.name},
+                'products': serializer.data
+            })
+        except Category.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
