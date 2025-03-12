@@ -6,9 +6,10 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from .permissions import IsOwnerOrAdmin, IsAdminUser
 
-from ecommerce.models import (
-    User, Category, Product, ProductVariant, 
-    Order, CompletedOrder, CustomerReview, MOQRequest, Cart, CartItem
+from ..models import (
+    User, Category, Product, ProductVariant,
+    Order, CompletedOrder, CustomerReview, MOQRequest,
+    Cart, CartItem
 )
 from .serializers import (
     UserSerializer, CategorySerializer, ProductSerializer, 

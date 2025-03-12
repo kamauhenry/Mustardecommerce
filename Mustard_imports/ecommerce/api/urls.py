@@ -1,6 +1,7 @@
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework import routers
 from .views import *
+from ..views import index
 # Creating DRF router
 router = routers.DefaultRouter()
 
@@ -20,4 +21,5 @@ urlpatterns = [
 
     # Optional: Include DRF's authentication endpoints (e.g., login/logout)
     path('auth/', include('rest_framework.urls', namespace='rest_framework')),
+    re_path(r'^(?:.*)/?$', index),
 ]
