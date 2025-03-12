@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from .permissions import IsOwnerOrAdmin, IsAdminUser
+from django.http import Http404
+from rest_framework.views import APIView
 
 from ecommerce.models import (
     User, Category, Product, ProductVariant, 
@@ -24,7 +26,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()[0:10]
+    queryset = Product.objects.all()[0:4]
     serializer_class = ProductSerializer  # Fixed
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -45,6 +47,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         reviews = CustomerReview.objects.filter(product=product)
         serializer = CustomerReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class ProductDetail(APIView):
+    def get_object(self, category_slug, product_slug):
+        try:
+            return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
+        except Product.DoesNotExist:
+            raise Http404
+    def get(self, request, category_slug, product_slug, format=None):
+        product = self.get_object(category_slug, product_slug)
+        serializer = ProductSerializer(product)
+        return Response(serializer.data)
+
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
