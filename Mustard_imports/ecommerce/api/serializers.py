@@ -1,16 +1,12 @@
 from rest_framework import serializers
-
-from ..models import (
-    User, Category, Product, ProductVariant, ProductImage,
-    Order, CompletedOrder, CustomerReview, MOQRequest, Cart, CartItem
-)
+from ecommerce.models import *
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name',
-                  'user_type', 'points', 'affiliate_code', 'location', 'picture']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+                 'user_type', 'points', 'affiliate_code', 'location']
         read_only_fields = ['points', 'affiliate_code']
         extra_kwargs = {'password': {'write_only': True}}
 
@@ -35,25 +31,21 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         fields = ['id', 'color', 'size']
 
 
-class ProductImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductImage
-        fields = ['id', 'image', 'is_primary']
 
 
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
-    images = ProductImageSerializer(many=True, read_only=True)
+   
     category_name = serializers.ReadOnlyField(source='category.name')
     moq_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = ['id', 'name', 'description', 'price', 'below_moq_price',
-                  'moq', 'moq_status', 'moq_per_person', 'picture',
-                  'rating', 'category', 'category_name', 'variants',
-                  'images', 'moq_progress', 'created_at']
-
+                 'moq', 'moq_status', 'moq_per_person', 'picture',
+                 'rating', 'category', 'category_name', 'variants', 
+                 'get_picture','get_thumbnail', 'moq_progress', 'created_at']
+    
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
             return {

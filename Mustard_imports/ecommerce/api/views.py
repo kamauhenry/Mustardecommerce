@@ -2,17 +2,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
+from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404
 from .permissions import IsOwnerOrAdmin, IsAdminUser
-from .serializers import (
-    CategorySerializer, ProductSerializer,
-    ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,
-    CustomerReviewSerializer, MOQRequestSerializer, CartSerializer
-)
-from ..models import (
-    Category, Product, ProductVariant, Order, CompletedOrder, CustomerReview, MOQRequest, Cart, CartItem
-)
 
+from ecommerce.models import (
+    User, Category, Product, ProductVariant, 
+    Order, CompletedOrder, CustomerReview, MOQRequest, Cart, CartItem
+)
+from .serializers import (
+    UserSerializer, CategorySerializer, ProductSerializer, 
+    ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,
+    CustomerReviewSerializer, MOQRequestSerializer, CartSerializer,
+    CartItemSerializer
+)
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -23,8 +26,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializer
+    queryset = Product.objects.all()[0:10]
+    serializer_class = ProductSerializer  # Fixed
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'moq_status']
@@ -35,7 +38,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def variants(self, request, pk=None):
         product = self.get_object()
         variants = ProductVariant.objects.filter(product=product)
-        serializer = ProductVariantSerializer(variants, many=True)
+        serializer = ProductVariantSerializer(variants, many=True)  # Fixed
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
@@ -56,8 +59,8 @@ class CartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Find or create cart for the user
         cart, created = Cart.objects.get_or_create(user=self.request.user)
-        return cart
-
+        serializer.save(user=self.request.user)  # Fixed
+    
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):
         cart = self.get_object()
