@@ -1,5 +1,5 @@
-from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 from django.utils import timezone
 from django.core.files import File
 from PIL import Image
@@ -12,7 +12,7 @@ class User(AbstractUser):
         ('seller', 'Seller'),
         ('admin', 'Admin'),
     )
-    
+
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='customer')
     email = models.EmailField(unique=True)
     points = models.IntegerField(default=0)
@@ -31,7 +31,6 @@ class Category(models.Model):
     slug = models.SlugField(null=True, blank=True)
     
     class Meta:
-        verbose_name_plural = "Categories",
         ordering = ('name',)
     
     def __str__(self):
@@ -48,7 +47,7 @@ class Product(models.Model):
         ('completed', 'Completed'),
         ('not_applicable', 'Not Applicable'),
     )
-    
+
     name = models.CharField(max_length=255)
     slug = models.SlugField(null=True, blank=True)
     description = models.TextField()
@@ -68,24 +67,24 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     def current_moq_count(self):
         """Calculate current ordered quantity towards MOQ completion"""
         if self.moq_status != 'active':
             return 0
-        
+
         active_orders = Order.objects.filter(
             product=self,
             payment_status='pending',
             is_cancelled=False
         )
         return sum(order.quantity for order in active_orders)
-    
+
     def moq_progress_percentage(self):
         """Calculate MOQ completion percentage"""
         if self.moq <= 1 or self.moq_status != 'active':
             return 100
-        
+
         current = self.current_moq_count()
         return min(100, int((current / self.moq) * 100))
 
@@ -130,10 +129,9 @@ class ProductVariant(models.Model):
     color = models.CharField(max_length=50)
     size = models.CharField(max_length=20)
 
-    
     class Meta:
         unique_together = ('product', 'color', 'size')
-    
+
     def __str__(self):
         return f"{self.product.name} - {self.color} - {self.size}"
 
@@ -146,14 +144,14 @@ class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return f"Cart for {self.user.username}"
-    
+
     @property
     def total_items(self):
         return self.items.count()
-    
+
     @property
     def subtotal(self):
         return sum(item.line_total for item in self.items.all())
@@ -168,13 +166,13 @@ class CartItem(models.Model):
     variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ('cart', 'product', 'variant')
-    
+
     def __str__(self):
         return f"{self.quantity}x {self.product.name} ({self.variant.color}, {self.variant.size})"
-    
+
     @property
     def line_total(self):
         # Calculate price based on MOQ status
@@ -192,20 +190,20 @@ class Order(models.Model):
         ('refunded', 'Refunded'),
         ('failed', 'Failed'),
     )
-    
+
     DELIVERY_STATUS_CHOICES = (
         ('processing', 'Processing'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     )
-    
+
     SHIPPING_METHOD_CHOICES = (
         ('standard', 'Standard Shipping'),
         ('express', 'Express Shipping'),
         ('pickup', 'Local Pickup'),
     )
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
@@ -219,10 +217,10 @@ class Order(models.Model):
     is_cancelled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     payment_method = models.CharField(max_length=50, blank=True, null=True)
-    
+
     def __str__(self):
         return f"Order #{self.id} - {self.user.username}"
-    
+
     def save(self, *args, **kwargs):
         # If this is a new order, set price based on current product pricing and MOQ status
         if not self.id:
@@ -231,13 +229,13 @@ class Order(models.Model):
                 self.price = product.below_moq_price or product.price
             else:
                 self.price = product.price
-                
+
             # Set shipping address from user's location if not provided
             if not self.shipping_address and self.shipping_method != 'pickup':
                 self.shipping_address = self.user.location
-                
+
         super().save(*args, **kwargs)
-    
+
     def move_to_completed(self):
         """
         Move an order to the completed orders table once it's delivered
@@ -250,11 +248,11 @@ class Order(models.Model):
                 product=self.product,
                 variant_details={
                     'color': self.variant.color,
-                    'size': self.variant.size,                   
+                    'size': self.variant.size,
                 },
                 quantity=self.quantity,
                 price_paid=self.price,
-                shipping_method=self.shipping_method,                
+                shipping_method=self.shipping_method,
                 payment_method=self.payment_method or 'Not recorded',
                 was_moq_order=self.product.moq_status == 'active',
                 order_date=self.created_at
@@ -279,7 +277,7 @@ class CompletedOrder(models.Model):
     was_moq_order = models.BooleanField(default=False)
     order_date = models.DateTimeField()
     completion_date = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"Completed Order #{self.order_number}"
 
@@ -290,10 +288,10 @@ class CustomerReview(models.Model):
     content = models.TextField()
     rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"Review by {self.user.username} for {self.product.name}"
-    
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         # Update product rating when review is saved
@@ -312,7 +310,7 @@ class MOQRequest(models.Model):
         ('rejected', 'Rejected'),
         ('completed', 'Completed'),
     )
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='moq_requests')
     product_name = models.CharField(max_length=255)
     product_link = models.URLField()
@@ -320,7 +318,7 @@ class MOQRequest(models.Model):
     description = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"MOQ Request: {self.product_name}"
 

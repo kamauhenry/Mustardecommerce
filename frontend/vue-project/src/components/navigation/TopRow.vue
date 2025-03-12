@@ -1,8 +1,12 @@
 <script setup>
+import { ref } from 'vue';
 import SearchBar from './SearchBar.vue'
 import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
 import IconLogin from '../icons/IconLogin.vue'
+import Modal from '../modals/LoginRegisterModal.vue';
+
+const showModal = ref(false);
 </script>
 
 <template>
@@ -24,10 +28,11 @@ import IconLogin from '../icons/IconLogin.vue'
       <div class="icon">
         <IconCart></IconCart>
       </div>
-      <div class="icon">
-        <IconLogin></IconLogin>
+      <div class="icon" @click="showModal = true">
+        <IconLogin />
       </div>
     </div>
+    <Modal v-if="showModal" :show="showModal" @close="showModal = false" />
   </div>
 </template>
 

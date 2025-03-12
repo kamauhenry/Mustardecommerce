@@ -9,22 +9,21 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-import psycopg2
-from dotenv import load_dotenv
 import os
+from os import path, getenv
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-50e2ituix^^l)ugqk*8j-nlcy!!zf#xwsa6mv2=$&m9&6qi$90'
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-DEBUG=True
+DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
 # Application definition
 
@@ -73,17 +72,20 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",
-]
+CORS_ALLOWED_ORIGINS = "http://localhost:8000,http://localhost:5173".split(",")
+CORS_ALLOW_CREDENTIALS = True
+
 
 ROOT_URLCONF = 'Mustard_imports.urls'
+from django.conf import settings
+
+print("Template DIRS:", os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist'))
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
+        'DIRS': [os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist')],
+        'APP_DIRS': False,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -94,9 +96,9 @@ TEMPLATES = [
         },
     },
 ]
+print("Expected template path:", settings.TEMPLATES[0]['DIRS'])
 
 WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -106,18 +108,20 @@ load_dotenv()
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('dbname'),
-        'USER': os.environ.get('user'),
-        'PASSWORD': os.environ.get('password'),
-        'HOST': os.environ.get('host'),
-        'PORT': os.environ.get('port'),
+        'NAME': getenv('DB_NAME'),
+        'USER': getenv('DB_USER'),
+        'PASSWORD': getenv('DB_PASSWORD'),
+        'HOST': getenv('DB_HOST'),
+        'PORT': getenv('DB_PORT'),
         'OPTIONS': {
-            'sslmode': 'require', 
+            'sslmode': 'disable',
         },
     }
 }
 
-AUTH_USER_MODEL = 'ecommerce.User' 
+SECRET_KEY = getenv('SECRET_KEY')
+
+AUTH_USER_MODEL = 'ecommerce.User'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -137,7 +141,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
@@ -149,22 +152,22 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
-
-
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-REACT_APP_DIR = os.path.join(BASE_DIR, 'frontend', 'build')
+# Static and Media Files Configuration
+STATIC_URL = '/static/'
+MEDIA_URL = '/media/'
 
-if os.path.exists(REACT_APP_DIR):
-    STATICFILES_DIRS = [os.path.join(REACT_APP_DIR, 'static')]
+# Vue.js Build Directory (inside `dist`)
+VUE_APP_DIR = BASE_DIR.parent / 'frontend' / 'vue-project' / 'dist'
+
+if VUE_APP_DIR.exists():
+    STATICFILES_DIRS = [VUE_APP_DIR]  # Serve Vue assets as static files
+    STATIC_ROOT = VUE_APP_DIR / 'staticfiles'  # Collect Django static files here
+    MEDIA_ROOT = VUE_APP_DIR / 'media'  # Store media files here
+else:
+    STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
+    MEDIA_ROOT = BASE_DIR.parent / 'media'
