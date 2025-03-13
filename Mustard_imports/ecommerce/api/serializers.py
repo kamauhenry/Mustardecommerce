@@ -6,7 +6,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                 'user_type', 'points', 'affiliate_code', 'location']
+                 'user_type', 'points', 'affiliate_code', 'location', ]
         read_only_fields = ['points', 'affiliate_code']
         extra_kwargs = {'password': {'write_only': True}}
 
@@ -20,10 +20,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
     class Meta:
         model = Category
-        fields = ['id', 'name']
+        fields = ['id', 'name','products']
 
+    def get_products(self, obj):
+        latest_products = Product.object.filter(category=obj).order_by('-created_at')[:4]
+        return ProductSerializer(latest_products, many=True, context=self.context).data
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,13 +42,15 @@ class ProductSerializer(serializers.ModelSerializer):
    
     category_name = serializers.ReadOnlyField(source='category.name')
     moq_progress = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = Product
         fields = ['id', 'name', 'description', 'price', 'below_moq_price',
                  'moq', 'moq_status', 'moq_per_person', 'picture',
                  'rating', 'category', 'category_name', 'variants', 
-                 'get_picture','get_thumbnail', 'moq_progress', 'created_at']
+                 'thumbnail', 'moq_progress', 'created_at']
     
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
@@ -54,6 +60,12 @@ class ProductSerializer(serializers.ModelSerializer):
                 'percentage': obj.moq_progress_percentage()
             }
         return None
+
+    def get_thumbnail(self, obj):
+        return obj.get_thumbnail()
+
+    def get_thumbnail(self, obj):
+        return obj.get_thumbnail()
 
 
 class CartItemSerializer(serializers.ModelSerializer):

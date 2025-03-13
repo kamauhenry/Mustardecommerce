@@ -28,16 +28,16 @@ class User(AbstractUser):
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
-
+    slug = models.SlugField(null=True, blank=True)
+    
     class Meta:
-        verbose_name_plural = "Categories",
         ordering = ('name',)
     
     def __str__(self):
         return self.name
 
     def get_absolute_url(self):
-        return f'/{self.name}'
+        return f'/{self.slug}'
 
 
 class Product(models.Model):
@@ -49,14 +49,15 @@ class Product(models.Model):
     )
 
     name = models.CharField(max_length=255)
+    slug = models.SlugField(null=True, blank=True)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     below_moq_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='not_applicable')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
-    picture = models.ImageField(upload_to='media/product_images/', blank=True, null=True)
-    thumbnail = models.ImageField(upload_to='media/product_images/', blank=True, null=True)
+    picture = models.ImageField(upload_to='product_images/', blank=True, null=True)
+    thumbnail = models.ImageField(upload_to='product_images/', blank=True, null=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -90,7 +91,7 @@ class Product(models.Model):
 
     
     def get_absolute_url(self):
-        return f'/{self.category.name}/{self.name}/'
+        return f'/{self.category.slug}/{self.slug}/'
 
     def get_image(self):
         if self.picture:
@@ -101,7 +102,7 @@ class Product(models.Model):
         if self.thumbnail:
             return 'http://127.0.0.1:8000' + self.thumbnail.url
         else:
-            if self.image:
+            if self.picture:
                 self.thumbnail = self.make_thumbnail(self.picture)
                 self.save()
 
@@ -109,7 +110,7 @@ class Product(models.Model):
             else:
                 return ''
     
-    def make_thumbnail(self, picture, size=(300, 200)):
+    def make_thumbnail(self, picture, size=(200, 100)):
         img = Image.open(picture)
         img.convert('RGB')
         img.thumbnail(size)

@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from .permissions import IsOwnerOrAdmin, IsAdminUser
+from django.http import Http404
+from rest_framework.views import APIView
 
 from ..models import (
     User, Category, Product, ProductVariant,
@@ -18,6 +20,25 @@ from .serializers import (
     CartItemSerializer
 )
 
+class CategoriesWithProductsViewSet(APIView):
+    def get(self, request, format=None):
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class CategoryProductsView(APIView):
+    def get(self, request, category_id, *args, **kwargs):
+        try:
+            category = Category.objects.get(id=category_id)
+            products = Product.objects.filter(category=category).order_by('-created_at')
+            serializer = ProductSerializer(products, many=True, context={'request': request})
+            return Response({
+                'category': {'id': category.id, 'name': category.name},
+                'products': serializer.data
+            })
+        except Category.DoesNotExist:
+            return Response({'error': 'Category not found'}, status=404)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -27,7 +48,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()[0:10]
+    queryset = Product.objects.all()[0:4]
     serializer_class = ProductSerializer  # Fixed
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -55,6 +76,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         products = Product.objects.filter(category=category)
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class ProductDetail(APIView):
+    def get_object(self, category_slug, product_slug):
+        try:
+            return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
+        except Product.DoesNotExist:
+            raise Http404
+    def get(self, request, category_slug, product_slug, format=None):
+        product = self.get_object(category_slug, product_slug)
+        serializer = ProductSerializer(product)
+        return Response(serializer.data)
+
 
 
 class CartViewSet(viewsets.ModelViewSet):
