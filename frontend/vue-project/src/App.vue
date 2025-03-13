@@ -23,6 +23,7 @@
   --text-color-twelve: var(--vt-c-grey); /* grey */
   --text-color-thirteen: var(--text-color-category-hover);
   --text-color-fourteen: var(--vt-c-white);
+  --text-color-page-title: var(--text-color-one);
 }
 
 [data-theme="light"] {
@@ -37,6 +38,7 @@
   --text-color-twelve: var(--text-color-four); /* darker green */
   --text-color-thirteen: var(--text-color-one);
   --text-color-fourteen: var(--vt-c-black-soft);
+  --text-color-page-title: var(--text-color-two);
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -74,6 +76,14 @@
 .campaign-p, .search-p {
   color: var(--text-color-fourteen);
   font-weight: 700;
+}
+
+.page-title {
+  font-family:cursive;
+  color: var(--text-color-page-title);
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 #app {
