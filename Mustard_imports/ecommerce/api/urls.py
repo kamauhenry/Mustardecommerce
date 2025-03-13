@@ -16,10 +16,9 @@ router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')  # N
 
 # Define URL patterns
 urlpatterns = [
-    # Include all router-generated routes
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),  # Prefix all API routes with /api/
+    path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
 
-    # Optional: Include DRF's authentication endpoints (e.g., login/logout)
-    path('auth/', include('rest_framework.urls', namespace='rest_framework')),
-    re_path(r'^(?:.*)/?$', index),
+    # Catch-all route for Vue.js frontend
+    re_path(r'^(?!api/).*$', index),
 ]

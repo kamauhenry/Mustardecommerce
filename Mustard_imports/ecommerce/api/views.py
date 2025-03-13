@@ -49,6 +49,13 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = CustomerReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='category/(?P<category_name>[^/.]+)')
+    def products_by_category(self, request, category_name=None):
+        category = get_object_or_404(Category, name=category_name.replace("-", " "))
+        products = Product.objects.filter(category=category)
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+        return Response(serializer.data)
+
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer

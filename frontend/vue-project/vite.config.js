@@ -13,9 +13,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
-  base: '/static/',  // Ensure Vite-generated assets use Django's static URL
+  base: '/static/',  // Vite-generated assets use Django's static URL
   build: {
-    outDir: '../vue-project/dist',  // Ensures the output goes into frontend/dist
+    outDir: '../vue-project/dist',  // The output goes into frontend/dist
     assetsDir: 'assets',
     manifest: true,  // Generates manifest.json for Django
     rollupOptions: {
@@ -27,7 +27,15 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173,  // Vite's dev server port
-    strictPort: true
+    port: 5173,  // Vite’s dev server port (avoid conflict with Django)
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: '//127.0.0.1:8000/',  // Redirect API requests to Django
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
+       }
+    }
   }
 })

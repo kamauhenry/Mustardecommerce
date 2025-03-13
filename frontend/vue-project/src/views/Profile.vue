@@ -1,14 +1,7 @@
 <!-- eslint-disable vue/multi-word-component-names -->
-<template lang="">
+<template>
   <div>
-
+    <h1>Profile Page</h1>
+    <p>Welcome to your profile.</p>
   </div>
 </template>
-<script>
-export default {
-
-}
-</script>
-<style lang="">
-
-</style>

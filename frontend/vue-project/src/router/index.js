@@ -1,4 +1,3 @@
-// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from '@/views/HomePage.vue';
 import MOQCampaigns from '@/views/MOQCampaigns.vue';
@@ -20,7 +19,8 @@ const routes = [
     { path: '/cart', component: Cart },
     { path: '/login', component: LoginRegister },
     { path: '/category/:categoryName', component: CategoryPage, props: true },
-    { path: '/:catchAll(.*)*', redirect: '/' },
+    // Catch-all route (Only for non-API routes)
+    { path: '/:catchAll(.*)', redirect: '/' },
 ];
 
 const router = createRouter({

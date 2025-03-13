@@ -1,8 +1,10 @@
-import axios from 'axios';
+import axios from "axios";
 
 const api = axios.create({
-    baseURL: 'http://localhost:8000/api/', // Django backend URL
-    withCredentials: true,
+  baseURL: "//127.0.0.1:8000/",
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 export default api;
