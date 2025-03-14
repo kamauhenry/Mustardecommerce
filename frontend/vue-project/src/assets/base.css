@@ -5,9 +5,9 @@
   --vt-c-white-mute: #f2f2f2;
 
   --vt-c-black: #181818;
-  --vt-c-black-soft: #3d3d3d;
+  --vt-c-black-soft: #202020;
   --vt-c-grey: #dfdfdf;
-  --vt-c-black-mute: #7e7e7e;
+  --vt-c-black-mute: #2c2c2c;
 
   --vt-c-indigo: #2c3e50;
 
@@ -34,6 +34,8 @@
   /* Home */
   --background-color-four: #85ce7e;
   --background-color-five: rgb(152, 91, 17, .5);
+  --bg-color-about-section-1: linear-gradient(180deg, #ffffff, #f0f0f0);
+  --bg-color-about-section-2: #3d3d3d;
   --text-color-three: #bf6a02;
   --text-color-four: #5E5500;
   --text-color-five: #999998;

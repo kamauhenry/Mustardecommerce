@@ -44,7 +44,7 @@ export default {
   gap: 2rem;
   justify-content: space-around;
   padding: 1.3rem 3.3rem;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .category-title {
@@ -66,14 +66,14 @@ export default {
 }
 
 .category-p {
-  font-weight: 700;
+  font-weight: 500;
   font-size: 1.1rem;
 }
 
 .category-link {
   font-size: 1.1rem;
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 500;
   transition: color 0.3s ease-in-out;
 }
 </style>
