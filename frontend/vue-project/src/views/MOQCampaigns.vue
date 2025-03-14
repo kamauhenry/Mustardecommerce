@@ -1,13 +1,12 @@
-<template lang="">
-  <div>
+<script setup>
+import MainLayout from "@/components/navigation/MainLayout.vue";
 
-  </div>
-</template>
-<script>
-export default {
-
-}
 </script>
+
+<template>
+  <MainLayout></MainLayout>
+</template>
+
 <style lang="">
 
 </style>

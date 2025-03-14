@@ -1,8 +1,9 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <script>
 import api from "@/api.js";
-
+import MainLayout from "@/components/navigation/MainLayout.vue";
 export default {
+  components: {MainLayout},
   data() {
     return {
       products: [],
@@ -25,15 +26,17 @@ export default {
 </script>
 
 <template>
-  <div>
-    <h1>Product List</h1>
-    <div v-if="loading">Loading...</div>
-    <div v-else-if="error">{{ error }}</div>
-    <ul v-else>
-      <li v-for="product in products" :key="product.id">
-        {{ product.name }} - ${{ product.price }}
-      </li>
-    </ul>
-  </div>
+  <MainLayout>
+    <div>
+      <h1>Product List</h1>
+      <div v-if="loading">Loading...</div>
+      <div v-else-if="error">{{ error }}</div>
+      <ul v-else>
+        <li v-for="product in products" :key="product.id">
+          {{ product.name }} - ${{ product.price }}
+        </li>
+      </ul>
+    </div>
+  </MainLayout>
 </template>
 

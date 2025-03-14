@@ -1,19 +1,22 @@
 <template>
-  <div class="category-page">
-    <h1>{{ formattedCategory }}</h1>
-    <div v-if="filteredProducts.length">
-      <div v-for="product in filteredProducts" :key="product.id" class="product-card">
-        <img :src="categoryImages[product.categoryFormatted]" :alt="product.name" />
-        <h3>{{ product.name }}</h3>
-        <p>{{ product.description }}</p>
-        <p class="price">${{ product.price }}</p>
+  <MainLayout>
+    <div class="category-page">
+      <h1>{{ formattedCategory }}</h1>
+      <div v-if="filteredProducts.length">
+        <div v-for="product in filteredProducts" :key="product.id" class="product-card">
+          <img :src="categoryImages[product.categoryFormatted]" :alt="product.name" />
+          <h3>{{ product.name }}</h3>
+          <p>{{ product.description }}</p>
+          <p class="price">${{ product.price }}</p>
+        </div>
       </div>
+      <p v-else>No products found in this category.</p>
     </div>
-    <p v-else>No products found in this category.</p>
-  </div>
+  </MainLayout>
 </template>
 
 <script>
+import MainLayout from "@/components/navigation/MainLayout.vue";
 import agriculture from "../assets/images/agriculture.jpeg";
 import babies from "../assets/images/babies.jpeg";
 import brandedGifts from "../assets/images/branded-gifts.jpeg";
@@ -29,6 +32,7 @@ import shoes from "../assets/images/shoes.jpeg";
 import sports from "../assets/images/sports.jpeg";
 
 export default {
+  components: {MainLayout},
   computed: {
     categoryName() {
       return this.$route.params.categoryName;

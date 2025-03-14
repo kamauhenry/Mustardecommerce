@@ -24,6 +24,8 @@
   --text-color-thirteen: var(--text-color-category-hover);
   --text-color-fourteen: var(--vt-c-white);
   --text-color-page-title: var(--text-color-one);
+  --bg-color-about-section: var(--bg-color-about-section-2);
+  --bg-color-about-section-card: var(--vt-c-black-mute);
 }
 
 [data-theme="light"] {
@@ -39,6 +41,8 @@
   --text-color-thirteen: var(--text-color-one);
   --text-color-fourteen: var(--vt-c-black-soft);
   --text-color-page-title: var(--text-color-two);
+  --bg-color-about-section: var(--bg-color-about-section-1);
+  --bg-color-about-section-card: var(--vt-c-white);
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -56,11 +60,11 @@
   }
 }
 
-.category-p {
+.category-p, .about-h2 {
   color: var(--text-color-thirteen);
 }
 
-.category-link {
+.category-link, .about-p {
   color: var(--text-color-eleven);
 
 }
@@ -84,6 +88,20 @@
   font-size: 1.4rem;
   font-weight: 700;
   text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.section-title {
+  color: var(--text-color-page-title);
+}
+
+.about-text {
+  background-image: var(--bg-color-about-section);
+}
+
+.team-card, .testimonial-card {
+  background-color: var(--bg-color-about-section-card);
 }
 
 #app {
@@ -91,6 +109,5 @@
   transition: background-color 0.3s, color 0.3s;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 </style>
