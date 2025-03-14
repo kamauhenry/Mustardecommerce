@@ -26,7 +26,7 @@ urlpatterns = [
     path('api/', include('djoser.urls')),
     path('api/', include('djoser.urls.authtoken')),
     path('', include('ecommerce.urls')),
-    path('', TemplateView.as_view(template_name='index.html'), name='frontend/vue-project'),
+    path('', TemplateView.as_view(template_name='index.html'), name='home'),
 ]
 
 # Serve static and media files in development
