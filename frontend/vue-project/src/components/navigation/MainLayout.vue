@@ -8,7 +8,7 @@
     <HamburgerMenu v-if="isMobile" :isOpen="isSidebarOpen" @close-menu="isSidebarOpen = false" />
 
     <main>
-      <slot></slot> <!-- This will render the page content -->
+      <slot></slot>
     </main>
 
     <FooterPage />
@@ -63,6 +63,6 @@ export default {
 }
 main {
   flex: 1;
-  margin: 1% 3%;
+  margin: .5rem;
 }
 </style>

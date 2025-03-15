@@ -67,4 +67,15 @@ export default {
     align-items: center;
     width: 20vw;
   }
+
+@media (max-width: 540px) {
+  .recent-searches {
+    display: none;
+  }
+
+  .product-searches {
+    width: 80vw;
+    align-items: center;
+  }
+}
 </style>

@@ -1,7 +1,7 @@
 from django.urls import include, path, re_path
 from rest_framework import routers
 from .views import *
-from ..views import index
+from ..views import VueAppView
 # Creating DRF router
 router = routers.DefaultRouter()
 
@@ -25,7 +25,8 @@ urlpatterns = [
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<int:category_id>/products/', CategoryProductsView.as_view(), name='category-products'),
     
+    path('csrf/', set_csrf_token, name='set-csrf-token'),
 
     # Catch-all route for Vue.js frontend
-    re_path(r'^(?!api/).*$', index),
+    re_path(r'^(?!api/).*$', VueAppView.as_view()),
 ]

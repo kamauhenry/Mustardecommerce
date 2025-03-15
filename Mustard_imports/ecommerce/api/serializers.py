@@ -1,22 +1,67 @@
 from rest_framework import serializers
-from ecommerce.models import *
+from ..models import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+    re_password = serializers.CharField(write_only=True, required=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                 'user_type', 'points', 'affiliate_code', 'location', ]
-        read_only_fields = ['points', 'affiliate_code']
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ['id', 'email', 'password', 're_password', 'first_name', 'last_name', 'location', 'user_type']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'email': {'required': True},
+        }
+
+    def validate(self, data):
+        errors = {}
+
+        # Email validation
+        if not data.get('email'):
+            errors["email"] = "This field is required."
+        if User.objects.filter(email=data['email']).exists():
+            errors["email"] = "A user with this email already exists."
+
+        # Password validation
+        if data['password'] != data['re_password']:
+            errors["password"] = "Passwords must match."
+
+        # User type validation
+        user_type = data.get('user_type', 'customer')
+        if user_type not in ['customer', 'admin']:
+            errors["user_type"] = "Invalid user type."
+
+        # Log errors before raising an exception
+        if errors:
+            logger.error(f"Validation Errors: {errors}")  # Logs to Django console
+            print("Validation Errors:", errors)  # Debugging in console
+            raise serializers.ValidationError(errors)
+
+        return data
 
     def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user = User.objects.create(**validated_data)
-        if password:
-            user.set_password(password)
+        try:
+            validated_data.pop('re_password')
+            user = User(
+                email=validated_data['email'],
+                first_name=validated_data['first_name'],
+                last_name=validated_data['last_name'],
+                location=validated_data.get('location', ''),
+                user_type=validated_data.get('user_type', 'customer'),
+            )
+            user.set_password(validated_data['password'])
+            user.username = validated_data['email'].split('@')[0]
             user.save()
-        return user
+
+            return user
+        except Exception as e:
+            raise serializers.ValidationError({"detail": str(e)})
 
 
 class CategorySerializer(serializers.ModelSerializer):

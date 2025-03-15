@@ -7,6 +7,9 @@ from django.shortcuts import get_object_or_404
 from .permissions import IsOwnerOrAdmin, IsAdminUser
 from django.http import Http404
 from rest_framework.views import APIView
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from ..models import (
     User, Category, Product, ProductVariant,
@@ -277,3 +280,7 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
 
         serializer = MOQRequestSerializer(moq_request)
         return Response(serializer.data)
+
+@ensure_csrf_cookie
+def set_csrf_token(request):
+    return JsonResponse({'detail': 'CSRF cookie set'})

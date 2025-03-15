@@ -27,17 +27,26 @@
           <div class="about-text">
             <h2 class="about-h2">Our Vision</h2>
             <p class="about-p">
-              To be the most trusted and innovative e-commerce marketplace, creating connections that inspire and products that elevate lifestyles while promoting environmental responsibility.
+              Our vision is to be Kenya's most trusted and innovative e-commerce marketplace, where customers find not only the products they love but also a seamless and enriching shopping experience. We strive to create meaningful connections between people and brands, fostering a community built on convenience, quality, and reliability.
             </p>
           </div>
+
           <div class="about-text">
             <h2 class="about-h2">Our Values</h2>
-            <ul class="about-p">
-              <li>Innovation - Always pushing boundaries.</li>
-              <li>Customer-First - Every decision revolves around you.</li>
-              <li>Sustainability - Ethical sourcing and environmental responsibility.</li>
-              <li>Integrity - Transparent, trustworthy, and dedicated.</li>
-            </ul>
+            <p class="about-p">
+              <span style="display: block;">
+                1. <strong>Innovation</strong> – We are constantly pushing boundaries to redefine what is possible. Through research, creativity, and a forward-thinking approach, we strive to develop cutting-edge solutions that not only meet but exceed expectations.
+              </span>
+              <span style="display: block;">
+                2. <strong>Customer-First</strong> – Your satisfaction is at the heart of everything we do, and we are dedicated to building lasting relationships based on trust, quality, and outstanding support.
+              </span>
+              <span style="display: block;">
+                3. <strong>Sustainability</strong> – By promoting eco-friendly solutions and reducing waste, we are committed to creating a more sustainable future for generations to come.
+              </span>
+              <span style="display: block;">
+                4. <strong>Integrity</strong> – Transparency, trustworthiness, and dedication define who we are. We operate with honesty and uphold the highest ethical standards in everything we do.
+              </span>
+            </p>
           </div>
         </div>
       </section>

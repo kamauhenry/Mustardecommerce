@@ -30,7 +30,7 @@ export default {
   },
   methods: {
     getCategoryRoute(category) {
-      const urlFriendlyName = category.toLowerCase().replace(/[\s,&]+/g, "-");
+      const urlFriendlyName = category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       return `/category/${urlFriendlyName}`;
     },
   },

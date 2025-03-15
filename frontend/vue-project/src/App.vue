@@ -21,7 +21,7 @@
   --text-color-ten: var(--vt-c-white); /* #ffffff white */
   --text-color-eleven: var(--vt-c-white); /* #ffffff white */
   --text-color-twelve: var(--vt-c-grey); /* grey */
-  --text-color-thirteen: var(--text-color-category-hover);
+  --text-color-thirteen: var(--text-color-one);
   --text-color-fourteen: var(--vt-c-white);
   --text-color-page-title: var(--text-color-one);
   --bg-color-about-section: var(--bg-color-about-section-2);
@@ -32,7 +32,7 @@
   --top-row-bg: var(--vt-c-white);
   --categories-bg: var(--background-color-three);
   --main-body-bg: var(--vt-c-white);
-  --sidebar-text-color: var(--vt-c-black); /* #ffffff white */
+  --sidebar-text-color: var(--vt-c-black-mute); /* #ffffff white */
   --text-color-eight: var(--text-color-two); /* #838636 darkish green */
   --text-color-nine: var(--text-color-two); /* #838636 darkish green */
   --text-color-ten: var(--vt-c-black-soft); /* #3d3d3d dark grey */
@@ -60,6 +60,7 @@
   }
 }
 
+/* Categories */
 .category-p, .about-h2 {
   color: var(--text-color-thirteen);
 }
@@ -82,9 +83,10 @@
   font-weight: 700;
 }
 
+/* About */
 .page-title {
   font-family:cursive;
-  color: var(--text-color-page-title);
+  color: var(--text-color-eleven);
   font-size: 1.4rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -104,10 +106,24 @@
   background-color: var(--bg-color-about-section-card);
 }
 
+/* Products */
+.product-card {
+  background-color: var(--categories-bg);
+}
+
+.product-header,.moq, .moq-details, .progress-text {
+  color: var(--sidebar-text-color);
+}
+
+.price {
+  color: var(--text-color-page-title);
+}
+
 #app {
   background-color: var(--main-body-bg);
   transition: background-color 0.3s, color 0.3s;
   display: flex;
   flex-direction: column;
+  font-weight: 700;
 }
 </style>

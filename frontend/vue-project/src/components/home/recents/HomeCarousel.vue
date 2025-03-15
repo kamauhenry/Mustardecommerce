@@ -21,19 +21,19 @@
 </template>
 
 <script>
-import agriculture from "../../../assets/images/agriculture.jpeg";
-import babies from "../../../assets/images/babies.jpeg";
-import brandedGifts from "../../../assets/images/branded-gifts.jpeg";
-import buy4Me from "../../../assets/images/buy-4-me.jpeg";
-import clothes from "../../../assets/images/clothes.jpeg";
-import health from "../../../assets/images/health.jpeg";
-import ikea from "../../../assets/images/ikea.jpeg";
-import industrial from "../../../assets/images/industrial.jpeg";
-import kitchen from "../../../assets/images/kitchen.jpeg";
-import laptops from "../../../assets/images/laptops.jpeg";
-import office from "../../../assets/images/office.jpeg";
-import shoes from "../../../assets/images/shoes.jpeg";
-import sports from "../../../assets/images/sports.jpeg";
+import agriculture from "@/assets/images/agriculture.jpeg";
+import babies from "@/assets/images/babies.jpeg";
+import brandedGifts from "@/assets/images/branded-gifts.jpeg";
+import buy4Me from "@/assets/images/buy-4-me.jpeg";
+import clothes from "@/assets/images/clothes.jpeg";
+import health from "@/assets/images/health.jpeg";
+import ikea from "@/assets/images/ikea.jpeg";
+import industrial from "@/assets/images/industrial.jpeg";
+import kitchen from "@/assets/images/kitchen.jpeg";
+import laptops from "@/assets/images/laptops.jpeg";
+import office from "@/assets/images/office.jpeg";
+import shoes from "@/assets/images/shoes.jpeg";
+import sports from "@/assets/images/sports.jpeg";
 
 export default {
   data() {
@@ -136,7 +136,7 @@ export default {
 <style scoped>
 .carousel {
   width: 100%;
-  height: 45vh;
+  height: 20vh;
   overflow: hidden;
   position: relative;
   border-radius: 20px;
@@ -149,7 +149,7 @@ export default {
 
 .slide {
   min-width: 100%;
-  height: 45vh;
+  height: 20vh;
   background-size: cover;
   background-position: center;
   display: flex;
@@ -176,5 +176,21 @@ export default {
   font-size: 1.1rem;
   font-weight: 500;
   color: var(--vt-c-category-carousel);
+}
+
+@media (min-width: 1200px) {
+  .carousel, .slide {
+    height: 40vh;
+  }
+}
+
+@media (max-width: 360px) {
+  .slide-title {
+    font-size: 1.5rem;
+  }
+
+  .slide-description {
+    font-size: .9rem;;
+  }
 }
 </style>

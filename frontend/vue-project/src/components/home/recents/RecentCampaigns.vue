@@ -39,6 +39,7 @@ export default {
 
 <style scoped>
 .recent-campaigns {
+  margin: 1rem;
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -65,10 +66,23 @@ export default {
   gap: 1rem;
   justify-content: flex-start;
   align-items: center;
-  width: 20vw;
+  width: fit-content;
 }
 
 .product-campaign-img {
   border-radius: 10px;
+}
+
+@media (max-width: 540px) {
+  .recent-campaigns {
+    margin: 0;
+    padding: 0;
+  }
+
+
+  .product-campaigns {
+    width: 85vw;
+    align-items: center;
+  }
 }
 </style>

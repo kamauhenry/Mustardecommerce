@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import index
+from .views import VueAppView
 
 urlpatterns = [
-    path("", index, name="index"),
+    path('', VueAppView.as_view(), name='vue-app'),
 ]

@@ -1,9 +1,11 @@
 <template>
   <MainLayout>
     <div id="homePage">
-      <RecentCampaigns></RecentCampaigns>
-      <HomeCarousel></HomeCarousel>
-      <RecentSearches></RecentSearches>
+      <div class="top-part-home">
+        <RecentCampaigns></RecentCampaigns>
+        <HomeCarousel></HomeCarousel>
+        <RecentSearches></RecentSearches>
+      </div>
     </div>
   </MainLayout>
 </template>
@@ -23,3 +25,20 @@ export default {
   },
 };
 </script>
+
+<style>
+
+.top-part-home {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  gap: 20px;
+}
+
+@media (max-width: 540px) {
+  .top-part-home {
+    margin: 1rem;
+    flex-wrap: wrap-reverse;
+  }
+}
+</style>

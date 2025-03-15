@@ -1,12 +1,29 @@
 <script setup>
 import { ref } from 'vue';
-import SearchBar from './SearchBar.vue'
-import IconLightMode from '../icons/IconLightMode.vue'
-import IconCart from '../icons/IconCart.vue'
-import IconLogin from '../icons/IconLogin.vue'
-import Modal from '../modals/LoginRegisterModal.vue';
+import { useAuthStore } from '@/stores/auth';
+import SearchBar from './SearchBar.vue';
+import IconLightMode from '@/components/icons/IconLightMode.vue';
+import IconCart from '@/components/icons/IconCart.vue';
+import IconLogin from '@/components/icons/IconLogin.vue';
+import IconLogout from '@/components/icons/IconLogout.vue';
+import LoginRegisterModal from '@/components/modals/LoginRegisterModal.vue';
 
 const showModal = ref(false);
+const authStore = useAuthStore();
+
+// Initialize authentication on component mount
+authStore.initializeAuth();
+
+// Methods to handle modal and logout
+const toggleModal = () => {
+  showModal.value = !showModal.value;
+};
+
+const handleLogout = async () => {
+  await authStore.logout();
+  // Optionally redirect to home page
+  window.location.href = '/';
+};
 </script>
 
 <template>
@@ -14,7 +31,7 @@ const showModal = ref(false);
     <div class="logo-image">
       <router-link to="/">
         <img
-          src="../../assets/images/mustard-imports.png"
+          src="@/assets/images/mustard-imports.png"
           alt="Mustard Imports Logo"
           class="main-logo"
         />
@@ -28,11 +45,17 @@ const showModal = ref(false);
       <div class="icon">
         <IconCart></IconCart>
       </div>
-      <div class="icon" @click="showModal = true">
-        <IconLogin />
+      <div class="icon" @click="toggleModal">
+        <IconLogin v-if="!authStore.isAuthenticated" />
+        <IconLogout v-else @click="handleLogout" />
       </div>
     </div>
-    <Modal v-if="showModal" :show="showModal" @close="showModal = false" />
+    <LoginRegisterModal
+      v-if="showModal"
+      :show="showModal"
+      @close="showModal = false"
+      :initial-tab="'login'"
+    />
   </div>
 </template>
 
