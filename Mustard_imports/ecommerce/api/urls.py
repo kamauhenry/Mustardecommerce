@@ -22,7 +22,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
-    path('category/<int:category_id>/products/', CategoryProductsView.as_view(), name='category-products'),
+    path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
     
 

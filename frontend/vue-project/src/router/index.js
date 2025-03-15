@@ -15,6 +15,7 @@ import ProductDetails from '../views/ProductDetails.vue';
 const routes = [
     { path: '/', component: Home },
     { path: '/moq-campaigns', component: MOQCampaigns },
+
     { path: '/profile', component: Profile },
     { path: '/orders', component: Orders },
     { path: '/about', component: About },
