@@ -1,21 +1,21 @@
 <template>
-    <div class="category-products">
-      <div v-if="loading" class="loading">Loading categories...</div>
-      <div v-else-if="!categories.length" class="no-categories">No categories available.</div>
-      
-      <!-- Container for 2-column category layout -->
-      <div class="categories-grid">
-        <div v-for="(category, index) in categories" :key="category.id" class="category-section">
-          <div class="category-header">
-            <h2 class="category-title">{{ category.name }}</h2>
-            <a href="#" class="see-more-button">See more</a>
-          </div>
-          
-          <div class="products-grid">
-            <div v-for="product in getLatestProducts(category.products)" :key="product.id" class="product-card">
+  <div class="category-products">
+    <div v-if="loading" class="loading">Loading categories...</div>
+    <div v-else-if="!categories.length" class="no-categories">No categories available.</div>
+    
+    <!-- Container for 2-column category layout -->
+    <div class="categories-grid">
+      <div v-for="(category, index) in categories" :key="category.id" class="category-section">
+        <div class="category-header">
+          <h2 class="category-title">{{ category.name }}</h2>
+          <router-link :to="`/category/${category.slug}`" class="see-more-button">See more</router-link>
+        </div>
+        
+        <div class="products-grid">
+          <div v-for="product in getLatestProducts(category.products)" :key="product.id" class="product-card">
+            <!-- Make the entire card clickable to go to product detail -->
+            <router-link :to="`/product/${category.slug}/${product.slug}`" class="product-link">
               <div class="product-image">
-                <!-- Debug statement to check what's being received -->
-                <!-- <p>{{ product.thumbnail }}</p> -->
                 <img :src="product.thumbnail || '/path/to/placeholder.jpg'" :alt="product.name">
               </div>
               
@@ -23,11 +23,11 @@
                 <h3 class="product-name">{{ product.name }}</h3>
                 <div class="product-moq">MOQ: {{ product.minimum_order_quantity || product.moq || 1 }}</div>
                 <div class="product-price">
-                  Below MOQ Price:KES {{ product.below_moq_price || product.price }}
+                  Below MOQ Price: KES {{ product.below_moq_price || product.price }}
                 </div>
                 <div class="product-status">
-                  <span class="status-active">Active</span>
-                  <span class="status-percentage">{{ product.stock_percentage || product.moq_progress?.percentage || '100' }}%</span>
+                  <span class="status-active">{{ product.moq_status || 'Active' }}</span>
+                  <span class="status-percentage">{{ product.moq_progress?.percentage || '100' }}%</span>
                   <span :class="['status-availability', isLowStock(product) ? 'low-stock' : 'in-stock']">
                     {{ isLowStock(product) ? 'Low Stock' : 'In Stock' }}
                   </span>
@@ -37,71 +37,102 @@
               <div class="product-price-tag">
                 KES {{ product.price }}
               </div>
-            </div>
-            
-            <p v-if="!getLatestProducts(category.products).length" class="no-products">
-              No products available in this category.
-            </p>
+            </router-link>
           </div>
+          
+          <p v-if="!getLatestProducts(category.products).length" class="no-products">
+            No products available in this category.
+          </p>
         </div>
       </div>
     </div>
-  </template>
+  </div>
+</template>
   
-  <script>
-  import axios from 'axios';
-  
-  export default {
-    name: 'CategoryProducts',
-    data() {
-      return {
-        categories: [],
-        loading: true,
-      };
-    },
-    mounted() {
-      this.fetchCategories();
-    },
-    methods: {
-      async fetchCategories() {
-        try {
-          const response = await axios.get('/api/all-categories-with-products/');
-          console.log('API Response:', response.data);
-          
-          // Verify thumbnail data
-          if (response.data && response.data.length > 0 && response.data[0].products && response.data[0].products.length > 0) {
-            console.log('First product thumbnail:', response.data[0].products[0].thumbnail);
+<script>
+import axios from 'axios';
+
+export default {
+  name: 'CategoryProducts',
+  data() {
+    return {
+      categories: [],
+      loading: true,
+    };
+  },
+  mounted() {
+    this.fetchCategories();
+  },
+  methods: {
+    async fetchCategories() {
+      try {
+        const response = await axios.get('/api/all-categories-with-products/');
+        console.log('API Response:', response.data);
+        
+        // Verify data structure and log for debugging
+        if (response.data && response.data.length > 0) {
+          console.log('First category:', response.data[0].name, 'slug:', response.data[0].slug);
+          if (response.data[0].products && response.data[0].products.length > 0) {
+            console.log('First product:', response.data[0].products[0].name, 'slug:', response.data[0].products[0].slug);
           }
-          
-          this.categories = response.data || [];
-        } catch (error) {
-          console.error('Error fetching categories:', error);
-          this.categories = [];
-        } finally {
-          this.loading = false;
         }
-      },
-      getLatestProducts(products) {
-        // Handle case where products is undefined or not an array
-        if (!Array.isArray(products) || !products.length) {
-          return []; // Return empty array if no valid products
-        }
-        // Sort by created_at and take exactly 4 products (2x2 grid)
-        return products
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 4);
-      },
-      isLowStock(product) {
-        // Determine if product is low in stock based on percentage
-        const percentage = product.stock_percentage || 
-                           (product.moq_progress ? product.moq_progress.percentage : 100);
-        return percentage < 20; // Consider "low stock" if less than 20%
+        
+        this.categories = response.data || [];
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        this.categories = [];
+      } finally {
+        this.loading = false;
       }
     },
-  };
-  </script>
+    getLatestProducts(products) {
+      // Handle case where products is undefined or not an array
+      if (!Array.isArray(products) || !products.length) {
+        return []; // Return empty array if no valid products
+      }
+      // Sort by created_at and take exactly 4 products (2x2 grid)
+      return products
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 4);
+    },
+    isLowStock(product) {
+      // For MOQ products, check if we're far from reaching the minimum order threshold
+      if (product.moq_status === 'active' && product.moq > 1) {
+        // Get the current progress toward MOQ completion
+        const currentCount = product.moq_progress?.current || 0;
+        const targetMOQ = product.moq || 1;
+        const percentage = Math.min(100, Math.floor((currentCount / targetMOQ) * 100));
+        
+        // Consider "low stock" if we're below 75% of reaching MOQ
+        return percentage < 75;
+      }
+      
+      // For regular products (non-MOQ or completed MOQ)
+      return false;
+    }
+  },
+};
+</script>
   
   <style scoped>
+
+.product-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+.product-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+
  .category-products {
   font-family: 'Roboto', sans-serif;
   padding: 8px;
@@ -206,8 +237,11 @@
   color: #333;
   /* Limit to two lines with ellipsis */
   display: -webkit-box;
+  display: box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
+  box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
   max-height: 28px;

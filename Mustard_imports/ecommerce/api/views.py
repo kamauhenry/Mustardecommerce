@@ -52,6 +52,7 @@ class AllCategoriesWithProductsView(APIView):
             result.append({
                 'id': category.id,
                 'name': category.name,
+                'slug': category.slug,
                 'products': product_serializer.data
             })
         
@@ -65,6 +66,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.AllowAny]
     queryset = Product.objects.all()[0:4]
     serializer_class = ProductSerializer  # Fixed
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -96,6 +98,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class ProductDetail(APIView):
+    permission_classes = [permissions.AllowAny]
     def get_object(self, category_slug, product_slug):
         try:
             return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)

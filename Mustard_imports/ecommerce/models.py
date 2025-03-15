@@ -113,22 +113,22 @@ class Product(models.Model):
             else:
                 return ''
     
-def make_thumbnail(self, picture, size=(200, 100)):
-    img = Image.open(picture)
-    img.convert('RGB')
-    img.thumbnail(size)
+    def make_thumbnail(self, picture, size=(200, 100)):
+        img = Image.open(picture)
+        img.convert('RGB')
+        img.thumbnail(size)
 
-    thumb_io = BytesIO()
-    img.save(thumb_io, 'JPEG', quality=85)
+        thumb_io = BytesIO()
+        img.save(thumb_io, 'JPEG', quality=85)
+        
+        # Use only the base filename, not the full path
     
-    # Use only the base filename, not the full path
-  
-    import os
-    filename = os.path.basename(picture.name)
-    thumbnail = File(thumb_io, name=filename)
+        import os
+        filename = os.path.basename(picture.name)
+        thumbnail = File(thumb_io, name=filename)
 
-    return thumbnail
- 
+        return thumbnail
+    
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
