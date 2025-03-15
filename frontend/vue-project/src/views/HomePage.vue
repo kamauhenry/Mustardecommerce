@@ -30,31 +30,34 @@ export default {
 </script>
 
 <style scoped>
-#homePage {
-  padding: 20px; /* Optional padding for the whole page */
-}
-
 .component-row {
   display: flex;
   flex-direction: row;
-  gap: 20px;
-  justify-content: space-between; /* Distributes space evenly */
-  align-items: stretch; /* Ensures all components stretch to the same height */
-}
-
-/* Ensure each component takes up equal width */
-.component-row > * {
-  flex: 1; /* Each child takes equal space */
-  max-width: 33.33%; /* Cap at 1/3 of the row width */
+  justify-content: center;
+  /* align-items: center; */
+  margin: 1rem 0;
 }
 
 /* Responsive design */
 @media (max-width: 768px) {
   .component-row {
-    flex-direction: column;
+    flex-direction: column-reverse;
+    gap: 1rem;
+    align-items: center;
+
   }
   .component-row > * {
-    max-width: 100%; /* Full width on mobile */
+    width: 100%;
+  }
+
+  .recent-campaigns {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .component-row {
+    align-items: stretch;
   }
 }
 </style>

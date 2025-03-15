@@ -3,7 +3,7 @@
     <p class="campaigns-title">Recent Campaigns</p>
     <div class="products-campaigns">
       <div class="product-campaigns" v-for="(item, index) in campaigns" :key="index">
-        <img :src="item.image" alt="Product 1" class="product-campaign-img" width="50" height="50">
+        <img :src="item.image" alt="Product 1" class="product-campaign-img" width="30" height="30">
         <div class="slide-content">
           <p class="campaign-p">{{ item.product }}</p>
         </div>
@@ -13,7 +13,7 @@
 </template>
 
 <script>
-import placeholder from "../../../assets/images/placeholder.png";
+import placeholder from "@/assets/images/ikea.jpeg";
 
 export default {
   data() {
@@ -39,12 +39,12 @@ export default {
 
 <style scoped>
 .recent-campaigns {
-  padding: 1rem;
+  padding: 0 1rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  width: 100%;
+  justify-content: baseline;
+  min-width: 20vw;
+  width: 35%;
 }
 
 .campaigns-title {
