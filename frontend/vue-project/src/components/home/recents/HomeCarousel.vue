@@ -136,20 +136,20 @@ export default {
 <style scoped>
 .carousel {
   /* width: 80%; */
-  height: 13rem;
+  height: inherit;
   overflow: hidden;
   position: relative;
-  border-radius: 20px;
 }
 
 .carousel-slides {
   display: flex;
   transition: transform 0.5s ease-in-out;
+  height: 100%;
 }
 
 .slide {
   min-width: 100%;
-  height: 13rem;
+  /* height: 100%; */
   background-size: cover;
   background-position: center;
   display: flex;
@@ -180,7 +180,7 @@ export default {
 
 @media (min-width: 768px) {
   .carousel {
-    max-width: 40vw;
+    max-width: 35vw;
   }
 }
 

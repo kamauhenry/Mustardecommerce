@@ -3,7 +3,7 @@
     <p class="campaigns-title">Recent Campaigns</p>
     <div class="products-campaigns">
       <div class="product-campaigns" v-for="(item, index) in campaigns" :key="index">
-        <img :src="item.image" alt="Product 1" class="product-campaign-img" width="30" height="30">
+        <img :src="item.image" alt="Product 1" class="product-campaign-img" width="50" height="50">
         <div class="slide-content">
           <p class="campaign-p">{{ item.product }}</p>
         </div>
@@ -42,9 +42,9 @@ export default {
   padding: 0 1rem;
   display: flex;
   flex-direction: column;
-  justify-content: baseline;
-  min-width: 20vw;
+  justify-content: center;
   width: 35%;
+  min-width: 20vw;
 }
 
 .campaigns-title {
@@ -60,7 +60,7 @@ export default {
 
 .product-campaigns {
   border-radius: 10px;
-  padding: 0.5rem 1rem;
+  padding: 1rem;
   display: flex;
   flex-direction: row;
   gap: 0.5rem;
