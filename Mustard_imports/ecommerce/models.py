@@ -15,6 +15,7 @@ class User(AbstractUser):
 
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='customer')
     email = models.EmailField(unique=True)
+    #phone_number = models.CharField(max_length=20, unique=True, null=False)
     points = models.IntegerField(default=0)
     affiliate_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

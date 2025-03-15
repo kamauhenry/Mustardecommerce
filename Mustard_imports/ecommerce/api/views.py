@@ -27,13 +27,15 @@ class CategoriesWithProductsViewSet(APIView):
         return Response(serializer.data)
 
 class CategoryProductsView(APIView):
-    def get(self, request, category_id, *args, **kwargs):
+
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, category_slug, *args, **kwargs):
         try:
-            category = Category.objects.get(id=category_id)
+            category = Category.objects.get(slug=category_slug)
             products = Product.objects.filter(category=category).order_by('-created_at')
             serializer = ProductSerializer(products, many=True, context={'request': request})
             return Response({
-                'category': {'id': category.id, 'name': category.name},
+                'category': {'slug': category.slug, 'name': category.name},
                 'products': serializer.data
             })
         except Category.DoesNotExist:

@@ -6,7 +6,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                 'user_type', 'points', 'affiliate_code', 'location', ]
+                 'user_type','phone_number', 'points', 'affiliate_code', 'location', ]
         read_only_fields = ['points', 'affiliate_code']
         extra_kwargs = {'password': {'write_only': True}}
 
@@ -21,6 +21,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class CategorySerializer(serializers.ModelSerializer):
     products = serializers.SerializerMethodField()
+    
     class Meta:
         model = Category
         fields = ['id', 'name','products','slug']
@@ -39,6 +40,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
+    price = serializers.FloatField()
    
     category_name = serializers.ReadOnlyField(source='category.name')
     moq_progress = serializers.SerializerMethodField()
