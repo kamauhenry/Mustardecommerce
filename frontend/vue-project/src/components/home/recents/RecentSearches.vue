@@ -44,6 +44,7 @@ export default {
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
+    width: 100%;
   }
 
   .searches-title {
@@ -59,12 +60,12 @@ export default {
 
   .product-searches {
     border-radius: 10px;
-    padding: 1rem 2rem;
+    padding: 0.5rem 1rem;
     display: flex;
     flex-direction: row;
-    gap: 1rem;
+    gap: 0.5rem;
     justify-content: flex-start;
     align-items: center;
-    width: 20vw;
+    width: 100%;
   }
 </style>

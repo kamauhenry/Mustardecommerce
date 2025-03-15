@@ -1,4 +1,4 @@
-from django.urls import include, path, re_path
+from django.urls import include, path
 from rest_framework import routers
 from .views import *
 from ..views import index
@@ -16,16 +16,15 @@ router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')
 
 # Define URL patterns
 urlpatterns = [
-    path('api/', include(router.urls)),  # Prefix all API routes with /api/
-    path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path('', include(router.urls)),  
+    path('auth/', include('rest_framework.urls', namespace='rest_framework')),
     
-    # Include all router-generated routes
     path('', include(router.urls)),
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<int:category_id>/products/', CategoryProductsView.as_view(), name='category-products'),
+    path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
     
 
-    # Catch-all route for Vue.js frontend
-    re_path(r'^(?!api/).*$', index),
+
 ]

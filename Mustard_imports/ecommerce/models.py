@@ -95,33 +95,39 @@ class Product(models.Model):
 
     def get_image(self):
         if self.picture:
-            return 'http://127.0.0.1:8000' + self.picture.url
+            return 'http://127.0.0.1:8000/' + self.picture.url
         return ''
 
     def get_thumbnail(self):
         if self.thumbnail:
-            return 'http://127.0.0.1:8000' + self.thumbnail.url
+        # Use Django's built-in URL construction
+            from django.conf import settings
+            return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         else:
             if self.picture:
                 self.thumbnail = self.make_thumbnail(self.picture)
                 self.save()
-
-                return 'http://127.0.0.1:8000' + self.thumbnail.url
+                
+                from django.conf import settings
+                return settings.SITE_URL + self.thumbnail.url.lstrip('/')
             else:
                 return ''
     
-    def make_thumbnail(self, picture, size=(200, 100)):
-        img = Image.open(picture)
-        img.convert('RGB')
-        img.thumbnail(size)
+def make_thumbnail(self, picture, size=(200, 100)):
+    img = Image.open(picture)
+    img.convert('RGB')
+    img.thumbnail(size)
 
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=85)
-
-        thumbnail = File(thumb_io, name=picture.name)
-
-        return thumbnail
+    thumb_io = BytesIO()
+    img.save(thumb_io, 'JPEG', quality=85)
     
+    # Use only the base filename, not the full path
+  
+    import os
+    filename = os.path.basename(picture.name)
+    thumbnail = File(thumb_io, name=filename)
+
+    return thumbnail
  
 
 class ProductVariant(models.Model):

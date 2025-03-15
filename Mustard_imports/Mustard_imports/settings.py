@@ -80,12 +80,12 @@ ROOT_URLCONF = 'Mustard_imports.urls'
 from django.conf import settings
 
 print("Template DIRS:", os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist'))
-
+SITE_URL = 'http://127.0.0.1:8000/'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist')],
-        'APP_DIRS': False,
+        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',

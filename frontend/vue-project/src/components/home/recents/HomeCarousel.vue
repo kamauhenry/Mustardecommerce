@@ -164,7 +164,7 @@ export default {
 
 .slide-title {
   font-family: "Roboto", sans-serif;
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 900;
   color: var(--vt-c-category-carousel);
   padding-bottom: .1rem;
@@ -172,8 +172,8 @@ export default {
 
 .slide-description {
   font-family: "Roboto", sans-serif;
-  margin: 0 1.5rem;
-  font-size: 1.1rem;
+  margin: 0 1rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--vt-c-category-carousel);
 }

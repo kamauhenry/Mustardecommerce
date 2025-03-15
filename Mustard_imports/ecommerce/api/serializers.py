@@ -23,10 +23,10 @@ class CategorySerializer(serializers.ModelSerializer):
     products = serializers.SerializerMethodField()
     class Meta:
         model = Category
-        fields = ['id', 'name','products']
+        fields = ['id', 'name','products','slug']
 
     def get_products(self, obj):
-        latest_products = Product.object.filter(category=obj).order_by('-created_at')[:4]
+        latest_products = Product.objects.filter(category=obj).order_by('-created_at')
         return ProductSerializer(latest_products, many=True, context=self.context).data
 
 class ProductVariantSerializer(serializers.ModelSerializer):
@@ -47,7 +47,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'below_moq_price',
+        fields = ['id', 'name','slug', 'description', 'price', 'below_moq_price',
                  'moq', 'moq_status', 'moq_per_person', 'picture',
                  'rating', 'category', 'category_name', 'variants', 
                  'thumbnail', 'moq_progress', 'created_at']
@@ -60,9 +60,6 @@ class ProductSerializer(serializers.ModelSerializer):
                 'percentage': obj.moq_progress_percentage()
             }
         return None
-
-    def get_thumbnail(self, obj):
-        return obj.get_thumbnail()
 
     def get_thumbnail(self, obj):
         return obj.get_thumbnail()

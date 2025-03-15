@@ -39,6 +39,23 @@ class CategoryProductsView(APIView):
         except Category.DoesNotExist:
             return Response({'error': 'Category not found'}, status=404)
 
+class AllCategoriesWithProductsView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request, *args, **kwargs):
+        categories = Category.objects.all()
+        result = []
+        
+        for category in categories:
+            products = Product.objects.filter(category=category).order_by('-created_at')
+            product_serializer = ProductSerializer(products, many=True, context={'request': request})
+            result.append({
+                'id': category.id,
+                'name': category.name,
+                'products': product_serializer.data
+            })
+        
+        return Response(result)
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
