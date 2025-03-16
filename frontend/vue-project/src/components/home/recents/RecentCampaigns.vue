@@ -63,7 +63,7 @@ export default {
   padding: 1rem;
   display: flex;
   flex-direction: row;
-  gap: 0.5rem;
+  gap: 1rem;
   justify-content: flex-start;
   align-items: center;
   width: 100%;

@@ -1,42 +1,42 @@
-<!-- eslint-disable vue/multi-word-component-names -->
-<script>
-import api from "@/api.js";
-import MainLayout from "@/components/navigation/MainLayout.vue";
-export default {
-  components: {MainLayout},
-  data() {
-    return {
-      products: [],
-      loading: true,
-      error: null,
-    };
-  },
-  async created() {
-    try {
-      const response = await api.get("products/");
-      this.products = response.data;
-    } catch (error) {
-      this.error = "Error fetching products";
-      console.error(error);
-    } finally {
-      this.loading = false;
-    }
-  },
-};
-</script>
-
 <template>
-  <MainLayout>
-    <div>
-      <h1>Product List</h1>
-      <div v-if="loading">Loading...</div>
-      <div v-else-if="error">{{ error }}</div>
-      <ul v-else>
-        <li v-for="product in products" :key="product.id">
-          {{ product.name }} - ${{ product.price }}
-        </li>
-      </ul>
+  <div>
+    <h1>Your Orders</h1>
+    <div v-if="!store.isAuthenticated">Please login to view your orders</div>
+    <div v-else>
+      <div v-if="store.loading.orders">Loading...</div>
+      <div v-else-if="store.error.orders">{{ store.error.orders }}</div>
+      <div v-else-if="store.orders.length">
+        <div v-for="order in store.orders" :key="order.id">
+          <p>Order #{{ order.id }} - {{ order.quantity }} x {{ order.product_name }}</p>
+          <button v-if="order.delivery_status === 'processing'" @click="cancelOrder(order.id)">Cancel</button>
+        </div>
+      </div>
+      <div v-else>No orders</div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
+<script setup>
+import { onMounted } from 'vue';
+import { useEcommerceStore } from '@/stores/ecommerce';
+import api from '@/services/api';
+
+// Move the store initialization inside the setup
+const store = useEcommerceStore();
+
+onMounted(() => {
+  if (store.isAuthenticated && !store.orders.length) {
+    store.fetchOrdersData();
+  }
+});
+
+const cancelOrder = async (orderId) => {
+  try {
+    const apiInstance = api.createApiInstance(store);
+    await api.cancelOrder(apiInstance, orderId);
+    store.fetchOrdersData();
+  } catch (error) {
+    console.error('Cancel order failed:', error);
+  }
+};
+</script>
