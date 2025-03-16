@@ -1,11 +1,12 @@
 <script setup>
-// import { ref } from 'vue';
+import { ref } from 'vue';
 import SearchBar from './SearchBar.vue'
 import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
-import IconLogin from '../icons/IconLogin.vue';
-import AuthModals from '../auth/AuthModals.vue';
+import IconLogin from '../icons/IconLogin.vue'
+import Modal from '../modals/LoginRegisterModal.vue';
 
+const showModal = ref(false);
 </script>
 
 <template>
@@ -27,18 +28,17 @@ import AuthModals from '../auth/AuthModals.vue';
       <div class="icon">
         <IconCart></IconCart>
       </div>
-      <div class="icon">
-        <AuthModals>
-          <IconLogin />
-        </AuthModals>
+      <div class="icon" @click="showModal = true">
+        <IconLogin />
       </div>
     </div>
+    <Modal v-if="showModal" :show="showModal" @close="showModal = false" />
   </div>
 </template>
 
 <style scoped>
 .navbar {
-  padding: .3rem 1rem;
+  padding: .3rem 0.1rem;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
