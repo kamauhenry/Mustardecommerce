@@ -40,9 +40,7 @@ const closeModal = () => {
 
 .modal-content {
   background: white;
-  padding: 20px;
-  border: 2px solid #f28c38; /* Orange border to match the screenshot */
-  border-radius: 8px;
+  border-radius: 20px;
   position: relative;
   width: 400px;
   max-width: 90%;

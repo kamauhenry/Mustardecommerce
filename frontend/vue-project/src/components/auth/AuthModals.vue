@@ -10,9 +10,6 @@
       <button @click="openLoginModal" class="icon-button">
         <LoginIcon />
       </button>
-      <button @click="openRegisterModal" class="text-button">
-        Register
-      </button>
     </template>
 
     <Modal :isOpen="showLoginModal" @close="closeModals">
@@ -139,7 +136,7 @@ const closeModals = () => {
   display: flex;
   justify-content: center;
   gap: 0;
-  width: 100%;
+  width: 70%;
 }
 
 .tab {
@@ -148,20 +145,20 @@ const closeModals = () => {
   font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
-  background-color: #f28c38; /* Orange to match the screenshot */
+  color: #c9c9c9;
+  background-color: #ebebeb; /* Orange to match the screenshot */
   border: none;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
 
 .tab.active {
-  background-color: #fff;
-  color: #f28c38;
+  background-color: #e2cf1f;
+  color: #ffffff;
 }
 
 .tab:hover {
-  background-color: #e07b30; /* Slightly darker orange on hover */
+  background-color: #e2ce1f8f; /* Slightly darker orange on hover */
 }
 
 /* Style for the icon buttons */

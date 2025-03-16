@@ -73,8 +73,10 @@ const switchToRegister = () => {
 .auth-modal {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 1rem;
+  /* align-items: center; */
+  padding: 2rem;
+  background-color: #e2cf1f;
+  border-radius: 20px;
 }
 
 .input-group {
@@ -86,8 +88,8 @@ const switchToRegister = () => {
   width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  border: none;
+  border-radius: 10px;
   outline: none;
   transition: border-color 0.3s ease;
 }
@@ -136,7 +138,7 @@ const switchToRegister = () => {
 .forgot-password a,
 .terms a,
 .switch-link a {
-  color: #f28c38;
+  color: #ffffff;
   text-decoration: none;
   font-weight: 600;
 }
