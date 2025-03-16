@@ -13,7 +13,7 @@
 </template>
 
 <script>
-import placeholder from "@/assets/images/ikea.jpeg";
+import placeholder from "../../../assets/images/placeholder.png";
 
 export default {
   data() {
@@ -39,12 +39,12 @@ export default {
 
 <style scoped>
 .recent-campaigns {
-  padding: 0 1rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  width: 35%;
-  min-width: 20vw;
+  align-items: flex-start;
+  width: 100%;
 }
 
 .campaigns-title {
@@ -60,10 +60,10 @@ export default {
 
 .product-campaigns {
   border-radius: 10px;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   display: flex;
   flex-direction: row;
-  gap: 1rem;
+  gap: 0.5rem;
   justify-content: flex-start;
   align-items: center;
   width: 100%;

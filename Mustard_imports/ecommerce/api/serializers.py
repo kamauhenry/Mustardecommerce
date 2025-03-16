@@ -1,45 +1,6 @@
 from rest_framework import serializers
 from ecommerce.models import *
-from django.conf import settings
-from django.contrib.auth import get_user_model, authenticate
 
-User = get_user_model()
-
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'user_type', 'phone_number', 'points', 'affiliate_code', 'location', 'password']
-        read_only_fields = ['id', 'points', 'affiliate_code']
-        extra_kwargs = {'password': {'write_only': True}}
-
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user_type = validated_data.pop('user_type', 'customer')
-        location = validated_data.pop('location', '')
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=password,
-            user_type=user_type,
-            location=location,
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            # phone_number=validated_data.get('phone_number', ''), # Uncomment if phone_number is required
-        )
-        return user
-
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, data):
-        user = authenticate(username=data.get('username'), password=data.get('password'))
-        if user is None:
-            raise serializers.ValidationError('Invalid credentials')
-        return {'user': user}
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -59,9 +20,15 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
+    
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug']
+        fields = ['id', 'name','products','slug']
+
+    def get_products(self, obj):
+        latest_products = Product.objects.filter(category=obj).order_by('-created_at')
+        return ProductSerializer(latest_products, many=True, context=self.context).data
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -69,20 +36,24 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         fields = ['id', 'color', 'size']
 
 
+
+
 class ProductSerializer(serializers.ModelSerializer):
-    category_slug = serializers.SlugField(source='category.slug', read_only=True)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    price = serializers.FloatField()
+   
+    category_name = serializers.ReadOnlyField(source='category.name')
     moq_progress = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = Product
-        fields = [
-            'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
-            'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'thumbnail',
-            'category_slug', 'created_at'
-        ]
-
+        fields = ['id', 'name','slug', 'description', 'price', 'below_moq_price',
+                 'moq', 'moq_status', 'moq_per_person', 'picture',
+                 'rating', 'category', 'category_name', 'variants', 
+                 'thumbnail', 'moq_progress', 'created_at']
+    
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
             return {
@@ -93,11 +64,7 @@ class ProductSerializer(serializers.ModelSerializer):
         return None
 
     def get_thumbnail(self, obj):
-        if obj.thumbnail and hasattr(obj.thumbnail, 'url'):
-            return settings.SITE_URL + obj.thumbnail.url.lstrip('/')
-        elif obj.picture and hasattr(obj.picture, 'url'):
-            return settings.SITE_URL + obj.picture.url.lstrip('/')
-        return ''
+        return obj.get_thumbnail()
 
 
 class CartItemSerializer(serializers.ModelSerializer):

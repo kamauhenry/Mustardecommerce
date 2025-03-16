@@ -21,9 +21,7 @@
         <IconCart></IconCart>
       </div>
       <div class="icon">
-        <AuthModals>
-          <IconLogin />
-        </AuthModals>
+        <IconLogin></IconLogin>
       </div>
     </div>
   </header>
@@ -42,7 +40,7 @@
     <nav>
       <div class="logo-image">
         <img
-          src="@/assets/images/mustard-imports.png"
+          src="../../assets/images/mustard-imports.png"
           alt="Mustard Imports Logo"
           class="main-logo"
         />
@@ -63,17 +61,41 @@
 
       <h2 class="category-title">Our Categories</h2>
 
-      <div v-if="store.loading.allCategoriesWithProducts" class="loading">
-        Loading categories...
-      </div>
-      <div v-else-if="store.error.allCategoriesWithProducts" class="error">
-        {{ store.error.allCategoriesWithProducts }}
-      </div>
-      <ul v-else class="category-list">
-        <li v-for="category in categories" :key="category.id">
-          <router-link :to="`/category/${category.slug}/products`" class="category-link">
-            {{ category.name }}
-          </router-link>
+      <ul class="category-list">
+        <li><a href="/home-kitchen" :class="isActive('/home-kitchen')">Home & Kitchen</a></li>
+        <li><a href="/bags-footwear" :class="isActive('/bags-footwear')">Bags & Footwear</a></li>
+        <li><a href="/electronics" :class="isActive('/electronics')">Electronics</a></li>
+        <li>
+          <a href="/beauty-health" :class="isActive('/beauty-health')">Beauty, Personal & Health</a>
+        </li>
+        <li>
+          <a href="/machine-industrials" :class="isActive('/machine-industrials')"
+            >Machine & Industrials</a
+          >
+        </li>
+        <li>
+          <a href="/clothes-apparels" :class="isActive('/clothes-apparels')">Clothes & Apparels</a>
+        </li>
+        <li>
+          <a href="/sports-outdoor" :class="isActive('/sports-outdoor')"
+            >Sports, Outdoor & Entertainment</a
+          >
+        </li>
+        <li><a href="/ikea" :class="isActive('/ikea')">Ikea</a></li>
+        <li>
+          <a href="/baby-kids-games" :class="isActive('/baby-kids-games')">Baby, Kids & Games</a>
+        </li>
+        <li><a href="/office" :class="isActive('/office')">Office</a></li>
+        <li><a href="/buy4me" :class="isActive('/buy4me')">Buy4Me</a></li>
+        <li>
+          <a href="/swag-gift-items" :class="isActive('/swag-gift-items')"
+            >Swag/Branded Gift Items</a
+          >
+        </li>
+        <li>
+          <a href="/agriculture-food-drinks" :class="isActive('/agriculture-food-drinks')"
+            >Agriculture, Food & Drinks</a
+          >
         </li>
       </ul>
     </nav>
@@ -82,42 +104,33 @@
 </template>
 
 <script setup>
-import IconHamburger from '../icons/IconHamburger.vue';
-import IconLightMode from '../icons/IconLightMode.vue';
-import IconCart from '../icons/IconCart.vue';
-import IconLogin from '../icons/IconLogin.vue';
-import AuthModals from '../auth/AuthModals.vue';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import IconHamburger from '../icons/IconHamburger.vue'
+import IconLightMode from '../icons/IconLightMode.vue'
+import IconCart from '../icons/IconCart.vue'
+import IconLogin from '../icons/IconLogin.vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 
-const route = useRoute();
-const store = useEcommerceStore();
+const route = useRoute()
 
 const isActive = (path) => {
-  return route.path === path ? 'active-link' : '';
-};
+  return route.path === path ? 'active-link' : ''
+}
 
-const isSidebarOpen = ref(false);
-const isMobile = ref(window.innerWidth <= 768);
-const query = ref('');
+const isSidebarOpen = ref(false)
+const isMobile = ref(window.innerWidth <= 768)
 
 const updateScreenSize = () => {
-  isMobile.value = window.innerWidth <= 768;
-};
+  isMobile.value = window.innerWidth <= 768
+}
 
 onMounted(() => {
-  window.addEventListener('resize', updateScreenSize);
-  if (!store.allCategoriesWithProducts.length) {
-    store.fetchAllCategoriesWithProducts();
-  }
-});
+  window.addEventListener('resize', updateScreenSize)
+})
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateScreenSize);
-});
-
-const categories = computed(() => store.allCategoriesWithProducts);
+  window.removeEventListener('resize', updateScreenSize)
+})
 </script>
 
 <style scoped>
@@ -323,13 +336,5 @@ hr {
 .search-icon {
   width: 30px;
   height: 30px;
-}
-
-/* Minimal styles for loading and error states */
-.loading,
-.error {
-  font-size: 0.9rem;
-  color: #666;
-  padding: 0.5rem 0;
 }
 </style>
