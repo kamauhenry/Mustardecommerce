@@ -13,7 +13,7 @@
 </template>
 
 <script>
-import placeholder from "../../../assets/images/placeholder.png";
+import placeholder from "@/assets/images/office.jpeg";
 
 export default {
   data() {
@@ -38,34 +38,38 @@ export default {
 </script>
 
 <style scoped>
-  .recent-searches {
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    width: 100%;
-  }
+.recent-searches {
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 35%;
+  min-width: 20vw;
+}
 
-  .searches-title {
-    text-transform: uppercase;
-    font-weight: 900;
-  }
+.searches-title {
+  text-transform: uppercase;
+  font-weight: 700;
+}
 
-  .products-searches {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+.products-searches {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 
-  .product-searches {
-    border-radius: 10px;
-    padding: 0.5rem 1rem;
-    display: flex;
-    flex-direction: row;
-    gap: 0.5rem;
-    justify-content: flex-start;
-    align-items: center;
-    width: 100%;
-  }
+.product-searches {
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+}
+
+.product-search-img {
+  border-radius: 10px;
+}
 </style>

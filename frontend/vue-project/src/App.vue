@@ -26,6 +26,7 @@
   --text-color-page-title: var(--text-color-one);
   --bg-color-about-section: var(--bg-color-about-section-2);
   --bg-color-about-section-card: var(--vt-c-black-mute);
+  --bg-color-category-card: var(--vt-c-black-soft);
 }
 
 [data-theme="light"] {
@@ -43,6 +44,7 @@
   --text-color-page-title: var(--text-color-two);
   --bg-color-about-section: var(--bg-color-about-section-1);
   --bg-color-about-section-card: var(--vt-c-white);
+  --bg-color-category-card: var(); /* light grey */
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -60,11 +62,19 @@
   }
 }
 
+.category-card {
+  background-color: var(--categories-bg);
+}
+
+.product-card {
+  background-color: var(--bg-color-category-card);
+}
+
 .category-p, .about-h2 {
   color: var(--text-color-thirteen);
 }
 
-.category-link, .about-p {
+.category-link, .about-p, .moq-info, .product-price, .product-name, .no-products {
   color: var(--text-color-eleven);
 
 }
