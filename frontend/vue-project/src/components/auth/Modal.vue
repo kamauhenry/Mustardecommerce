@@ -41,6 +41,7 @@ const closeModal = () => {
 .modal-content {
   background: white;
   padding: 20px;
+  border: 2px solid #f28c38; /* Orange border to match the screenshot */
   border-radius: 8px;
   position: relative;
   width: 400px;
@@ -53,7 +54,13 @@ const closeModal = () => {
   right: 10px;
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 24px;
+  color: #333;
   cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.modal-close:hover {
+  color: #f28c38;
 }
 </style>

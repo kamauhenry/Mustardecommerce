@@ -1,23 +1,40 @@
 <template>
-  <div>
-    <h2>Register</h2>
+  <div class="auth-modal">
     <form @submit.prevent="register">
-      <div>
-        <label>Username:</label>
-        <input v-model="username" type="text" required />
+      <div class="input-group">
+        <input
+          v-model="username"
+          type="text"
+          placeholder="Username"
+          required
+        />
       </div>
-      <div>
-        <label>Email:</label>
-        <input v-model="email" type="email" required />
+      <div class="input-group">
+        <input
+          v-model="email"
+          type="email"
+          placeholder="Email"
+          required
+        />
       </div>
-      <div>
-        <label>Password:</label>
-        <input v-model="password" type="password" required />
+      <div class="input-group">
+        <input
+          v-model="password"
+          type="password"
+          placeholder="Password"
+          required
+        />
       </div>
-      <button type="submit">Register</button>
+      <button type="submit" class="auth-button">REGISTER</button>
     </form>
     <p v-if="error" class="error">{{ error }}</p>
-    <p>Already have an account? <a href="#" @click="switchToLogin">Login</a></p>
+    <p class="terms">
+      By Clicking REGISTER You Agree With Our
+      <a href="#" @click.prevent>Terms of Service Stipulated HERE</a>
+    </p>
+    <p class="switch-link">
+      Already have an account? <a href="#" @click="switchToLogin">Login</a>
+    </p>
   </div>
 </template>
 
@@ -60,7 +77,77 @@ const switchToLogin = () => {
 </script>
 
 <style scoped>
+.auth-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+}
+
+.input-group {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.input-group input:focus {
+  border-color: #f28c38;
+}
+
+.input-group input::placeholder {
+  color: #999;
+}
+
+.auth-button {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+  background-color: #f28c38; /* Orange to match the screenshot */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.auth-button:hover {
+  background-color: #e07b30; /* Slightly darker orange on hover */
+}
+
 .error {
-  color: red;
+  color: #ff0000;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.terms,
+.switch-link {
+  font-size: 0.85rem;
+  color: #333;
+  margin: 0.5rem 0;
+  text-align: center;
+}
+
+.terms a,
+.switch-link a {
+  color: #f28c38;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.terms a:hover,
+.switch-link a:hover {
+  text-decoration: underline;
 }
 </style>
