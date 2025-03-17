@@ -72,4 +72,10 @@ export default {
 .product-campaign-img {
   border-radius: 10px;
 }
+
+@media (max-width: 768px) {
+  .recent-campaigns {
+    display: none;
+  }
+}
 </style>

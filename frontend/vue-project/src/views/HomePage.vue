@@ -1,5 +1,10 @@
 <template>
   <MainLayout>
+    <div class="top-row-home">
+      <RecentCampaigns />
+      <HomeCarousel />
+      <RecentSearches />
+    </div>
     <div id="homePage">
       <div v-if="store.loading.allCategoriesWithProducts" class="loading">Loading...</div>
       <div v-else-if="store.error.allCategoriesWithProducts" class="error">
@@ -45,6 +50,9 @@
 import { onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
+import RecentCampaigns from '@/components/home/recents/RecentCampaigns.vue';
+import RecentSearches from '@/components/home/recents/RecentSearches.vue';
+import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
 
 export default {
   setup() {
@@ -58,11 +66,21 @@ export default {
   },
   components: {
     MainLayout,
+    RecentCampaigns,
+    RecentSearches,
+    HomeCarousel,
   }
 };
 </script>
 
 <style scoped>
+.top-row-home {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
 /* Container for all categories */
 .categories-container {
   display: flex;
@@ -214,6 +232,13 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .top-row-home {
+    flex-direction: column;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+
   .products-grid {
     grid-template-columns: repeat(2, 1fr); /* 2 items per row on smaller screens */
   }

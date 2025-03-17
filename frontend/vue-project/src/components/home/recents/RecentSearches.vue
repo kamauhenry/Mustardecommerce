@@ -72,4 +72,10 @@ export default {
 .product-search-img {
   border-radius: 10px;
 }
+
+@media (max-width: 768px) {
+  .recent-searches {
+    width: 100%;
+  }
+}
 </style>

@@ -187,10 +187,15 @@ onUnmounted(() => {
 <style scoped>
 .about-h2 {
   font-size: 1.2rem;
+  text-transform: uppercase;
 }
 
-.about-p {
+.about-p, .about-p li {
   font-size: 1rem;
+}
+
+.about-p li {
+  list-style: none;
 }
 
 .about-container {
