@@ -39,7 +39,7 @@ class LoginView(APIView):
                 'user_id': user.id,
                 'username': user.username
             }, status=status.HTTP200_OK)
-        return Response(serializer.errors, status=status.HTTP400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
         if isinstance(request.user, AnonymousUser):
@@ -63,7 +63,7 @@ class RegisterView(APIView):
                 'user_id': user.id,
                 'username': user.username
             }, status=status.HTTP201_CREATED)
-        return Response(serializer.errors, status=status.HTTP400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Custom API Views
 class CategoryProductsView(APIView):
@@ -276,12 +276,12 @@ class CartViewSet(viewsets.ModelViewSet):
             product = Product.objects.get(pk=product_id)
             variant = ProductVariant.objects.get(pk=variant_id, product=product)
         except (Product.DoesNotExist, ProductVariant.DoesNotExist):
-            return Response({"error": "Product or variant not found"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Product or variant not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         if product.moq_status == 'active' and quantity > product.moq_per_person:
             return Response(
                 {"error": f"Maximum {product.moq_per_person} items allowed per person for this group buy"},
-                status=status.HTTP400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         cart_item, created = CartItem.objects.get_or_create(
@@ -352,7 +352,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         order = self.get_object()
         if order.delivery_status not in ['processing', 'shipped']:
-            return Response({"error": "Order cannot be cancelled in its current state"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Order cannot be cancelled in its current state"}, status=status.HTTP_400_BAD_REQUEST)
         order.is_cancelled = True
         order.delivery_status = 'cancelled'
         order.save()
@@ -404,7 +404,7 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
         moq_request = self.get_object()
         status = request.data.get('status')
         if status not in [choice[0] for choice in MOQRequest.STATUS_CHOICES]:
-            return Response({"error": "Invalid status value"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Invalid status value"}, status=status.HTTP_400_BAD_REQUEST)
         moq_request.status = status
         moq_request.save()
         serializer = MOQRequestSerializer(moq_request)
