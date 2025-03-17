@@ -12,7 +12,7 @@
     <Modal :isOpen="showLoginModal" @close="closeModals">
       <div class="modal-header">
         <div class="logo">
-          <img src="@/assets/images/logo.png" alt="Mustard Imports Logo" class="logo-image" />
+          <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
         </div>
         <div class="tabs">
           <button
@@ -38,7 +38,7 @@
     <Modal :isOpen="showRegisterModal" @close="closeModals">
       <div class="modal-header">
         <div class="logo">
-          <img src="@/assets/images/logo.png" alt="Mustard Imports Logo" class="logo-image" />
+          <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
         </div>
         <div class="tabs">
           <button

@@ -93,7 +93,6 @@ CORS_ALLOW_CREDENTIALS = True
 ROOT_URLCONF = 'Mustard_imports.urls'
 from django.conf import settings
 
-print("Template DIRS:", os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist'))
 SITE_URL = 'http://127.0.0.1:8000/'
 TEMPLATES = [
     {
@@ -110,7 +109,6 @@ TEMPLATES = [
         },
     },
 ]
-print("Expected template path:", settings.TEMPLATES[0]['DIRS'])
 
 WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 
