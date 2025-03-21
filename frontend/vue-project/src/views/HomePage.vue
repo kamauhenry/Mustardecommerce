@@ -18,17 +18,19 @@
         >
           <h2 class="category-title">{{ category.name }}</h2>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
-            <div
+            <router-link
               v-for="product in category.products.slice(0, 4)"
               :key="product.id"
+              :to="`/category/${category.slug}/${product.slug}`"
               class="product-card"
+              @click="trackProductClick(product, category.slug)"
             >
-              <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
+              <img :src="product.thumbnail || placeholder" alt="" class="product-image" />
               <h3 class="product-name">{{ product.name }}</h3>
               <p class="product-price">KES {{ product.price }}</p>
               <p class="moq-info">MOQ: {{ product.moq }} items</p>
               <p class="moq-status">{{ product.moq_status }}</p>
-            </div>
+            </router-link>
           </div>
           <div v-else class="no-products">
             No products available
@@ -53,6 +55,8 @@ import MainLayout from '@/components/navigation/MainLayout.vue';
 import RecentCampaigns from '@/components/home/recents/RecentCampaigns.vue';
 import RecentSearches from '@/components/home/recents/RecentSearches.vue';
 import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
+import { trackProduct } from '@/utils/tracking';
+import placeholder from '@/assets/images/placeholder.png';
 
 export default {
   setup() {
@@ -62,7 +66,12 @@ export default {
       if (!store.allCategoriesWithProducts.length) store.fetchAllCategoriesWithProducts();
     });
 
-    return { store };
+    // Track product click
+    const trackProductClick = (product, categorySlug) => {
+      trackProduct(product, categorySlug);
+    };
+
+    return { store, trackProductClick };
   },
   components: {
     MainLayout,
@@ -87,18 +96,17 @@ export default {
   flex-direction: row;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem; /* Reduced gap for better spacing */
+  gap: 1rem;
   padding: 1rem;
-  /* background-color: #f5f5f5; */
 }
 
 /* Individual category card */
 .category-card {
   flex: 1;
-  min-width: 300px; /* Ensure cards don't get too narrow */
-  max-width: 48%; /* Two cards per row on larger screens */
+  min-width: 300px;
+  max-width: 48%;
   border-radius: 8px;
-  padding: 1rem; /* Reduced padding for tighter layout */
+  padding: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -113,9 +121,9 @@ export default {
 
 /* Category title */
 .category-title {
-  font-size: .8rem; /* Slightly smaller to match the second page */
+  font-size: .8rem;
   font-weight: 700;
-  color: #f28c38; /* Orange color to match the image */
+  color: #f28c38;
   text-transform: uppercase;
   margin: 0.5rem 0;
 }
@@ -124,7 +132,7 @@ export default {
 .products-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem; /* Reduced gap for tighter layout */
+  gap: 0.75rem;
 }
 
 /* Individual product card */
@@ -133,8 +141,10 @@ export default {
   flex-direction: column;
   align-items: flex-start;
   border-radius: 6px;
-  padding: 0.5rem; /* Reduced padding for compact look */
+  padding: 0.5rem;
   transition: transform 0.2s ease;
+  text-decoration: none; /* Remove underline from router-link */
+  color: inherit; /* Inherit text color */
 }
 
 .product-card:hover {
@@ -145,61 +155,58 @@ export default {
 /* Placeholder image styling */
 .product-image {
   width: 100%;
-  height: 120px; /* Adjusted height to match the second page */
-  background-color: #e0e0e0; /* Light gray placeholder */
+  height: 120px;
+  background-color: #e0e0e0;
   border-radius: 4px;
   margin-bottom: 0.5rem;
   object-fit: cover;
 }
 
 .product-name {
-  font-size: 0.85rem; /* Smaller font to match the second page */
+  font-size: 0.85rem;
   font-weight: 600;
-  /* color: #333; */
   margin: 0.25rem 0;
   text-align: left;
   line-height: 1.2;
   display: -webkit-box;
-  -webkit-line-clamp: 2; /* Limit to 2 lines */
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .product-price {
-  font-size: 0.8rem; /* Smaller font to match the second page */
+  font-size: 0.8rem;
   font-weight: 700;
-  /* color: #333; */
   margin: 0.25rem 0;
 }
 
 /* Remove the pseudo-element since the price already includes "KES" in the template */
 .product-price::before {
-  content: none; /* Remove "KES" prefix since it's in the template */
+  content: none;
 }
 
 /* MOQ info */
 .moq-info {
-  font-size: 0.7rem; /* Smaller font to match the second page */
-  /* color: #666; */
+  font-size: 0.7rem;
   margin: 0.25rem 0;
 }
 
 /* MOQ status (e.g., "Active: X items") */
 .moq-status {
-  font-size: 0.7rem; /* Smaller font to match the second page */
-  color: #28a745; /* Green for active status */
+  font-size: 0.7rem;
+  color: #28a745;
   background-color: #e6f4ea;
-  padding: 0.2rem 0.4rem; /* Reduced padding */
+  padding: 0.2rem 0.4rem;
   border-radius: 12px;
   margin: 0.25rem 0;
 }
 
 /* "See More" link styling */
 .see-more-link {
-  display: block; /* Ensure it takes its own line */
-  text-align: right; /* Align to the right like in the second page */
-  font-size: 0.8rem; /* Smaller font to match the second page */
+  display: block;
+  text-align: right;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
@@ -208,7 +215,7 @@ export default {
 }
 
 .see-more-link:hover {
-  color: #f28c38; /* Orange on hover */
+  color: #f28c38;
 }
 
 /* Loading and error states */
@@ -223,11 +230,11 @@ export default {
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .products-grid {
-    grid-template-columns: repeat(3, 1fr); /* 3 items per row on medium screens */
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .category-card {
-    max-width: 100%; /* Full width on smaller screens */
+    max-width: 100%;
   }
 }
 
@@ -238,22 +245,21 @@ export default {
     justify-content: center;
   }
 
-
   .products-grid {
-    grid-template-columns: repeat(2, 1fr); /* 2 items per row on smaller screens */
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .category-card {
-    max-width: 100%; /* Full width */
-    min-width: 100%; /* Ensure it takes full width */
+    max-width: 100%;
+    min-width: 100%;
   }
 
   .category-title {
-    font-size: 1.1rem; /* Slightly smaller title on mobile */
+    font-size: 1.1rem;
   }
 
   .product-image {
-    height: 100px; /* Smaller image height on mobile */
+    height: 100px;
   }
 
   .product-name {
@@ -272,15 +278,15 @@ export default {
 
 @media (max-width: 480px) {
   .products-grid {
-    grid-template-columns: repeat(1, 1fr); /* 1 item per row on very small screens */
+    grid-template-columns: repeat(1, 1fr);
   }
 
   .category-card {
-    padding: 0.75rem; /* Reduced padding on mobile */
+    padding: 0.75rem;
   }
 
   .product-image {
-    height: 80px; /* Even smaller image height on very small screens */
+    height: 80px;
   }
 }
 </style>

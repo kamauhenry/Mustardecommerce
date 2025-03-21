@@ -12,6 +12,7 @@
         <router-link
           :to="`/category/${category.slug}/products`"
           class="category-link"
+          @click="trackCategoryClick(category)"
         >
           {{ category.name }}
         </router-link>
@@ -23,6 +24,7 @@
 <script setup>
 import { onMounted, computed } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { trackCategory } from '@/utils/tracking'; // Import the tracking utility
 
 const store = useEcommerceStore();
 
@@ -41,6 +43,11 @@ const categoryGroupsComputed = computed(() => {
   }
   return grouped;
 });
+
+// Track category click
+const trackCategoryClick = (category) => {
+  trackCategory(category);
+};
 </script>
 
 <style scoped>
@@ -59,8 +66,7 @@ const categoryGroupsComputed = computed(() => {
 }
 
 .category-p {
-  font-weight: 700; /* Bolder to match the first code's category title */
-  /* font-size: 1.25rem; Matches the first code's category-title */
+  font-weight: 700;
   text-transform: uppercase;
   margin: 0;
 }
@@ -70,13 +76,13 @@ const categoryGroupsComputed = computed(() => {
 }
 
 .category-link {
-  font-size: 1rem; /* Slightly smaller than the title for hierarchy */
+  font-size: 1rem;
   text-decoration: none;
   transition: color 0.3s ease-in-out;
 }
 
 .category-link:hover {
-  color: #f28c38; /* Matches the hover color from the first code */
+  color: #f28c38;
 }
 
 .loading,
