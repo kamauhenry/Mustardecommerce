@@ -3,8 +3,8 @@
     <div class="product-details-page">
       <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <router-link to="/">Home</router-link> &gt;
-        <router-link :to="`/category/${categorySlug}/products`">{{ category?.name || 'Category' }}</router-link> &gt;
+        <router-link to="/">Home</router-link> >
+        <router-link :to="`/category/${categorySlug}/products`">{{ category?.name || 'Category' }}</router-link> >
         <span>{{ product?.name || 'Product' }}</span>
       </div>
 
@@ -12,9 +12,18 @@
       <div class="product-main">
         <!-- Product Images -->
         <div class="product-images">
-          <div class="main-image">
-            <img :src="selectedImage || placeholder" :alt="product?.name" />
+          <h2 class="about-h2 product-h2">{{ product?.name || 'Product' }}</h2>
+          <div class="share-section">
+            <p class="share-product-p">Share to:</p>
+            <div class="share-icons">
+              <a href="#" class="share-icon"><i class="fab fa-facebook-f"></i></a>
+              <a href="#" class="share-icon"><i class="fab fa-twitter"></i></a>
+              <a href="#" class="share-icon"><i class="fab fa-whatsapp"></i></a>
+              <a href="#" class="share-icon"><i class="fas fa-envelope"></i></a>
+              <a href="#" class="share-icon"><i class="fas fa-link"></i></a>
+            </div>
           </div>
+
           <div class="thumbnail-gallery">
             <img
               v-for="(image, index) in productImages"
@@ -25,104 +34,117 @@
               :class="{ active: selectedImage === image }"
             />
           </div>
-          <div class="share-section">
-            <p>Share to:</p>
-            <div class="share-icons">
-              <a href="#" class="share-icon"><i class="fab fa-facebook-f"></i></a>
-              <a href="#" class="share-icon"><i class="fab fa-twitter"></i></a>
-              <a href="#" class="share-icon"><i class="fab fa-whatsapp"></i></a>
-              <a href="#" class="share-icon"><i class="fas fa-envelope"></i></a>
-              <a href="#" class="share-icon"><i class="fas fa-link"></i></a>
-            </div>
-          </div>
         </div>
 
         <!-- Product Details -->
         <div class="product-info">
-          <h1 class="product-title">{{ product?.name || 'Product Name' }}</h1>
+          <!-- Price, MOQ Info, and Rating -->
           <div class="price-section">
-            <span class="price">KES {{ product?.price || '0' }}</span>
-            <div class="moq-info">
-              <p>Below MOQ price: KES {{ product?.price || '0' }}</p>
-              <p>Supplier MOQ: {{ product?.moq || '0' }} items</p>
-              <p>Group buy order so far: 34</p>
-              <p>MOQ Per Person: 1 items / bundle</p>
-              <p>MOQ Number: 2R1Y1</p>
-              <p>MOQ Status: <span class="status-active">{{ product?.moq_status || 'N/A' }}</span></p>
+            <div class="price-moq">
+              <span class="price">KES {{ product?.price || '0' }}</span>
+              <div class="moq-info">
+                <p>Below MOQ price: KES {{ product?.price || '0' }}</p>
+                <p>Supplier MOQ: {{ product?.moq || '0' }} items</p>
+                <p>Group buy order so far: 34</p>
+                <p>MOQ Per Person: 1 items / bundle</p>
+                <p>MOQ Number: 2R1Y1</p>
+                <p>MOQ Status: <span class="status-active">{{ product?.moq_status || 'N/A' }}</span></p>
+              </div>
             </div>
             <div class="rating">
-              <p>Rating</p>
+              <p class="rating-p">Rating</p>
               <div class="stars">
                 <i v-for="n in 5" :key="n" :class="n <= 2 ? 'fas fa-star' : 'far fa-star'"></i>
               </div>
-              <p>Pending by Supplier MOQ</p>
-              <p>113 Sold</p>
+              <p class="rating-p">Pending by Supplier MOQ</p>
+              <p class="rating-p">113 Sold</p>
             </div>
           </div>
 
-          <!-- Order Form -->
-          <div class="order-form">
-            <h3>Order</h3>
-            <div class="form-group">
-              <label>Total Quantity</label>
-              <input type="number" v-model="totalQuantity" min="1" />
-            </div>
-            <div class="form-group">
-              <label>Order Attributes</label>
-              <div class="attributes">
-                <div class="attribute">
-                  <label>Color</label>
-                  <select v-model="selectedColor">
-                    <option value="">Select Color</option>
-                    <option v-for="color in product?.colors || []" :key="color" :value="color">
-                      {{ color }}
-                    </option>
-                  </select>
-                  <input type="number" v-model="colorQuantity" placeholder="0" min="0" />
-                  <button @click="addAttribute">+</button>
+          <!-- Tabs for Order, Description, and Reviews -->
+          <div class="tabs">
+            <button :class="{ active: activeTab === 'order' }" @click="activeTab = 'order'">
+              Order
+            </button>
+            <button :class="{ active: activeTab === 'description' }" @click="activeTab = 'description'">
+              Description
+            </button>
+            <button :class="{ active: activeTab === 'reviews' }" @click="activeTab = 'reviews'">
+              Customer Reviews
+            </button>
+          </div>
+          <div class="tab-content">
+            <!-- Order Tab -->
+            <div v-if="activeTab === 'order'" class="order-form">
+              <div class="form-group">
+                <label>Total Quantity</label>
+                <input type="number" v-model="totalQuantity" min="1" />
+              </div>
+              <div class="form-group">
+                <label>Order Attributes</label>
+                <div class="attributes">
+                  <div class="attribute">
+                    <label>Color</label>
+                    <select v-model="selectedColor">
+                      <option value="">Select Color</option>
+                      <option v-for="color in product?.colors || []" :key="color" :value="color">
+                        {{ color }}
+                      </option>
+                    </select>
+                    <input type="number" v-model="colorQuantity" placeholder="0" min="0" />
+                    <button @click="addAttribute">+</button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="form-group">
-              <label>Shipping Method</label>
-              <div class="shipping-options">
-                <label>
-                  <input type="radio" v-model="shippingMethod" value="sea" />
-                  <span>Sea approximate cost KES 199</span>
-                </label>
-                <label>
-                  <input type="radio" v-model="shippingMethod" value="air" />
-                  <span>Air approximate cost KES 600</span>
-                </label>
+              <div class="form-group">
+                <label>Shipping Method</label>
+                <div class="shipping-options">
+                  <label>
+                    <input type="radio" v-model="shippingMethod" value="sea" />
+                    <span>Sea approximate cost KES 199</span>
+                  </label>
+                  <label>
+                    <input type="radio" v-model="shippingMethod" value="air" />
+                    <span>Air approximate cost KES 600</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Promo Code</label>
+                <input type="text" v-model="promoCode" placeholder="e.g 1CGTPB38" />
+              </div>
+              <div class="action-buttons">
+                <button class="view-summary" @click="showSummary = true">View Summary</button>
+                <button class="add-to-cart">Add to Cart</button>
               </div>
             </div>
-            <div class="form-group">
-              <label>Promo Code</label>
-              <input type="text" v-model="promoCode" placeholder="e.g 1CGTPB38" />
+
+            <!-- Description Tab -->
+            <div v-if="activeTab === 'description'">
+              <p class="product-description-p">{{ product?.description || 'No description available.' }}</p>
             </div>
-            <div class="action-buttons">
-              <button class="view-summary">View Summary</button>
-              <button class="add-to-cart">Add to Cart</button>
+
+            <!-- Reviews Tab -->
+            <div v-if="activeTab === 'reviews'">
+              <p class="reviews-p">No customer reviews yet.</p>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Tabs for Description and Reviews -->
-      <div class="tabs">
-        <button :class="{ active: activeTab === 'description' }" @click="activeTab = 'description'">
-          Description
-        </button>
-        <button :class="{ active: activeTab === 'reviews' }" @click="activeTab = 'reviews'">
-          Customer Reviews
-        </button>
-      </div>
-      <div class="tab-content">
-        <div v-if="activeTab === 'description'">
-          <p>{{ product?.description || 'No description available.' }}</p>
-        </div>
-        <div v-if="activeTab === 'reviews'">
-          <p>No customer reviews yet.</p>
+      <!-- View Summary Popup -->
+      <div v-if="showSummary" class="summary-popup" @click="showSummary = false">
+        <div class="summary-content" @click.stop>
+          <h3>Order Summary</h3>
+          <div class="summary-details">
+            <p><strong>Product:</strong> {{ product?.name || 'N/A' }}</p>
+            <p><strong>Total Quantity:</strong> {{ totalQuantity }}</p>
+            <p v-if="selectedColor"><strong>Color:</strong> {{ selectedColor }} ({{ colorQuantity }} items)</p>
+            <p><strong>Shipping Method:</strong> {{ shippingMethod === 'sea' ? 'Sea (KES 199)' : 'Air (KES 600)' }}</p>
+            <p v-if="promoCode"><strong>Promo Code:</strong> {{ promoCode }}</p>
+            <p v-else>No promo code applied.</p>
+            <p><strong>Total Price:</strong> KES {{ totalQuantity * (product?.price || 0) + (shippingMethod === 'sea' ? 199 : 600) }}</p>
+          </div>
         </div>
       </div>
 
@@ -180,7 +202,8 @@ export default {
     const colorQuantity = ref(0);
     const shippingMethod = ref('sea');
     const promoCode = ref('');
-    const activeTab = ref('description');
+    const activeTab = ref('order'); // Default to 'order' tab
+    const showSummary = ref(false); // Control the visibility of the summary popup
 
     // Fetch product data on mount
     onMounted(() => {
@@ -218,6 +241,10 @@ export default {
 
     // Track product click for recommended products
     const trackProductClick = (product) => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      });
       trackProduct(product, props.categorySlug);
     };
 
@@ -233,6 +260,7 @@ export default {
       shippingMethod,
       promoCode,
       activeTab,
+      showSummary,
       recommendedProducts,
       trackProductClick,
       placeholder,
@@ -274,35 +302,42 @@ export default {
   margin-bottom: 2rem;
 }
 
-.product-images {
-  flex: 1;
+.product-h2 {
+  font-size: 1.5rem;
 }
 
-.main-image img {
-  width: 100%;
-  height: 400px;
-  object-fit: cover;
-  border-radius: 8px;
+.product-images {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .thumbnail-gallery {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1rem;
-  overflow-x: auto;
+  width: 100%;
+  min-width: 200px;
+  height: 400px;
 }
 
 .thumbnail-gallery img {
-  width: 60px;
-  height: 60px;
+  flex: 1 1 calc(25% - 0.5rem);
+  width: inherit;
+  height: auto;
   object-fit: cover;
   border-radius: 4px;
   cursor: pointer;
   border: 2px solid transparent;
+  transition: transform 0.2s ease;
 }
 
-.thumbnail-gallery img.active {
+.thumbnail-gallery img.active,
+.thumbnail-gallery img:hover {
   border-color: #f28c38;
+  transform: scale(1.05);
 }
 
 .share-section {
@@ -340,20 +375,22 @@ export default {
 /* Product Info */
 .product-info {
   flex: 1;
-}
-
-.product-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #f28c38;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .price-section {
   display: flex;
-  gap: 1rem;
+  justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1rem;
+}
+
+.price-moq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .price {
@@ -373,7 +410,6 @@ export default {
 }
 
 .rating {
-  margin-left: auto;
   text-align: right;
 }
 
@@ -386,11 +422,37 @@ export default {
   color: #f28c38;
 }
 
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #666;
+  white-space: nowrap;
+}
+
+.tabs button.active {
+  color: #f28c38;
+  border-bottom: 2px solid #f28c38;
+}
+
+.tab-content {
+  margin-bottom: 2rem;
+}
+
 /* Order Form */
 .order-form {
-  border: 1px solid #ddd;
   padding: 1rem;
-  border-radius: 8px;
 }
 
 .order-form h3 {
@@ -453,6 +515,7 @@ export default {
 .shipping-options {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .shipping-options label {
@@ -500,30 +563,43 @@ export default {
   opacity: 0.9;
 }
 
-/* Tabs */
-.tabs {
+/* Summary Popup */
+.summary-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  gap: 1rem;
-  border-bottom: 1px solid #ddd;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.summary-content {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.summary-content h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
   margin-bottom: 1rem;
-}
-
-.tabs button {
-  background: none;
-  border: none;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
-  cursor: pointer;
-  color: #666;
-}
-
-.tabs button.active {
   color: #f28c38;
-  border-bottom: 2px solid #f28c38;
 }
 
-.tab-content {
-  margin-bottom: 2rem;
+.summary-details p {
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.summary-details strong {
+  font-weight: 600;
 }
 
 /* Recommended Products */
@@ -540,7 +616,7 @@ export default {
 
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 }
 
@@ -630,22 +706,53 @@ export default {
 
 /* Responsive Adjustments */
 @media (max-width: 1200px) {
+  .product-main {
+    gap: 1.5rem;
+  }
+
+  .thumbnail-gallery img {
+    flex: 1 1 calc(33.33% - 0.5rem);
+    width: auto;
+    height: auto;
+  }
+
   .products-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 }
 
 @media (max-width: 768px) {
   .product-main {
     flex-direction: column;
+    gap: 1rem;
   }
 
-  .main-image img {
-    height: 300px;
+  .product-h2 {
+    font-size: 1.3rem;
+  }
+
+  .price-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rating {
+    text-align: left;
+    margin-top: 1rem;
+  }
+
+  .thumbnail-gallery {
+    justify-content: center;
+  }
+
+  .thumbnail-gallery img {
+    flex: 1 1 calc(50% - 0.5rem);
+    width: auto;
+    height: auto;
   }
 
   .products-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .product-image {
@@ -665,19 +772,77 @@ export default {
   .progress-text {
     font-size: 0.65rem;
   }
+
+  .summary-content {
+    max-width: 350px;
+  }
 }
 
 @media (max-width: 480px) {
-  .products-grid {
-    grid-template-columns: repeat(1, 1fr);
+  .product-details-page {
+    padding: 0.5rem;
   }
 
-  .main-image img {
-    height: 200px;
+  .product-h2 {
+    font-size: 1.1rem;
+  }
+
+  .price {
+    font-size: 1.3rem;
+  }
+
+  .moq-info p {
+    font-size: 0.8rem;
+  }
+
+  .rating p {
+    font-size: 0.8rem;
+  }
+
+  .thumbnail-gallery img {
+    flex: 1 1 calc(50% - 0.5rem);
+    width: .5rem;
+    height: auto;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
   .product-image {
     height: 80px;
+  }
+
+  .product-name {
+    font-size: 0.75rem;
+  }
+
+  .product-price {
+    font-size: 0.7rem;
+  }
+
+  .moq-info,
+  .moq-status,
+  .progress-text {
+    font-size: 0.6rem;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .view-summary,
+  .add-to-cart {
+    width: 100%;
+  }
+
+  .summary-content {
+    max-width: 300px;
+    padding: 1.5rem;
+  }
+
+  .summary-details p {
+    font-size: 0.8rem;
   }
 }
 </style>

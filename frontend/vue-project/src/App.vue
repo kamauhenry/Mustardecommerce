@@ -140,6 +140,10 @@
   background-color: var(--faq-question-bg);
 }
 
+.share-product-p, .rating-p, .product-description-p, .reviews-p, .summary-details, .no-products, .order-form {
+  color: var(--campaigns-bg);
+}
+
 #app {
   background-color: var(--main-body-bg);
   transition: background-color 0.3s, color 0.3s;
