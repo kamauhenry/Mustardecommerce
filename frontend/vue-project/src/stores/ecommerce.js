@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import api from '@/services/api';
 
-// Create an API instance to use throughout the store
 let apiInstance = null;
 
 export const useEcommerceStore = defineStore('ecommerce', {
@@ -22,6 +21,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
         cart: false,
         orders: false,
         completedOrders: false,
+        auth: false,
+        profile: false,
+        dashboard: false,
       },
       error: {
         categories: null,
@@ -31,11 +33,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
         cart: null,
         orders: null,
         completedOrders: null,
+        auth: null,
+        profile: null,
+        dashboard: null,
       },
-      userId: localStorage.getItem('userId') || null, // Persist user ID
+      userId: localStorage.getItem('userId') || null,
+      token: localStorage.getItem('token') || null,
+      user: JSON.parse(localStorage.getItem('user')) || null,
+      dashboardData: null,
     };
 
-    // Initialize API instance with the store
     apiInstance = api.createApiInstance(state);
 
     return state;
@@ -73,11 +80,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
         const data = await api.fetchCategoryProducts(apiInstance, categorySlug, page);
         console.log(`API response for ${categorySlug} (fetchCategoryProducts):`, data);
 
-        // Check if the category exists in allCategoriesWithProducts
         const categoryData = this.allCategoriesWithProducts.find(cat => cat.slug === categorySlug);
         if (categoryData && categoryData.products?.length) {
           console.log(`Pre-fetched products for ${categorySlug} (allCategoriesWithProducts):`, categoryData.products);
-          // Compare the data
           if (data.products.length === 0 && categoryData.products.length > 0) {
             console.warn(`Discrepancy detected: fetchCategoryProducts returned no products, but allCategoriesWithProducts has ${categoryData.products.length} products for ${categorySlug}`);
           }
@@ -85,18 +90,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
           console.warn(`Category ${categorySlug} not found in allCategoriesWithProducts`);
         }
 
-        // Initialize categoryProducts with pre-fetched data if available
         if (!this.categoryProducts[categorySlug]) {
           this.categoryProducts[categorySlug] = {
             category: categoryData
               ? { slug: categoryData.slug, name: categoryData.name }
               : data.category || { slug: categorySlug, name: categorySlug },
-            products: categoryData?.products || [], // Initialize with pre-fetched products
+            products: categoryData?.products || [],
             total: categoryData?.products?.length || data.total || 0,
           };
         }
 
-        // Deduplicate products based on their ID
         const existingProductIds = new Set(
           this.categoryProducts[categorySlug].products.map(p => p.id)
         );
@@ -104,9 +107,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
           product => !existingProductIds.has(product.id)
         );
 
-        // Append only unique products
         this.categoryProducts[categorySlug].products.push(...uniqueNewProducts);
-        // Update total if the API provides a higher total
         if (data.total > this.categoryProducts[categorySlug].total) {
           this.categoryProducts[categorySlug].total = data.total;
         }
@@ -138,7 +139,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
       this.loading.cart = true;
       this.error.cart = null;
       try {
-        // Notice we're passing the cartId (which is the userId in this case)
         const cart = await api.fetchCart(apiInstance, this.userId);
         this.cart = cart;
       } catch (error) {
@@ -176,20 +176,157 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    setUserId(userId) {
-      this.userId = userId;
-      localStorage.setItem('userId', userId); // Persist user ID
-      // Update the API instance with the new userId
-      apiInstance = api.createApiInstance(this);
+    async login(credentials) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.login(apiInstance, credentials);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance(this);
+      } catch (error) {
+        this.error.auth = error.message || 'Login failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
     },
 
-    logout() {
-      this.userId = null;
-      localStorage.removeItem('userId');
-      this.cart = null;
-      this.orders = [];
-      this.completedOrders = [];
-      // Update the API instance after logout
+    async register(userData) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.register(apiInstance, userData);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance(this);
+      } catch (error) {
+        this.error.auth = error.message || 'Registration failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
+    },
+
+    async adminLogin(credentials) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.adminLogin(apiInstance, credentials);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance(this);
+      } catch (error) {
+        this.error.auth = error.message || 'Admin login failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
+    },
+
+    async adminRegister(userData) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.adminRegister(apiInstance, userData);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance(this);
+      } catch (error) {
+        this.error.auth = error.message || 'Admin registration failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
+    },
+
+    async logout() {
+      this.loading.auth = true;
+      try {
+        await api.logout(apiInstance);
+      } catch (error) {
+        console.error('Logout failed:', error);
+      } finally {
+        this.token = null;
+        this.userId = null;
+        this.user = null;
+        this.cart = null;
+        this.orders = [];
+        this.completedOrders = [];
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('user');
+        apiInstance = api.createApiInstance(this);
+        this.loading.auth = false;
+      }
+    },
+
+    async fetchProfile() {
+      this.loading.profile = true;
+      this.error.profile = null;
+      try {
+        const response = await api.fetchProfile(apiInstance);
+        this.user = response;
+        localStorage.setItem('user', JSON.stringify(this.user));
+      } catch (error) {
+        this.error.profile = error.message || 'Failed to load profile';
+      } finally {
+        this.loading.profile = false;
+      }
+    },
+
+    async updateProfile(userData) {
+      this.loading.profile = true;
+      this.error.profile = null;
+      try {
+        const response = await api.updateProfile(apiInstance, userData);
+        this.user = response;
+        localStorage.setItem('user', JSON.stringify(this.user));
+      } catch (error) {
+        this.error.profile = error.message || 'Failed to update profile';
+        throw error;
+      } finally {
+        this.loading.profile = false;
+      }
+    },
+
+    async fetchDashboardData() {
+      this.loading.dashboard = true;
+      this.error.dashboard = null;
+      try {
+        const data = await api.fetchDashboardData(apiInstance);
+        this.dashboardData = data;
+      } catch (error) {
+        this.error.dashboard = error.message || 'Failed to load dashboard data';
+      } finally {
+        this.loading.dashboard = false;
+      }
+    },
+
+    isAdmin() {
+      // Check if the user is an admin
+      return this.user && (this.user.user_type === 'admin' || !('user_type' in this.user));
+    },
+
+    setUserId(userId) {
+      this.userId = userId;
+      localStorage.setItem('userId', userId);
       apiInstance = api.createApiInstance(this);
     },
   },
@@ -200,6 +337,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
     cartItemCount: (state) => {
       return state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     },
-    isAuthenticated: (state) => !!state.userId,
+    isAuthenticated: (state) => !!state.token,
   },
 });

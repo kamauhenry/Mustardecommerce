@@ -1,23 +1,38 @@
 /* eslint-disable vue/multi-word-component-names */
 import './assets/main.css'
 import { createApp } from 'vue';
-import { createPinia } from 'pinia';
 import App from './App.vue';
-import createMyRouter from './router'; // Import function
-import axios from 'axios';
+import createMyRouter from './router/index';
+import createAdminRouter from './router/admin';
+import { createPinia } from 'pinia';
 
-const app = createApp(App);
+// Create Pinia instance
 const pinia = createPinia();
-const router = createMyRouter(); // EXECUTE the function
-app.config.globalProperties.$axios = axios;
-app.use(pinia);
-app.use(router); // Use the initialized router
 
-// Global error handler
-app.config.errorHandler = (err, vm, info) => {
-  console.error('Vue Error:', err);
-  console.error('Component:', vm);
-  console.error('Info:', info);
+// Function to initialize and mount an app
+const initializeApp = (router, mountPoint) => {
+  const app = createApp(App);
+  app.use(pinia);
+  app.use(router);
+
+  // Global error handler
+  app.config.errorHandler = (err, vm, info) => {
+    console.error('Vue Error:', err);
+    console.error('Component:', vm);
+    console.error('Info:', info);
+  };
+  app.mount(mountPoint);
 };
 
-app.mount('#app');
+// Determine which app to mount based on the URL path
+const path = window.location.pathname;
+
+// Mount the admin app for /admin routes
+if (path.startsWith('/admin-page')) {
+  const adminRouter = createAdminRouter();
+  initializeApp(adminRouter, '#admin-app');
+} else {
+  // Mount the main app for all other routes
+  const mainRouter = createMyRouter();
+  initializeApp(mainRouter, '#app');
+}
