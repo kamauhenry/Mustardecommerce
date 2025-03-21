@@ -24,7 +24,7 @@
                 :key="product.id"
                 class="product-card"
               >
-                <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
+                <img :src="product.thumbnail || placeholder" alt="" class="product-image" />
                 <h3 class="product-name">{{ product.name }}</h3>
                 <p class="product-price">KES {{ product.price }}</p>
                 <p class="moq-info">MOQ: {{ product.moq }} items</p>
@@ -46,18 +46,21 @@
 
         <!-- Individual Products Section -->
         <div v-if="matchingProducts.length" class="products-section">
+          <h2 class="section-title">Matching Products</h2>
           <div class="products-grid">
-            <div
+            <router-link
               v-for="product in matchingProducts"
               :key="product.id"
+              :to="`/category/${getCategorySlug(product)}/${product.slug}`"
               class="product-card"
+              @click="trackProductClick(product)"
             >
-              <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
+              <img :src="product.thumbnail || placeholder" alt="" class="product-image" />
               <h3 class="product-name">{{ product.name }}</h3>
               <p class="product-price">KES {{ product.price }}</p>
               <p class="moq-info">MOQ: {{ product.moq }} items</p>
               <p class="moq-status">{{ product.moq_status }}</p>
-            </div>
+            </router-link>
           </div>
         </div>
 
@@ -75,6 +78,8 @@ import { onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
+import { trackProduct } from '@/utils/tracking';
+import placeholder from '@/assets/images/placeholder.png';
 
 export default {
   setup() {
@@ -123,11 +128,27 @@ export default {
       );
     });
 
+    // Find the category slug for a product
+    const getCategorySlug = (product) => {
+      const category = store.allCategoriesWithProducts.find(cat =>
+        cat.products.some(p => p.id === product.id)
+      );
+      return category ? category.slug : '';
+    };
+
+    // Track product click
+    const trackProductClick = (product) => {
+      const categorySlug = getCategorySlug(product);
+      trackProduct(product, categorySlug);
+    };
+
     return {
       store,
       query,
       matchingCategories,
-      matchingProducts
+      matchingProducts,
+      getCategorySlug,
+      trackProductClick
     };
   },
   components: {
@@ -200,6 +221,8 @@ export default {
   border-radius: 6px;
   padding: 0.5rem;
   transition: transform 0.2s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
 .product-card:hover {

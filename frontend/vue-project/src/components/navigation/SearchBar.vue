@@ -7,9 +7,10 @@
           placeholder="Search..."
           class="search-input"
           @keyup.enter="search"
+          @blur="handleBlur"
         />
         <img
-          src="@/assets/images/211817_search_strong_icon.png"
+          :src="searchIcon"
           alt="Search Icon"
           class="search-icon"
           @click="search"
@@ -19,19 +20,27 @@
 </template>
 
 <script>
+import searchIcon from '@/assets/images/211817_search_strong_icon.png';
 
 export default {
   data() {
     return {
-      query: ''
+      query: '',
+      searchIcon
     };
   },
   methods: {
-    search() {
+    async search() {
       if (this.query.trim()) {
-        // Redirect to the search results page with the query as a parameter
-        this.$router.push({ path: '/search-results', query: { q: this.query.trim() } });
+        try {
+          this.$router.push({ path: '/search-results', query: { q: this.query.trim() } });
+        } catch (error) {
+          console.error('Navigation error:', error);
+        }
       }
+    },
+    handleBlur() {
+      this.$forceUpdate();
     }
   }
 };
