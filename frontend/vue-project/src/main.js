@@ -12,4 +12,12 @@ const router = createMyRouter(); // EXECUTE the function
 app.config.globalProperties.$axios = axios;
 app.use(pinia);
 app.use(router); // Use the initialized router
+
+// Global error handler
+app.config.errorHandler = (err, vm, info) => {
+  console.error('Vue Error:', err);
+  console.error('Component:', vm);
+  console.error('Info:', info);
+};
+
 app.mount('#app');
