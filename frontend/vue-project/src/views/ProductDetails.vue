@@ -4,7 +4,7 @@
       <!-- Breadcrumb -->
       <div class="breadcrumb">
         <router-link to="/">Home</router-link> &gt;
-        <router-link :to="`/category/${categorySlug}`">{{ category?.name || 'Category' }}</router-link> &gt;
+        <router-link :to="`/category/${categorySlug}/products`">{{ category?.name || 'Category' }}</router-link> &gt;
         <span>{{ product?.name || 'Product' }}</span>
       </div>
 

@@ -56,7 +56,7 @@ import RecentCampaigns from '@/components/home/recents/RecentCampaigns.vue';
 import RecentSearches from '@/components/home/recents/RecentSearches.vue';
 import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
 import { trackProduct } from '@/utils/tracking';
-import placeholder from '@/assets/images/placeholder.png';
+import placeholder from '@/assets/images/grey.jpg';
 
 export default {
   setup() {

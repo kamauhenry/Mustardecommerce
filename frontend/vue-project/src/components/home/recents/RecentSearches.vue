@@ -5,7 +5,7 @@
       <router-link
         v-for="(item, index) in displayProducts"
         :key="index"
-        :to="item.categorySlug && item.slug ? `/category/${item.categorySlug}/${item.slug}` : '#'"
+        :to="item.categorySlug && item.slug ? `/products/${item.categorySlug}/${item.slug}` : '#'"
         class="product-searches"
       >
         <img :src="item.image" :alt="item.name" class="product-search-img" width="50" height="50">

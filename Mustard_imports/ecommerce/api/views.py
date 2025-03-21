@@ -102,7 +102,7 @@ class CategoryProductsView(APIView):
                 print(f"Failed to cache response: {e}")
 
             return Response(response_data)
-        except Http404:
+        except get_object_or_404:
             return Response({'error': 'Category not found'}, status=status.HTTP404_NOT_FOUND)
         except Exception as e:
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
@@ -176,6 +176,8 @@ class AllCategoriesWithProductsView(APIView):
         result = []
         for category in categories:
             products = Product.objects.filter(category=category).order_by('-created_at')
+            print(f"Category {category.slug}: {products.count()} products (AllCategoriesWithProductsView)")
+            print(f"Products for {category.slug}: {[p.name for p in products]}")
             product_serializer = ProductSerializer(products, many=True, context={'request': request})
             result.append({
                 'id': category.id,
@@ -185,6 +187,49 @@ class AllCategoriesWithProductsView(APIView):
             })
         return Response(result)
 
+# class CategoryProductsView(APIView):
+#     permission_classes = [permissions.AllowAny]
+
+#     def get(self, request, category_slug, *args, **kwargs):
+#         cache_key = f'category_products_{category_slug}_page_{request.query_params.get("page", 1)}'
+#         try:
+#             cached_data = cache.get(cache_key)
+#             if cached_data:
+#                 return Response(cached_data)
+#         except (InvalidCacheBackendError, Exception) as e:
+#             print(f"Cache error: {e}. Falling back to direct query.")
+
+#         try:
+#             category = get_object_or_404(Category, slug=category_slug)
+#             products = Product.objects.filter(category=category).order_by('-created_at')
+#             print(f"Category {category_slug}: {products.count()} products (CategoryProductsView)")
+#             print(f"Products for {category_slug}: {[p.name for p in products]}")
+
+#             page = int(request.query_params.get('page', 1))
+#             per_page = int(request.query_params.get('per_page', 5))
+#             total = products.count()
+#             start = (page - 1) * per_page
+#             end = start + per_page
+#             products_paginated = products[start:end]
+#             print(f"Paginated products for {category_slug} (page {page}, per_page {per_page}): {[p.name for p in products_paginated]}")
+
+#             serializer = ProductSerializer(products_paginated, many=True, context={'request': request})
+#             response_data = {
+#                 'category': {'slug': category.slug, 'name': category.name},
+#                 'products': serializer.data,
+#                 'total': total,
+#             }
+
+#             try:
+#                 cache.set(cache_key, response_data, timeout=60 * 15)
+#             except (InvalidCacheBackendError, Exception) as e:
+#                 print(f"Failed to cache response: {e}")
+
+#             return Response(response_data)
+#         except get_object_or_404:
+#             return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+#         except Exception as e:
+#             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ViewSets
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all().only('id', 'name', 'slug')
@@ -244,7 +289,7 @@ class ProductDetail(APIView):
         try:
             return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
         except Product.DoesNotExist:
-            raise Http404
+            raise get_object_or_404
 
     def get(self, request, category_slug, product_slug, format=None):
         product = self.get_object(category_slug, product_slug)

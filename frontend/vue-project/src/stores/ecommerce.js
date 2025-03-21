@@ -69,11 +69,51 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async fetchCategoryProducts(categorySlug, page = 1) {
       this.loading.categoryProducts = true;
       try {
+        console.log(`Fetching products for category: ${categorySlug}, page: ${page}`);
         const data = await api.fetchCategoryProducts(apiInstance, categorySlug, page);
-        if (!this.categoryProducts[categorySlug]) this.categoryProducts[categorySlug] = { products: [], total: data.total };
-        this.categoryProducts[categorySlug].products.push(...data.products);
+        console.log(`API response for ${categorySlug} (fetchCategoryProducts):`, data);
+
+        // Check if the category exists in allCategoriesWithProducts
+        const categoryData = this.allCategoriesWithProducts.find(cat => cat.slug === categorySlug);
+        if (categoryData && categoryData.products?.length) {
+          console.log(`Pre-fetched products for ${categorySlug} (allCategoriesWithProducts):`, categoryData.products);
+          // Compare the data
+          if (data.products.length === 0 && categoryData.products.length > 0) {
+            console.warn(`Discrepancy detected: fetchCategoryProducts returned no products, but allCategoriesWithProducts has ${categoryData.products.length} products for ${categorySlug}`);
+          }
+        } else {
+          console.warn(`Category ${categorySlug} not found in allCategoriesWithProducts`);
+        }
+
+        // Initialize categoryProducts with pre-fetched data if available
+        if (!this.categoryProducts[categorySlug]) {
+          this.categoryProducts[categorySlug] = {
+            category: categoryData
+              ? { slug: categoryData.slug, name: categoryData.name }
+              : data.category || { slug: categorySlug, name: categorySlug },
+            products: categoryData?.products || [], // Initialize with pre-fetched products
+            total: categoryData?.products?.length || data.total || 0,
+          };
+        }
+
+        // Deduplicate products based on their ID
+        const existingProductIds = new Set(
+          this.categoryProducts[categorySlug].products.map(p => p.id)
+        );
+        const uniqueNewProducts = data.products.filter(
+          product => !existingProductIds.has(product.id)
+        );
+
+        // Append only unique products
+        this.categoryProducts[categorySlug].products.push(...uniqueNewProducts);
+        // Update total if the API provides a higher total
+        if (data.total > this.categoryProducts[categorySlug].total) {
+          this.categoryProducts[categorySlug].total = data.total;
+        }
+        console.log(`Updated products for ${categorySlug}:`, this.categoryProducts[categorySlug].products);
       } catch (error) {
         this.error.categoryProducts = error.message || `Failed to load products for ${categorySlug}`;
+        console.error(`Error fetching products for ${categorySlug}:`, error);
       } finally {
         this.loading.categoryProducts = false;
       }

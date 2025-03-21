@@ -1,7 +1,15 @@
 <template>
   <MainLayout>
     <div class="container">
-      <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
+      <!-- Show loading if allCategoriesWithProducts is still loading -->
+      <div v-if="store.loading.allCategoriesWithProducts" class="loading">
+        Loading products...
+      </div>
+      <!-- Show loading if categoryProducts is loading and no products are available yet -->
+      <div v-else-if="store.loading.categoryProducts && !products.length" class="loading">
+        Loading products...
+      </div>
+      <!-- Show error if there's an error -->
       <div v-else-if="store.error.categoryProducts" class="error">
         Error: {{ store.error.categoryProducts }}
       </div>
@@ -19,7 +27,6 @@
               @click="trackProductClick(product)"
             >
               <img
-                v-if="product.thumbnail"
                 :src="product.thumbnail"
                 :alt="product.name"
                 class="product-image"
@@ -30,9 +37,21 @@
               <p class="moq-status">{{ product.moq_status || 'N/A' }}</p>
             </router-link>
           </div>
-          <div v-else class="no-products">
+          <!-- Show "No products available" only if the category is confirmed to have no products -->
+          <div v-else-if="isCategoryLoaded" class="no-products">
             No products available
           </div>
+          <!-- Show loading if the category is still being fetched -->
+          <div v-else class="loading">
+            Loading products...
+          </div>
+        </div>
+
+        <!-- Load More Button -->
+        <div v-if="hasMoreProducts" class="load-more">
+          <button @click="loadMoreProducts" :disabled="store.loading.categoryProducts">
+            {{ store.loading.categoryProducts ? 'Loading...' : 'Load More' }}
+          </button>
         </div>
       </div>
     </div>
@@ -40,26 +59,74 @@
 </template>
 
 <script>
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '../components/navigation/MainLayout.vue';
-import { trackCategory, trackProduct } from '@/utils/tracking'; // Import trackProduct
+import { trackCategory, trackProduct } from '@/utils/tracking';
 
 export default {
   props: { categorySlug: String },
-  components: { MainLayout,},
+  components: { MainLayout },
   setup(props) {
     const store = useEcommerceStore();
+    const currentPage = ref(1);
+    const isCategoryLoaded = ref(false); // Track if the category data is fully loaded
 
-    onMounted(() => {
-      store.fetchCategoryProducts(props.categorySlug).then(() => {
-        // After fetching products, track the category
-        const categoryData = store.categoryProducts[props.categorySlug]?.category;
-        if (categoryData) {
-          trackCategory(categoryData);
-        }
-      });
+    // Fetch products on mount
+    onMounted(async () => {
+      console.log(`CategoryProducts mounted with categorySlug: ${props.categorySlug}`);
+      // Ensure allCategoriesWithProducts is loaded
+      if (!store.allCategoriesWithProducts.length) {
+        console.log('allCategoriesWithProducts is empty, fetching...');
+        await store.fetchAllCategoriesWithProducts();
+      } else {
+        console.log('allCategoriesWithProducts already loaded:', store.allCategoriesWithProducts);
+      }
+      initializeProducts();
     });
+
+    // Initialize products using pre-fetched data
+    const initializeProducts = () => {
+      // Find the category in allCategoriesWithProducts
+      const categoryData = store.allCategoriesWithProducts.find(
+        cat => cat.slug === props.categorySlug
+      );
+      console.log(`Category data for ${props.categorySlug}:`, categoryData);
+
+      if (categoryData) {
+        // Initialize categoryProducts with pre-fetched data
+        if (!store.categoryProducts[props.categorySlug]) {
+          store.categoryProducts[props.categorySlug] = {
+            category: { slug: categoryData.slug, name: categoryData.name },
+            products: categoryData.products || [],
+            total: categoryData.products?.length || 0, // Initial total based on pre-fetched data
+          };
+        }
+        // Track the category
+        trackCategory(categoryData);
+        isCategoryLoaded.value = true; // Mark the category as loaded
+      } else {
+        console.warn(`Category ${props.categorySlug} not found in allCategoriesWithProducts`);
+        // If the category isn't found, fetch it
+        fetchProducts();
+      }
+    };
+
+    // Fetch products for the current page using fetchCategoryProducts
+    const fetchProducts = async () => {
+      await store.fetchCategoryProducts(props.categorySlug, currentPage.value);
+      const categoryData = store.categoryProducts[props.categorySlug]?.category;
+      if (categoryData) {
+        trackCategory(categoryData);
+      }
+      isCategoryLoaded.value = true; // Mark the category as loaded after fetching
+    };
+
+    // Load more products (for pagination)
+    const loadMoreProducts = () => {
+      currentPage.value += 1;
+      fetchProducts();
+    };
 
     const category = computed(() => {
       return store.categoryProducts[props.categorySlug]?.category;
@@ -67,6 +134,14 @@ export default {
 
     const products = computed(() => {
       return store.categoryProducts[props.categorySlug]?.products || [];
+    });
+
+    const totalProducts = computed(() => {
+      return store.categoryProducts[props.categorySlug]?.total || 0;
+    });
+
+    const hasMoreProducts = computed(() => {
+      return products.value.length < totalProducts.value;
     });
 
     // Track product click
@@ -78,7 +153,10 @@ export default {
       store,
       category,
       products,
+      hasMoreProducts,
+      loadMoreProducts,
       trackProductClick,
+      isCategoryLoaded,
     };
   },
 };
@@ -187,6 +265,27 @@ export default {
   padding: 2rem;
   font-size: 1.1rem;
   color: #666;
+}
+
+/* Load More Button */
+.load-more {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.load-more button {
+  padding: 0.75rem 1.5rem;
+  background-color: #f28c38;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.load-more button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
 /* Responsive adjustments */
