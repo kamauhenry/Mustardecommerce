@@ -21,7 +21,7 @@
             <router-link
               v-for="product in category.products.slice(0, 4)"
               :key="product.id"
-              :to="`/category/${category.slug}/${product.slug}`"
+              :to="`/products/${category.slug}/${product.slug}`"
               class="product-card"
               @click="trackProductClick(product, category.slug)"
             >

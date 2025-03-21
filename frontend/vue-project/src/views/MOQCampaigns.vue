@@ -58,7 +58,7 @@
           <router-link
             v-for="product in displayedProducts"
             :key="product.id"
-            :to="`/category/${getCategorySlug(product)}/${product.slug}`"
+            :to="`/products/${getCategorySlug(product)}/${product.slug}`"
             class="product-card"
             @click="trackProductClick(product)"
           >
