@@ -55,17 +55,19 @@
 
         <!-- Products Grid -->
         <div class="products-grid">
-          <div
+          <router-link
             v-for="product in displayedProducts"
             :key="product.id"
+            :to="`/category/${getCategorySlug(product)}/${product.slug}`"
             class="product-card"
+            @click="trackProductClick(product)"
           >
-            <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
+            <img :src="product.thumbnail || placeholder" :alt="product.name" class="product-image" />
             <h3 class="product-name">{{ product.name }}</h3>
             <p class="product-price">KES {{ product.price }}</p>
             <p class="moq-info">MOQ: {{ product.moq }} items</p>
             <p class="moq-status">{{ product.moq_status }}</p>
-          </div>
+          </router-link>
         </div>
 
         <!-- No Products Message -->
@@ -81,6 +83,8 @@
 import { onMounted, ref, computed } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
+import { trackProduct } from '@/utils/tracking'; // Import trackProduct
+import placeholder from '@/assets/images/placeholder.png';
 
 export default {
   setup() {
@@ -168,6 +172,22 @@ export default {
       // automatically updates
     };
 
+    // Get the category slug for a product
+    const getCategorySlug = (product) => {
+      const category = store.allCategoriesWithProducts.find(cat =>
+        cat.products.some(p => p.id === product.id)
+      );
+      return category ? category.slug : '';
+    };
+
+    // Track product click
+    const trackProductClick = (product) => {
+      const categorySlug = getCategorySlug(product);
+      if (categorySlug) {
+        trackProduct(product, categorySlug);
+      }
+    };
+
     return {
       store,
       selectedCategory,
@@ -175,7 +195,9 @@ export default {
       searchQuery,
       displayedProducts,
       filterProducts,
-      sortProducts
+      sortProducts,
+      getCategorySlug,
+      trackProductClick
     };
   },
   components: {
@@ -292,6 +314,8 @@ export default {
   border-radius: 6px;
   padding: 0.5rem;
   transition: transform 0.2s ease;
+  text-decoration: none; /* Remove underline from router-link */
+  color: inherit; /* Inherit text color */
 }
 
 .product-card:hover {
