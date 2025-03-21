@@ -10,6 +10,7 @@ import CategoryPage from '@/views/AllCategories.vue';
 import CategoriesPage from '@/views/CategoryProducts.vue';
 import ProductDetails from '@/views/ProductDetails.vue';
 import CompletedOrders from '@/views/CompletedOrders.vue';
+import SearchResultsPage from '@/views/SearchResultsPage.vue';
 
 const routes = [
   { path: '/', component: Home },
@@ -20,6 +21,11 @@ const routes = [
   { path: '/about', component: About },
   { path: '/contact', component: Contact },
   { path: '/cart', component: Cart },
+  {
+    path: '/search-results',
+    name: 'SearchResults',
+    component: SearchResultsPage
+  },
   { path: '/category/:categorySlug', component: CategoryPage, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },
   { path: '/products/:categorySlug/:productSlug', component: ProductDetails, props: true },
