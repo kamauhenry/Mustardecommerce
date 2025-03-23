@@ -17,6 +17,10 @@ const routes = [
   { path: '/admin-page/login', component: LoginAdmin, meta: { requiresGuest: true } },
   { path: '/admin-page/register', component: RegistrationAdmin, meta: { requiresGuest: true } },
   { path: '/admin-page', redirect: '/admin-page/login' },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/admin-page/login',
+  },
 ];
 
 const createAdminRouter = () => {
@@ -33,7 +37,7 @@ const createAdminRouter = () => {
 
     if (to.meta.requiresAdmin) {
       if (!isAuthenticated) {
-        next('/admin-page/login');
+        next('/admin-page/dashboard');
       } else if (!isAdmin) {
         next('/');
       } else {

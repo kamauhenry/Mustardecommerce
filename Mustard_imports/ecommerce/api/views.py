@@ -3,6 +3,10 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import login, logout
+from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Sum, Count, Q
+from datetime import datetime, timedelta
 from rest_framework.views import APIView
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
@@ -20,10 +24,142 @@ from .serializers import (
     UserSerializer, CategorySerializer, ProductSerializer,
     ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,
     CustomerReviewSerializer, MOQRequestSerializer, CartSerializer,
-    CartItemSerializer, RegisterSerializer, LoginSerializer
+    CartItemSerializer, RegisterSerializer, LoginSerializer, AdminRegisterSerializer, AdminLoginSerializer
 )
 
 User = get_user_model()
+
+class AdminRegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = AdminRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            login(request, user)
+            return Response({
+                'message': 'Admin registered successfully',
+                'user_id': user.id,
+                'username': user.username,
+                'country_code': user.country_code,
+                'email': user.email,
+                'user_type': user.user_type,
+                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AdminLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = AdminLoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            login(request, user)
+            return Response({
+                'message': 'Admin login successful',
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'user_type': user.user_type,
+                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({'message': 'Not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can use this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({
+            'message': 'Logged in as admin',
+            'user_id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'user_type': request.user.user_type,
+        }, status=status.HTTP_200_OK)
+
+class AdminLogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can use this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        logout(request)
+        return Response({'message': 'Admin logged out successfully'}, status=status.HTTP_200_OK)
+
+class AdminProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    def put(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def admin_dashboard(request):
+    if request.user.user_type != 'admin':
+        return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Optimize queries with select_related and annotate
+    total_sales = Order.objects.count()
+    total_revenue = Order.objects.aggregate(Sum('price'))['price__sum'] or 0
+    total_customers = User.objects.filter(user_type='customer').count()
+    top_products = Product.objects.select_related('category').annotate(
+        moq_count=Count('order', filter=Q(order__status='active'))
+    ).order_by('-moq_count')[:5]
+    top_products_data = ProductSerializer(top_products, many=True, context={'request': request}).data
+
+    # Revenue trend over the last 6 months
+    today = datetime.today()
+    revenue_trend = {'current': [], 'previous': []}
+    for i in range(6):
+        month = today - timedelta(days=30 * i)
+        current_month_revenue = Order.objects.filter(
+            created_at__month=month.month, created_at__year=month.year
+        ).aggregate(Sum('price'))['price__sum'] or 0
+        previous_month = month - timedelta(days=30)
+        previous_month_revenue = Order.objects.filter(
+            created_at__month=previous_month.month, created_at__year=previous_month.year
+        ).aggregate(Sum('price'))['price__sum'] or 0
+        revenue_trend['current'].insert(0, float(current_month_revenue))
+        revenue_trend['previous'].insert(0, float(previous_month_revenue))
+
+    # Sales by location
+    sales_by_location = Order.objects.values('shipping_address').annotate(sales=Count('id')).order_by('-sales')[:3]
+    sales_by_location = [
+        {'location': item['shipping_address'] or 'Unknown', 'sales': item['sales']}
+        for item in sales_by_location
+    ]
+
+    # Total sales breakdown (mock data for now)
+    total_sales_breakdown = [
+        {'channel': 'Direct', 'sales': 38},
+        {'channel': 'Affiliate', 'sales': 15},
+        {'channel': 'Sponsored', 'sales': 14},
+        {'channel': 'E-mail', 'sales': 48},
+    ]
+
+    return Response({
+        'total_sales': total_sales,
+        'total_revenue': float(total_revenue),
+        'total_customers': total_customers,
+        'top_products': top_products_data,
+        'revenue_trend': revenue_trend,
+        'sales_by_location': sales_by_location,
+        'total_sales_breakdown': total_sales_breakdown,
+    })
 
 # Authentication Views
 class LoginView(APIView):

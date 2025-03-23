@@ -5,6 +5,8 @@ import App from './App.vue';
 import createMyRouter from './router/index';
 import createAdminRouter from './router/admin';
 import { createPinia } from 'pinia';
+import Toast from 'vue-toastification';
+import 'vue-toastification/dist/index.css';
 
 // Create Pinia instance
 const pinia = createPinia();
@@ -14,6 +16,24 @@ const initializeApp = (router, mountPoint) => {
   const app = createApp(App);
   app.use(pinia);
   app.use(router);
+
+  app.use(Toast, {
+    transition: 'Vue-Toastification__bounce',
+    maxToasts: 20,
+    newestOnTop: true,
+    position: 'top-right',
+    timeout: 5000,
+    closeOnClick: true,
+    pauseOnFocusLoss: true,
+    pauseOnHover: true,
+    draggable: true,
+    draggablePercent: 0.6,
+    showCloseButtonOnHover: false,
+    hideProgressBar: false,
+    closeButton: 'button',
+    icon: true,
+    rtl: false,
+  });
 
   // Global error handler
   app.config.errorHandler = (err, vm, info) => {

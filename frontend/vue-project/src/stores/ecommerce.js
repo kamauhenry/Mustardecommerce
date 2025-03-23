@@ -247,9 +247,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
         localStorage.setItem('token', response.token);
         localStorage.setItem('userId', response.user_id);
         localStorage.setItem('user', JSON.stringify(this.user));
-        apiInstance = api.createApiInstance(this);
+        apiInstance = api.createApiInstance({ userId: this.userId, token: this.token });
       } catch (error) {
-        this.error.auth = error.message || 'Admin registration failed';
+        error.value.auth = error.message || 'Admin registration failed';
         throw error;
       } finally {
         this.loading.auth = false;

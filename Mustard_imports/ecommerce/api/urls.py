@@ -4,7 +4,7 @@ from .views import (
     CategoryViewSet, ProductViewSet, ProductDetail, CategoryProductsView,
     CategoriesWithProductsViewSet, AllCategoriesWithProductsView,
     CartViewSet, OrderViewSet, CompletedOrderViewSet, CustomerReviewViewSet,
-    MOQRequestViewSet, RegisterView, LoginView
+    MOQRequestViewSet, RegisterView, LoginView, AdminRegisterView, AdminLoginView, AdminLogoutView, AdminProfileView, admin_dashboard
 )
 
 # Creating DRF router
@@ -27,6 +27,11 @@ urlpatterns = [
     # Custom authentication views
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
+    path('admin-page/register/', AdminRegisterView.as_view(), name='admin_register'),
+    path('admin-page/login/', AdminLoginView.as_view(), name='admin_login'),
+    path('admin-page/logout/', AdminLogoutView.as_view(), name='admin_logout'),
+    path('admin-page/profile/', AdminProfileView.as_view(), name='admin_profile'),
+    path('admin-page/dashboard/', admin_dashboard, name='admin_dashboard'),
     
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
