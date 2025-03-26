@@ -18,7 +18,7 @@ class User(AbstractUser):
     #phone_number = models.CharField(max_length=20, unique=True, null=False)
     points = models.IntegerField(default=0)
     affiliate_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
     location = models.CharField(max_length=255, blank=True)
 
 
@@ -87,7 +87,7 @@ class Product(models.Model):
             return 100
 
         current = self.current_moq_count()
-        return min(100, int((current / self.moq) * 100))
+        return min(300, int((current / self.moq) * 100))
 
 
     

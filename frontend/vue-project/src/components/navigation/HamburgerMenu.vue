@@ -102,6 +102,7 @@ const isSidebarOpen = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const query = ref('');
 
+
 const updateScreenSize = () => {
   isMobile.value = window.innerWidth <= 768;
 };

@@ -1,12 +1,20 @@
+
 import axios from 'axios';
+function getCsrfToken() {
+  const csrfToken = document.cookie.split('; ')
+    .find(row => row.startsWith('csrftoken='))
+    ?.split('=')[1];
+  return csrfToken;
+}
 
 // the api instance creation function
-const createApiInstance = (store) => {
+export const createApiInstance = (store) => {
   const api = axios.create({
     baseURL: 'http://localhost:8000/api/',
     timeout: 150000,
     withCredentials: true, // Include cookies if authentication is involved
   });
+
 
   // Add request interceptor with dynamic store access
   api.interceptors.request.use(
@@ -18,6 +26,20 @@ const createApiInstance = (store) => {
     },
     (error) => Promise.reject(error)
   );
+    // Response Interceptor for global error handling
+    api.interceptors.request.use(
+      (config) => {
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+          config.headers['X-CSRFToken'] = csrfToken;
+        }
+        if (store.userId) {
+          config.headers['X-User-Id'] = store.userId;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
 
   return api;
 };
@@ -34,6 +56,7 @@ const fetchCategories = async (api) => {
     throw error;
   }
 };
+
 
 const fetchCategoryProducts = async (api, categorySlug, page = 1, perPage = 5) => {
   try {
@@ -71,16 +94,20 @@ const fetchAllCategoriesWithProducts = async (api) => {
   }
 }; //works
 
-const fetchCart = async (api, cartId) => {
-  if (!cartId) throw new Error('Cart ID not set');
+const fetchCart = async (api, userId) => {
   try {
-    const response = await api.get(`carts/${cartId}/`);
+    // Assuming you want to first fetch the user's cart
+    const response = await api.get(`users/${userId}/cart/`, {
+      timeout: 60000
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching cart:', error.response?.data || error.message);
     throw error;
   }
 };
+
+
 
 const fetchOrders = async (api, userId) => {
   if (!userId) throw new Error('User ID not set');
@@ -104,13 +131,25 @@ const fetchCompletedOrders = async (api, userId) => {
   }
 };
 
+const createCart = async (api, userId) => {
+  try {
+    const response = await api.post(`users/${userId}/create_cart/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating cart:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 const addToCart = async (api, cartId, productId, variantId, quantity = 1) => {
   try {
+    console.log('Adding to cart:', { cartId, productId, variantId, quantity });
     const response = await api.post(`carts/${cartId}/add_item/`, {
       product: productId,
       variant: variantId,
       quantity,
     });
+    console.log('Add to cart response:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error adding to cart:', error.response?.data || error.message);
@@ -151,8 +190,20 @@ const cancelOrder = async (api, orderId) => {
     throw error;
   }
 };
+// Fixed version
+// Utility function to search products
+export const searchProducts = async (apiInstance, query, page = 1, perPage = 10) => {
+  const response = await apiInstance.get('/products/search/', {
+    params: {
+      search: query,
+      page,
+      per_page: perPage,
+      ordering: '-created_at',
+    },
+  });
+  return response.data;
+};
 
-// Create the api object containing all the functions
 const api = {
   createApiInstance,
   fetchCategories,
@@ -165,7 +216,9 @@ const api = {
   addToCart,
   removeFromCart,
   checkoutCart,
-  cancelOrder
+  cancelOrder,
+  searchProducts,
+  createCart
 };
 
 // Export the api object as the default export

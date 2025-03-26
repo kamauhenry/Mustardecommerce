@@ -1,6 +1,35 @@
 <script>
+import { useEcommerceStore } from '@/stores/ecommerce';
   export default {
     name: "app",
+    data(){
+      return{
+        
+        cart:{
+          items:[]
+        }
+      }
+    },
+    setup(){
+      const store = useEcommerceStore
+      return {store};
+    },
+    created() {
+    // If authenticated, fetch cart data
+    if (this.store.isAuthenticated) {
+      this.store.fetchCartData();
+    }
+  },
+
+    computed:{
+      cartTotalLength() {
+      
+      const items = this.store.cart.items || [];
+      
+      //sum up quantities
+      return items.reduce((total, item) => total + (item.quantity || 0), 0);
+    }
+    }
   };
 </script>
 

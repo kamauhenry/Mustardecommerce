@@ -1,14 +1,21 @@
+from django.db.models import Q
+from django.core.paginator import Paginator
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view ,  permission_classes
+from rest_framework.permissions import AllowAny
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .permissions import IsOwnerOrAdmin, IsAdminUser
 from ..models import (
@@ -18,7 +25,7 @@ from ..models import (
 )
 from .serializers import (
     UserSerializer, CategorySerializer, ProductSerializer,
-    ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,
+    ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,CategoriesProductsSerializer,
     CustomerReviewSerializer, MOQRequestSerializer, CartSerializer,
     CartItemSerializer, RegisterSerializer, LoginSerializer
 )
@@ -26,7 +33,14 @@ from .serializers import (
 User = get_user_model()
 
 # Authentication Views
+
 class LoginView(APIView):
+
+    @method_decorator(ensure_csrf_cookie)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    
     permission_classes = []
 
     def post(self, request):
@@ -38,7 +52,7 @@ class LoginView(APIView):
                 'message': 'Login successful',
                 'user_id': user.id,
                 'username': user.username
-            }, status=status.HTTP200_OK)
+            }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
@@ -48,7 +62,7 @@ class LoginView(APIView):
             'message': 'Logged in',
             'user_id': request.user.id,
             'username': request.user.username
-        }, status=status.HTTP200_OK)
+        }, status=status.HTTP_200_OK)
 
 class RegisterView(APIView):
     permission_classes = []
@@ -65,7 +79,40 @@ class RegisterView(APIView):
             }, status=status.HTTP201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# Custom API Views
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search(request):
+    query = request.GET.get('search', '')
+    page = int(request.GET.get('page', 1))
+    per_page = int(request.GET.get('per_page', 10))
+    ordering = request.GET.get('ordering', '-created_at')
+    
+    if query:
+        # First apply all filters
+        products = Product.objects.filter(
+            Q(name__icontains=query) | Q(description__icontains=query)
+        ).order_by(ordering)
+        
+        # Then handle pagination
+        paginator = Paginator(products, per_page)
+        page_obj = paginator.get_page(page)
+        
+        serializer = ProductSerializer(page_obj, many=True)
+        
+        return Response({
+            'results': serializer.data,  # Changed from 'products' to 'results' to match frontend expectation
+            'total': paginator.count,
+            'pages': paginator.num_pages,
+            'current_page': page
+        })
+    else:
+        return Response({
+            "results": [],  # Changed from 'products' to 'results'
+            "total": 0, 
+            "pages": 0, 
+            "current_page": 1
+        })
+
 class CategoryProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -168,22 +215,34 @@ class ProductsView(APIView):
         except Exception as e:
             return Response({'error': f'Failed to fetch products: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
 
+
+@api_view(['POST'])
+def create_cart(request):
+    user = request.user  # Assuming authenticated
+    try:
+        # This will create a cart if it doesn't exist
+        cart, created = Cart.objects.get_or_create(user=user)
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class AllCategoriesWithProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
+
     def get(self, request, *args, **kwargs):
-        categories = Category.objects.all()
-        result = []
-        for category in categories:
-            products = Product.objects.filter(category=category).order_by('-created_at')
-            product_serializer = ProductSerializer(products, many=True, context={'request': request})
-            result.append({
-                'id': category.id,
-                'name': category.name,
-                'slug': category.slug,
-                'products': product_serializer.data
-            })
+        cache_key = 'all_categories_with_products'
+        result = cache.get(cache_key)
+        if not result: 
+            categories = Category.objects.prefetch_related('products')
+            serializer = CategoriesProductsSerializer(categories, many=True, context={'request': request})
+            result = serializer.data
+            cache.set(cache_key, result, 60*15)
+
         return Response(result)
+
 
 # ViewSets
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -209,12 +268,13 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    queryset = Product.objects.all()  # Removed [0:4] limit
+    queryset = Product.objects.all() 
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['category', 'moq_status']
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'rating', 'created_at']
+    pagination_class = None  #
 
     @action(detail=True, methods=['get'])
     def variants(self, request, pk=None):
@@ -237,6 +297,24 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data)
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        
+        if page and per_page:
+            try:
+                page = int(page)
+                per_page = int(per_page)
+                start = (page - 1) * per_page
+                end = start + per_page
+                queryset = queryset[start:end]
+            except (ValueError, TypeError):
+                pass
+                
+        return queryset
+
 class ProductDetail(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -251,19 +329,51 @@ class ProductDetail(APIView):
         serializer = ProductSerializer(product)
         return Response(serializer.data)
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
     permission_classes = [IsOwnerOrAdmin]
 
-    def get_queryset(self):
-        user_id = self.request.headers.get('X-User-Id')
+    def list(self, request):
+        # Allow filtering carts by user
+        user_id = request.query_params.get('user_id')
         if user_id:
-            return Cart.objects.filter(user_id=user_id)
+            queryset = Cart.objects.filter(user_id=user_id)
+        else:
+            queryset = Cart.objects.filter(user=request.user)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        # Ensure a user can only create a cart for themselves
+        serializer = self.get_serializer(data={
+            'user': request.user.id
+        })
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def get_queryset(self):
         return Cart.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         cart, created = Cart.objects.get_or_create(user=self.request.user)
         serializer.save(user=self.request.user)
+    @action(detail=False, methods=['GET'])
+    def my_cart(self, request):
+        # Endpoint to get current user's cart
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        serializer = self.get_serializer(cart)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def view_items(self, request, pk=None):
+        cart = self.get_object()
+        cart_items = cart.items.all()
+        serializer = CartItemSerializer(cart_items, many=True)
+        return Response(serializer.data)
+
 
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):

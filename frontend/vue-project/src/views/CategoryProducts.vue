@@ -1,34 +1,45 @@
 <template>
   <MainLayout>
-  <div class="container">
-
-    <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
-    <div v-else-if="store.error.categoryProducts" class="error">
-      Error: {{ store.error.categoryProducts }}
-    </div>
-    <div v-else>
-      <div class="products-grid">
-        <div v-if="products.length > 0" class="products">
-          <div v-for="product in products" :key="product.id" class="product-card">
-            <img
-              v-if="product.thumbnail"
-              :src="product.thumbnail"
-              :alt="product.name"
-              class="product-image"
-            />
-            <h3 class="product-name">{{ product.name }}</h3>
-            <p class="product-price">KES {{ product.price }}</p>
-            <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
-            <p class="moq-status">{{ product.moq_status || 'N/A' }}</p>
+    <div class="container">
+      <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
+      <div v-else-if="store.error.categoryProducts" class="error">
+        Error: {{ store.error.categoryProducts }}
+      </div>
+      <div v-else>
+        <div class="products-grid">
+          <div class="breadcrumb">
+            <router-link to="/">Home</router-link> &gt;
+            <router-link :to="`/category/${categorySlug}`">{{ categorySlug|| 'Category' }}</router-link> 
           </div>
-        </div>
-        <div v-else class="no-products">
-          No products available
+          <div v-if="products.length > 0" class="products">
+            <div v-for="product in products" :key="product.id" class="product-card">
+              <router-link 
+                :to="{ 
+                  path: `/products/${categorySlug}/${product.slug}`,
+                  params: { categorySlug: categorySlug, productSlug: product.slug }
+                }" 
+                class="product-link"
+              >
+                <img
+                  v-if="product.thumbnail"
+                  :src="product.thumbnail"
+                  :alt="product.name"
+                  class="product-image"
+                />
+                <h3 class="product-name">{{ product.name }}</h3>
+                <p class="product-price">KES {{ product.price }}</p>
+                <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
+                <p class="moq-status">{{ product.moq_status || 'N/A' }}</p>
+              </router-link>
+            </div>
+          </div>
+          <div v-else class="no-products">
+            No products available
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</MainLayout>
+  </MainLayout>
 </template>
 
 <script>
@@ -70,7 +81,41 @@ export default {
   text-transform: uppercase;
   margin: 0.5rem 0 1rem 0;
 }
+/* Breadcrumb styling */
+.breadcrumb {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
 
+/* Style for router-link (which renders as <a> tags) */
+.breadcrumb a {
+  color: #5E5500; /* Set the color to 5E5500 */
+  text-decoration: none; /* Remove underline */
+}
+
+/* Remove hover effects */
+.breadcrumb a:hover {
+  color: #5E5500; /* Keep the same color on hover */
+  text-decoration: none; /* Ensure no underline on hover */
+}
+
+/* Style for visited links */
+.breadcrumb a:visited {
+  color: #5E5500; /* Keep the same color after being visited */
+  text-decoration: none; /* Ensure no underline after being visited */
+}
+
+/* Style for active/focused links (when clicked) */
+.breadcrumb a:active,
+.breadcrumb a:focus {
+  color: #5E5500; /* Keep the same color when clicked or focused */
+  text-decoration: none; /* Ensure no underline when clicked or focused */
+}
+
+/* Style for the current page (non-link) */
+.breadcrumb span {
+  color: #5E5500; /* Match the color for consistency */
+}
 /* Products grid container */
 .products-grid {
   display: flex;
@@ -100,6 +145,14 @@ export default {
 .product-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.product-link:hover {
+  text-decoration: none; /* Ensures no underline on hover */
+  color: inherit; /* Maintains original text color */
+}
+.product-link{
+  text-decoration: none; /* Ensures no underline on hover */
+  color: inherit; /* Maintains original text color */
 }
 
 .product-image {

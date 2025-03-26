@@ -10,10 +10,12 @@ import CategoryPage from '@/views/AllCategories.vue';
 import CategoriesPage from '@/views/CategoryProducts.vue';
 import ProductDetails from '@/views/ProductDetails.vue';
 import CompletedOrders from '@/views/CompletedOrders.vue';
+import SearchResults from '../views/SearchResults.vue';
 
 const routes = [
   { path: '/', component: Home },
   { path: '/moq-campaigns', component: MOQCampaigns },
+  { path: '/SearchResults', component: SearchResults, name:'search-results' },
   { path: '/profile', component: Profile },
   { path: '/orders', component: Orders },
   { path: '/completed-orders', component: CompletedOrders },

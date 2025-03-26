@@ -19,16 +19,32 @@
           <h2 class="category-title">{{ category.name }}</h2>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
             <div
-              v-for="product in category.products.slice(0, 4)"
-              :key="product.id"
-              class="product-card"
-            >
-              <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
-              <h3 class="product-name">{{ product.name }}</h3>
-              <p class="product-price">KES {{ product.price }}</p>
-              <p class="moq-info">MOQ: {{ product.moq }} items</p>
-              <p class="moq-status">{{ product.moq_status }}</p>
-            </div>
+                v-for="product in category.products.slice(0, 4)"
+                :key="product.id"
+                class="product-card"
+              >
+                <router-link
+                  :to="{
+                    path: `/products/${category.slug}/${product.slug}`,
+                    params: { categorySlug: category.slug, productSlug: product.slug }
+                  }"
+                  class="product-link"
+                >
+                  <img :src="product.thumbnail || 'placeholder.jpg'" alt="" class="product-image" />
+                  <h3 class="product-name">{{ product.name }}</h3>
+                  <p class="product-price">KES {{ product.price }}</p>
+                  <p class="moq-info">MOQ: {{ product.moq }} items</p>
+                  
+                  <!-- Progress bar container -->
+                  <div class="moq-progress-container">
+                    <div 
+                      class="moq-progress-bar" 
+                      :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
+                    ></div>
+                    <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
+                  </div>
+                </router-link>
+              </div>
           </div>
           <div v-else class="no-products">
             No products available
@@ -91,6 +107,20 @@ export default {
   padding: 1rem;
   /* background-color: #f5f5f5; */
 }
+
+.product-link {
+  text-decoration: none; /* Removes underline */
+  color: inherit; /* Inherits text color from parent */
+ 
+}
+
+/* Prevent hover effects typically associated with links */
+.product-link:hover {
+  text-decoration: none; /* Ensures no underline on hover */
+  color: inherit; /* Maintains original text color */
+}
+
+
 
 /* Individual category card */
 .category-card {
@@ -161,6 +191,7 @@ export default {
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2; /* Limit to 2 lines */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -193,6 +224,35 @@ export default {
   padding: 0.2rem 0.4rem; /* Reduced padding */
   border-radius: 12px;
   margin: 0.25rem 0;
+}
+.moq-progress-container {
+  position: relative;
+  width: 100%;
+  height: 24px;
+  background-color: #e6f4ea;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0.25rem 0;
+}
+
+.moq-progress-bar {
+  height: 100%;
+  background-color: #28a745;
+  transition: width 0.3s ease;
+}
+
+.moq-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f28c38;
+  font-size: 0.7rem;
+  font-weight: bold;
 }
 
 /* "See More" link styling */

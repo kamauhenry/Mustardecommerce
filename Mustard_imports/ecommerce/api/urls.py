@@ -6,12 +6,13 @@ from .views import (
     CartViewSet, OrderViewSet, CompletedOrderViewSet, CustomerReviewViewSet,
     MOQRequestViewSet, RegisterView, LoginView
 )
-
+from ecommerce.api import views
 # Creating DRF router
 router = routers.DefaultRouter()
 
 # Register viewsets with the router
 router.register(r'categories', CategoryViewSet, basename='category')
+
 router.register(r'products', ProductViewSet, basename='product')  # Added basename for ProductViewSet
 router.register(r'carts', CartViewSet, basename='cart')
 router.register(r'orders', OrderViewSet, basename='order')
@@ -30,14 +31,15 @@ urlpatterns = [
     
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
-    
+    path('products/search/', views.search, name='search'), 
     # Product and category-related URLs
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
-    
+
     # Custom cart and order actions
+    path('carts/<int:pk>/items/', CartViewSet.as_view({'get': 'view_items'}), name='cart-view-items'),
     path('carts/<int:pk>/add_item/', CartViewSet.as_view({'post': 'add_item'}), name='cart-add-item'),
     path('carts/<int:pk>/remove_item/', CartViewSet.as_view({'post': 'remove_item'}), name='cart-remove-item'),
     path('carts/<int:pk>/checkout/', CartViewSet.as_view({'post': 'checkout'}), name='cart-checkout'),

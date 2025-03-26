@@ -59,9 +59,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+  
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug']
+
+
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -74,13 +77,14 @@ class ProductSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
+    variants  = ProductVariantSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'thumbnail',
-            'category_slug', 'created_at'
+            'category_slug', 'created_at', 'variants'
         ]
 
     def get_moq_progress(self, obj):
@@ -99,6 +103,12 @@ class ProductSerializer(serializers.ModelSerializer):
             return settings.SITE_URL + obj.picture.url.lstrip('/')
         return ''
 
+
+class CategoriesProductsSerializer(serializers.ModelSerializer):
+    products = ProductSerializer(many=True)
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug','products']
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')

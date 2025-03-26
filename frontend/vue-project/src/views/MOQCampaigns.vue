@@ -1,104 +1,110 @@
 <template>
-  <div class="moq-campaigns">
-    <!-- Filters row -->
-    <div class="filters-row flex flex-wrap gap-2 mb-6">
-      <div class="filter-group flex items-center">
-        <span class="mr-2">Filter:</span>
-        <select
-          id="category-filter"
-          v-model="selectedCategorySlug"
-          @change="onFilterChange"
-          class="border px-2 py-1 w-64"
-          aria-label="Filter by category"
-          :disabled="loading || !categories.length"
-        >
-          <option value="">All categories</option>
-          <option v-for="category in categories" :key="category.id" :value="category.slug">
-            {{ category.name }}
-          </option>
-        </select>
+  <MainLayout>
+    <div class="moq-campaigns">
+      <!-- Filters row -->
+      <div class="filters-row flex flex-wrap gap-2 mb-6">
+        <div class="filter-group flex items-center">
+          <span class="mr-2">Filter:</span>
+          <select
+            id="category-filter"
+            v-model="selectedCategorySlug"
+            @change="onFilterChange"
+            class="border px-2 py-1 w-64"
+            aria-label="Filter by category"
+            :disabled="loading || !categories.length"
+          >
+            <option value="">All categories</option>
+            <option v-for="category in categories" :key="category.id" :value="category.slug">
+              {{ category.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <select
+            id="sort-filter"
+            v-model="sortOption"
+            @change="onFilterChange"
+            class="border px-2 py-1 w-48"
+            aria-label="Sort products"
+            :disabled="loading || !categories.length"
+          >
+            <option value="name_asc">Default order</option>
+            <option value="name_desc">Name (Z-A)</option>
+            <option value="price_asc">Price (Low to High)</option>
+            <option value="price_desc">Price (High to Low)</option>
+            <option value="newest">Newest First</option>
+          </select>
+        </div>
       </div>
 
-      <div class="filter-group">
-        <select
-          id="sort-filter"
-          v-model="sortOption"
-          @change="onFilterChange"
-          class="border px-2 py-1 w-48"
-          aria-label="Sort products"
-          :disabled="loading || !categories.length"
-        >
-          <option value="name_asc">Default order</option>
-          <option value="name_desc">Name (Z-A)</option>
-          <option value="price_asc">Price (Low to High)</option>
-          <option value="price_desc">Price (High to Low)</option>
-          <option value="newest">Newest First</option>
-        </select>
+      <!-- Loading state -->
+      <div v-if="loading" class="loading">Loading products...</div>
+
+      <!-- Error message -->
+      <div v-else-if="error" class="bg-red-100 text-red-700 p-4 rounded mb-4" role="alert">
+        <strong>Error:</strong> {{ error }}
+        <button @click="retryLoading" class="underline ml-2">Retry</button>
       </div>
-    </div>
 
-    <!-- Loading state -->
-    <div v-if="loading" class="loading">Loading products...</div>
+      <!-- Empty state -->
+      <div v-else-if="!products || products.length === 0" class="no-products">
+        No products available.
+      </div>
 
-    <!-- Error message -->
-    <div v-else-if="error" class="bg-red-100 text-red-700 p-4 rounded mb-4" role="alert">
-      <strong>Error:</strong> {{ error }}
-      <button @click="retryLoading" class="underline ml-2">Retry</button>
-    </div>
-
-    <!-- Empty state -->
-    <div v-else-if="!products || products.length === 0" class="no-products">
-      No products available.
-    </div>
-
-    <!-- Products grid -->
-    <div v-else class="products-grid">
-      <div v-for="(product, index) in products" :key="product.id" class="product-card">
-        <router-link :to="`/product/${product.category_slug || 'uncategorized'}/${product.slug}`" class="product-link">
-          <div class="product-image">
-            <img :src="product.thumbnail || '/path/to/placeholder.jpg'" :alt="product.name">
-          </div>
-          <div class="product-info">
-            <h3 class="product-name">{{ product.name }}</h3>
-            <div class="product-price">
-              <span class="price-highlight">KES {{ product.price }}</span>
+      <!-- Products grid -->
+      <div v-else class="products-grid">
+        <div v-for="(product, index) in products" :key="product.id" class="product-card">
+          <router-link :to="`/product/${product.category_slug || 'uncategorized'}/${product.slug}`" class="product-link">
+            <div class="product-image">
+              <img :src="product.thumbnail || '/path/to/placeholder.jpg'" :alt="product.name">
             </div>
-            <div class="product-moq-info">
-              <div class="below-moq">Below MOQ Price: KES {{ product.below_moq_price || product.price }}</div>
-              <div class="moq-detail">MOQ: {{ product.moq || 1 }} Items</div>
-            </div>
-            <div class="product-status">
-              <span class="status-text">{{ product.moq_status || 'Active' }}</span>
-              <div class="progress-container">
-                <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '100'}%` }"></div>
-                <span class="progress-text">{{ product.moq_progress?.percentage || '100' }}% Orders</span>
+            <div class="product-info">
+              <h3 class="product-name">{{ product.name }}</h3>
+              <div class="product-price">
+                <span class="price-highlight">KES {{ product.price }}</span>
+              </div>
+              <div class="product-moq-info">
+                <div class="below-moq">Below MOQ Price: KES {{ product.below_moq_price || product.price }}</div>
+                <div class="moq-detail">MOQ: {{ product.moq || 1 }} Items</div>
+              </div>
+              <div class="product-status">
+                <span class="status-text">{{ product.moq_status || 'Active' }}</span>
+                <div class="progress-container">
+                  <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '100'}%` }"></div>
+                  <span class="progress-text">{{ product.moq_progress?.percentage || '100' }}% Orders</span>
+                </div>
               </div>
             </div>
-          </div>
-        </router-link>
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Load More -->
+      <div v-if="hasMoreProducts" class="flex justify-center mt-8">
+        <button
+          @click="loadMoreProducts"
+          class="bg-gray-200 hover:bg-gray-300 px-6 py-2 rounded font-medium"
+          :disabled="loadingMore"
+          aria-label="Load more products"
+        >
+          <span v-if="loadingMore">Loading...</span>
+          <span v-else>See More</span>
+        </button>
       </div>
     </div>
-
-    <!-- Load More -->
-    <div v-if="hasMoreProducts" class="flex justify-center mt-8">
-      <button
-        @click="loadMoreProducts"
-        class="bg-gray-200 hover:bg-gray-300 px-6 py-2 rounded font-medium"
-        :disabled="loadingMore"
-        aria-label="Load more products"
-      >
-        <span v-if="loadingMore">Loading...</span>
-        <span v-else>See More</span>
-      </button>
-    </div>
-  </div>
+  </MainLayout>
 </template>
 
 <script>
 import axios from 'axios';
+import MainLayout from '@/components/navigation/MainLayout.vue'; // Import MainLayout
 
 export default {
   name: 'CategoryProducts',
+  components: {
+    MainLayout, // Register MainLayout as a component
+  },
   data() {
     return {
       products: [],
@@ -123,7 +129,7 @@ export default {
       this.error = null;
       try {
         const response = await axios.get('/api/categories/', {
-          // // timeout: 15000,
+          // timeout: 15000,
         });
         console.log('Categories response:', response.data); // Debugging
         this.categories = Array.isArray(response.data) ? response.data : [];

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from os import path, getenv
 from pathlib import Path
+from corsheaders.defaults import default_headers
 
 from dotenv import load_dotenv
 
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'ecommerce',
+    'ecommerce.api',
     'corsheaders',
     'djoser',
     'django_filters',
@@ -74,9 +76,9 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
 MIDDLEWARE = [
- 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -85,10 +87,41 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.common.CommonMiddleware',
 ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vue.js development server
+    "http://127.0.0.1:8000",  # Django server
+    "http://localhost:8000"   # Added for flexibility
+]
 
-CORS_ALLOWED_ORIGINS = "http://localhost:8000,http://localhost:5173".split(",")
 CORS_ALLOW_CREDENTIALS = True
 
+# Expanded list of allowed headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-user-id',       # Custom header for user ID
+    'Authorization',   # For authentication tokens
+    'content-disposition',  # Corrected lowercase
+    'x-requested-with', # Common for AJAX requests
+    'cache-control',   # Browser cache control
+    'pragma'           # HTTP cache control
+]
+
+# If needed, you can also explicitly set allowed methods
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT'
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+]
+# Ensure these are set
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read the cookie
+CSRF_COOKIE_SAMESITE = 'Lax'  # Or 'None' if using HTTPS
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 ROOT_URLCONF = 'Mustard_imports.urls'
 from django.conf import settings

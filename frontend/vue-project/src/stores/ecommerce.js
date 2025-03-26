@@ -1,5 +1,7 @@
-import { defineStore } from 'pinia';
+
+import { defineStore, storeToRefs } from 'pinia';
 import api from '@/services/api';
+console.log('api in ecommerce.js:', api);
 
 // Create an API instance to use throughout the store
 let apiInstance = null;
@@ -7,6 +9,11 @@ let apiInstance = null;
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
     const state = {
+      searchResults: [],
+      totalSearchResults: 0,
+      searchLoading: false,
+      recentSearches: [],
+      searchSuggestions: [],
       categories: [],
       categoryProducts: {},
       allCategoriesWithProducts: [],
@@ -23,6 +30,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         orders: false,
         completedOrders: false,
       },
+  
       error: {
         categories: null,
         categoryProducts: null,
@@ -33,6 +41,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         completedOrders: null,
       },
       userId: localStorage.getItem('userId') || null, // Persist user ID
+      apiInstance: null
     };
 
     // Initialize API instance with the store
@@ -40,6 +49,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     return state;
   },
+
   actions: {
     async fetchCategories() {
       this.loading.categories = true;
@@ -53,7 +63,133 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.categories = false;
       }
     },
+    async fetchAllCategoriesWithProducts() {
+      this.loading.allCategoriesWithProducts = true;
+      this.error.allCategoriesWithProducts = null;
 
+      try {
+        // Ensure API instance is initialized
+        if (!this.apiInstance) {
+          this.initializeApiInstance();
+        }
+
+        const response = await this.apiInstance.get('categories/with-products/');
+        this.allCategoriesWithProducts = response.data;
+      } catch (error) {
+        console.error('Fetch Categories Error:', error);
+        this.error.allCategoriesWithProducts = error.message || 'Failed to load categories with products';
+      } finally {
+        this.loading.allCategoriesWithProducts = false;
+      }
+    },
+
+    async searchProducts(query, page = 1, perPage = 10) {
+      this.setSearchLoading(true);
+      try {
+        console.log(`Searching for: ${query}`);
+        console.log('api in searchProducts:', api);
+        console.log('api.createApiInstance:', api.createApiInstance);
+        const apiInstance = api.createApiInstance(this);
+        console.log('After creating apiInstance', apiInstance);
+        const response = await api.searchProducts(apiInstance, query, page, perPage);
+        this.searchResults = response.results || [];
+        this.totalSearchResults = response.total || 0;
+        if (query && !this.recentSearches.includes(query)) {
+          this.recentSearches.unshift(query);
+          if (this.recentSearches.length > 5) {
+            this.recentSearches.pop();
+          }
+          localStorage.setItem('recentSearches', JSON.stringify(this.recentSearches));
+        }
+        return response;
+      } catch (error) {
+        console.error('Error searching products:', error);
+        throw error;
+      } finally {
+        this.setSearchLoading(false);
+      }
+    },
+    setSearchLoading(status) {
+      this.searchLoading = status;
+    },
+    
+    async fetchSearchSuggestions(query) {
+      if (!query || query.length < 2) {
+        this.searchSuggestions = []
+        return
+      }
+      
+      try {
+        const response = await apiClient.get('/products/', {
+          params: {
+            search: query,
+            page: 1,
+            per_page: 5,
+            ordering: '-created_at'
+          }
+        })
+        
+        // Handle different response structures
+        if (Array.isArray(response.data)) {
+          this.searchSuggestions = response.data
+        } else if (response.data.products) {
+          this.searchSuggestions = response.data.products
+        } else {
+          this.searchSuggestions = response.data.results || []
+        }
+      } catch (error) {
+        console.error('Error fetching suggestions:', error)
+        this.searchSuggestions = []
+      }
+    },
+    
+    setSearchResults(results) {
+      this.searchResults = results
+    },
+    
+    setTotalResults(total) {
+      this.totalSearchResults = total
+    },
+    
+    setSearchLoading(status) {
+      this.searchLoading = status
+    },
+    
+    addRecentSearch(query) {
+      if (!query || !query.trim()) return
+      
+      // Avoid duplicates
+      const trimmedQuery = query.trim()
+      if (!this.recentSearches.includes(trimmedQuery)) {
+        // Keep only the 5 most recent searches
+        if (this.recentSearches.length >= 5) {
+          this.recentSearches.pop()
+        }
+        this.recentSearches.unshift(trimmedQuery)
+        
+        // Save to localStorage for persistence
+        try {
+          localStorage.setItem('recentSearches', JSON.stringify(this.recentSearches))
+        } catch (e) {
+          console.error('Could not save recent searches to localStorage', e)
+        }
+      }
+    },
+    
+    clearSearchResults() {
+      this.searchResults = []
+      this.totalSearchResults = 0
+    },
+    
+    clearRecentSearches() {
+      this.recentSearches = []
+      // Clear from localStorage as well
+      try {
+        localStorage.removeItem('recentSearches')
+      } catch (e) {
+        console.error('Could not clear recent searches from localStorage', e)
+      }
+    },
     async fetchAllCategoriesWithProducts() {
       this.loading.allCategoriesWithProducts = true;
       try {
@@ -92,22 +228,97 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.productDetails = false;
       }
     },
-
-    async fetchCartData() {
-      if (!this.userId) throw new Error('User ID not set');
-      this.loading.cart = true;
-      this.error.cart = null;
+    async fetchCart() {
       try {
-        // Notice we're passing the cartId (which is the userId in this case)
-        const cart = await api.fetchCart(apiInstance, this.userId);
+        const userId = this.currentUser?.id || this.userId;
+        console.log('Fetching cart for userId:', userId);
+        
+        if (!userId) {
+          // If no user is logged in, you might want to:
+          // 1. Show login modal
+          // 2. Redirect to login
+          // 3. Create a temporary guest cart
+          this.showAuthModal = true;
+          throw new Error('Please log in to view your cart');
+        }
+        
+        const cart = await api.fetchCart(apiInstance, userId);
+        console.log('Fetched cart:', cart);
+        
         this.cart = cart;
+        return cart;
       } catch (error) {
-        this.error.cart = error.message || 'Failed to load cart';
-      } finally {
-        this.loading.cart = false;
+        console.error('Detailed cart fetch error:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+          response: error.response
+        });
+        
+        // If cart doesn't exist, you might want to create one
+        if (error.response && error.response.status === 404) {
+          try {
+            return await this.createCart();
+          } catch (createError) {
+            console.error('Failed to create cart:', createError);
+            throw createError;
+          }
+        }
+        
+        return null;
       }
     },
-
+    
+    async createCart() {
+      try {
+        if (!this.currentUser?.id) {
+          throw new Error('No user logged in');
+        }
+        
+        const newCart = await api.createCart(apiInstance, this.currentUser.id);
+        this.cart = newCart;
+        return newCart;
+      } catch (error) {
+        console.error('Failed to create cart:', error);
+        throw error;
+      }
+    },
+    async addToCart(productId, variantId, quantity = 1) {
+      try {
+        // Ensure user is logged in
+        if (!this.userId) {
+          this.showAuthModal = true;
+          throw new Error('Please log in to add items to cart');
+        }
+    
+        // Ensure cart exists
+        if (!this.cart) {
+          await this.createCart();
+        }
+    
+        // Add to cart
+        const response = await api.addToCart(
+          apiInstance, 
+          this.cart.id, 
+          productId, 
+          variantId, 
+          quantity
+        );
+        
+        // Update local cart state
+        this.cart = response;
+        return response;
+      } catch (error) {
+        console.error('Add to cart error:', error);
+        
+        // Handle specific error cases
+        if (error.response && error.response.status === 403) {
+          this.showAuthModal = true;
+        }
+        
+        throw error;
+      }
+    },
     async fetchOrdersData() {
       if (!this.userId) throw new Error('User ID not set');
       this.loading.orders = true;
@@ -153,6 +364,17 @@ export const useEcommerceStore = defineStore('ecommerce', {
       apiInstance = api.createApiInstance(this);
     },
   },
+  persist: {
+    // Custom key for localStorage (optional)
+    key: 'ecommerce-search-history',
+    
+    // Only persist these specific parts of your store
+    paths: ['recentSearches'],
+    
+    // Use localStorage (this is the default)
+    storage: localStorage,
+  },
+
   getters: {
     cartTotal: (state) => {
       return state.cart?.items?.reduce((sum, item) => sum + item.line_total, 0) || 0;
@@ -161,5 +383,8 @@ export const useEcommerceStore = defineStore('ecommerce', {
       return state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     },
     isAuthenticated: (state) => !!state.userId,
+    getSearchResults: (state) => state.searchResults,
+    isSearchLoading: (state) => state.searchLoading,
+    getRecentSearches: (state) => state.recentSearches,
   },
 });
