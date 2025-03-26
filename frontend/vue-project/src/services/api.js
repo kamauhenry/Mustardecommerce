@@ -44,6 +44,17 @@ export const createApiInstance = (store) => {
   return api;
 };
 
+
+const fetchCurrentUserInfo = async (api) => {
+  try {
+    const response = await api.get('auth/login/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching current user info:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 // Named exports for specific API calls using the dynamic api instance
 const fetchCategories = async (api) => {
   try {
@@ -133,7 +144,7 @@ const fetchCompletedOrders = async (api, userId) => {
 
 const createCart = async (api, userId) => {
   try {
-    const response = await api.post(`users/${userId}/create_cart/`);
+    const response = await api.post(`carts/`, {userId: userId});
     return response.data;
   } catch (error) {
     console.error('Error creating cart:', error.response?.data || error.message);
@@ -207,6 +218,7 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
 const api = {
   createApiInstance,
   fetchCategories,
+  fetchCurrentUserInfo,
   fetchCategoryProducts,
   fetchProductDetails,
   fetchAllCategoriesWithProducts,

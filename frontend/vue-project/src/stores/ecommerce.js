@@ -3,12 +3,21 @@ import { defineStore, storeToRefs } from 'pinia';
 import api from '@/services/api';
 console.log('api in ecommerce.js:', api);
 
+console.log('Local storage userId:', localStorage.getItem('userId'));
+
 // Create an API instance to use throughout the store
 let apiInstance = null;
 
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
     const state = {
+      currentUser: null,
+      userId: localStorage.getItem('userId') || null,
+      apiInstance: null,
+      cart: null,
+      userLoading: false,
+      userError: null,
+      showAuthModal: false,
       searchResults: [],
       totalSearchResults: 0,
       searchLoading: false,
@@ -40,8 +49,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         orders: null,
         completedOrders: null,
       },
-      userId: localStorage.getItem('userId') || null, // Persist user ID
-      apiInstance: null
+
     };
 
     // Initialize API instance with the store
@@ -51,6 +59,158 @@ export const useEcommerceStore = defineStore('ecommerce', {
   },
 
   actions: {
+
+      // Initialize API instance with current store state
+      initializeApiInstance() {
+        this.apiInstance = api.createApiInstance(this);
+      },
+  
+      async fetchCurrentUserInfo() {
+        this.userLoading = true;
+        this.userError = null;
+        
+        try {
+          // Ensure API instance is created
+          if (!this.apiInstance) {
+            this.initializeApiInstance();
+          }
+  
+          const userData = await api.fetchCurrentUserInfo(this.apiInstance);
+          
+          if (userData.user_id) {
+            this.currentUser = {
+              id: userData.user_id,
+              username: userData.username
+            };
+            this.setUserId(userData.user_id);
+          }
+  
+          return this.currentUser;
+        } catch (error) {
+          this.userError = error.message || 'Failed to fetch user information';
+          this.currentUser = null;
+          this.userId = null;
+          
+          throw error;
+        } finally {
+          this.userLoading = false;
+        }
+      },
+  
+      async fetchCart() {
+        try {
+          // Ensure we have a user ID
+          if (!this.userId) {
+            this.showAuthModal = true;
+            throw new Error('Please log in to view your cart');
+          }
+  
+          // Ensure API instance is initialized
+          if (!this.apiInstance) {
+            this.initializeApiInstance();
+          }
+  
+          const cart = await api.fetchCart(this.apiInstance, this.userId);
+          this.cart = cart;
+          return cart;
+        } catch (error) {
+          // If cart doesn't exist, create one
+          if (error.response && error.response.status === 404) {
+            return this.createCart();
+          }
+          
+          console.error('Cart fetch error:', error);
+          return null;
+        }
+      },
+  
+      async createCart() {
+        try {
+          // Ensure we have a user ID and API instance
+          if (!this.userId) {
+            this.showAuthModal = true;
+            throw new Error('No user logged in');
+          }
+  
+          if (!this.apiInstance) {
+            this.initializeApiInstance();
+          }
+  
+          const newCart = await api.createCart(this.apiInstance, this.userId);
+          this.cart = newCart;
+          return newCart;
+        } catch (error) {
+          console.error('Failed to create cart:', error);
+          
+          // If cart creation fails due to authentication, show modal
+          if (error.response && error.response.status === 403) {
+            this.showAuthModal = true;
+          }
+          
+          throw error;
+        }
+      },
+  
+      async addToCart(productId, variantId, quantity = 1) {
+        try {
+          // Ensure user is logged in
+          if (!this.userId) {
+            this.showAuthModal = true;
+            throw new Error('Please log in to add items to cart');
+          }
+  
+          // Ensure cart exists
+          if (!this.cart) {
+            await this.createCart();
+          }
+  
+          // Ensure API instance is initialized
+          if (!this.apiInstance) {
+            this.initializeApiInstance();
+          }
+  
+          // Add to cart
+          const response = await api.addToCart(
+            this.apiInstance, 
+            this.cart.id, 
+            productId, 
+            variantId, 
+            quantity
+          );
+          
+          // Update local cart state
+          this.cart = response;
+          return response;
+        } catch (error) {
+          console.error('Add to cart error:', error);
+          
+          // Handle authentication errors
+          if (error.response && error.response.status === 403) {
+            this.showAuthModal = true;
+          }
+          
+          throw error;
+        }
+      },
+  
+      setUserId(userId) {
+        this.userId = userId;
+        localStorage.setItem('userId', userId);
+        // Reinitialize API instance with new user context
+        this.initializeApiInstance();
+      },
+  
+      logout() {
+        this.userId = null;
+        this.currentUser = null;
+        this.cart = null;
+        localStorage.removeItem('userId');
+        // Reinitialize API instance
+        this.initializeApiInstance();
+      },
+
+
+
     async fetchCategories() {
       this.loading.categories = true;
       this.error.categories = null;
@@ -228,97 +388,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.productDetails = false;
       }
     },
-    async fetchCart() {
-      try {
-        const userId = this.currentUser?.id || this.userId;
-        console.log('Fetching cart for userId:', userId);
-        
-        if (!userId) {
-          // If no user is logged in, you might want to:
-          // 1. Show login modal
-          // 2. Redirect to login
-          // 3. Create a temporary guest cart
-          this.showAuthModal = true;
-          throw new Error('Please log in to view your cart');
-        }
-        
-        const cart = await api.fetchCart(apiInstance, userId);
-        console.log('Fetched cart:', cart);
-        
-        this.cart = cart;
-        return cart;
-      } catch (error) {
-        console.error('Detailed cart fetch error:', {
-          message: error.message,
-          name: error.name,
-          stack: error.stack,
-          response: error.response
-        });
-        
-        // If cart doesn't exist, you might want to create one
-        if (error.response && error.response.status === 404) {
-          try {
-            return await this.createCart();
-          } catch (createError) {
-            console.error('Failed to create cart:', createError);
-            throw createError;
-          }
-        }
-        
-        return null;
-      }
-    },
-    
-    async createCart() {
-      try {
-        if (!this.currentUser?.id) {
-          throw new Error('No user logged in');
-        }
-        
-        const newCart = await api.createCart(apiInstance, this.currentUser.id);
-        this.cart = newCart;
-        return newCart;
-      } catch (error) {
-        console.error('Failed to create cart:', error);
-        throw error;
-      }
-    },
-    async addToCart(productId, variantId, quantity = 1) {
-      try {
-        // Ensure user is logged in
-        if (!this.userId) {
-          this.showAuthModal = true;
-          throw new Error('Please log in to add items to cart');
-        }
-    
-        // Ensure cart exists
-        if (!this.cart) {
-          await this.createCart();
-        }
-    
-        // Add to cart
-        const response = await api.addToCart(
-          apiInstance, 
-          this.cart.id, 
-          productId, 
-          variantId, 
-          quantity
-        );
-        
-        // Update local cart state
-        this.cart = response;
-        return response;
-      } catch (error) {
-        console.error('Add to cart error:', error);
-        
-        // Handle specific error cases
-        if (error.response && error.response.status === 403) {
-          this.showAuthModal = true;
-        }
-        
-        throw error;
-      }
-    },
+
     async fetchOrdersData() {
       if (!this.userId) throw new Error('User ID not set');
       this.loading.orders = true;
@@ -376,13 +446,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
   },
 
   getters: {
-    cartTotal: (state) => {
-      return state.cart?.items?.reduce((sum, item) => sum + item.line_total, 0) || 0;
-    },
-    cartItemCount: (state) => {
-      return state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-    },
     isAuthenticated: (state) => !!state.userId,
+    isAuthModalVisible: (state) => state.showAuthModal,
+    cartItemCount: (state) => state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+    cartTotal: (state) => state.cart?.items?.reduce((sum, item) => sum + item.line_total, 0) || 0,
     getSearchResults: (state) => state.searchResults,
     isSearchLoading: (state) => state.searchLoading,
     getRecentSearches: (state) => state.recentSearches,

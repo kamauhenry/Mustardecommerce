@@ -4,7 +4,7 @@ from .views import (
     CategoryViewSet, ProductViewSet, ProductDetail, CategoryProductsView,
     CategoriesWithProductsViewSet, AllCategoriesWithProductsView,
     CartViewSet, OrderViewSet, CompletedOrderViewSet, CustomerReviewViewSet,
-    MOQRequestViewSet, RegisterView, LoginView
+    MOQRequestViewSet, RegisterView, LoginView, create_cart 
 )
 from ecommerce.api import views
 # Creating DRF router
@@ -39,6 +39,8 @@ urlpatterns = [
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
 
     # Custom cart and order actions
+    path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
+    path('create_cart/', create_cart, name='create-cart'),
     path('carts/<int:pk>/items/', CartViewSet.as_view({'get': 'view_items'}), name='cart-view-items'),
     path('carts/<int:pk>/add_item/', CartViewSet.as_view({'post': 'add_item'}), name='cart-add-item'),
     path('carts/<int:pk>/remove_item/', CartViewSet.as_view({'post': 'remove_item'}), name='cart-remove-item'),

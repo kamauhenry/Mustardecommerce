@@ -172,6 +172,7 @@ export default {
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2; /* Limit to 2 lines */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -13,7 +13,7 @@ from rest_framework.permissions import AllowAny
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
 from django.contrib.auth import authenticate, login
-from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth.models import AnonymousUser, User
 from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -78,6 +78,32 @@ class RegisterView(APIView):
                 'username': user.username
             }, status=status.HTTP201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+@api_view(['POST'])
+def create_cart(request, user_id=None):
+    # If user_id is provided, use that. Otherwise, use current user
+    if user_id:
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        user = request.user
+    
+    # Check if user is authenticated
+    if not user.is_authenticated:
+        return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        # Use get_or_create to avoid duplicate carts for the user
+        cart, created = Cart.objects.get_or_create(user=user)
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -216,16 +242,7 @@ class ProductsView(APIView):
             return Response({'error': f'Failed to fetch products: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['POST'])
-def create_cart(request):
-    user = request.user  # Assuming authenticated
-    try:
-        # This will create a cart if it doesn't exist
-        cart, created = Cart.objects.get_or_create(user=user)
-        serializer = CartSerializer(cart)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class AllCategoriesWithProductsView(APIView):

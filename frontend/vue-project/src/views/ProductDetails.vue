@@ -158,7 +158,6 @@ export default {
     const selectedColor = ref('');
     const shippingMethod = ref('ship');
     const promoCode = ref('');
-    const showAuthModal = ref(false);
 
     // Computed properties for sizes and colors from variants
     const availableSizes = computed(() => {
@@ -184,19 +183,14 @@ export default {
     });
    
     const handleAddToCart = async () => {
-      
       try {
+        // Validate size and color selection
         if (!selectedSize.value || !selectedColor.value) {
           alert('Please select both size and color');
           return;
         }
 
-        console.log('Product details before add to cart:', {
-          productId: product.value.id,
-          variantId: selectedVariantId.value,
-          quantity: quantity.value
-        });
-
+        // Add to cart will handle authentication checks
         await store.addToCart(
           product.value.id, 
           selectedVariantId.value, 
@@ -205,16 +199,15 @@ export default {
         
         alert('Product added to cart successfully!');
       } catch (error) {
-        console.error('Complete add to cart error:', error);
+        console.error('Add to cart error:', error);
         
-        // More specific error handling
-        if (error.response && error.response.status === 403) {
-          alert('Authentication error. Please log in again.');
-        } else {
-          alert('Failed to add product to cart: ' + (error.message || 'Unknown error'));
+        // The store will handle showing the auth modal if needed
+        if (error.message === 'Please log in to add items to cart') {
+          // Optional: you can add additional user feedback here
         }
       }
     };
+
     return {
       store,
       product,
@@ -226,8 +219,8 @@ export default {
       selectedVariantId,
       shippingMethod,
       promoCode,
-      showAuthModal,
-      handleAddToCart
+      handleAddToCart,
+      showAuthModal: computed(() => store.isAuthModalVisible)
     };
   },
 };
