@@ -170,9 +170,9 @@ const addToCart = async (api, cartId, productId, variantId, quantity = 1) => {
   try {
     console.log('Adding to cart:', { cartId, productId, variantId, quantity });
     const response = await api.post(`carts/${cartId}/add_item/`, {
-      product: productId,
-      variant: variantId,
-      quantity,
+      productId: productId,
+      variantId: variantId,
+      quantity: quantity,
     });
     console.log('Add to cart response:', response.data);
     return response.data;

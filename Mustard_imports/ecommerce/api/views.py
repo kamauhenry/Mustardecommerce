@@ -157,8 +157,8 @@ def get_user_cart(request, user_id):
 def add_item_to_cart(request, cart_id):
     try:
         # cart_id is now coming from the URL parameter
-        product_id = request.data.get('product_id')
-        variant_id = request.data.get('variant_id')
+        product_id = request.data.get('productId')
+        variant_id = request.data.get('variantId')
         quantity = request.data.get('quantity', 1)
 
         cart = Cart.objects.get(id=cart_id)
@@ -187,7 +187,7 @@ def add_item_to_cart(request, cart_id):
         return Response({"error": "Product variant not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
