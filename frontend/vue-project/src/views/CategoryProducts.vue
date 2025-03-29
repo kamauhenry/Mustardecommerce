@@ -38,6 +38,7 @@
                 <div class="product-price">
                   <span class="price-highlight">KES {{ product.price }}</span>
                   <span v-if="product.below_moq_price" class="below-moq-price">Below MOQ Price: KES {{ product.below_moq_price }}</span>
+                  <span v-else class="below-moq-price">Below MOQ Price: NA</span>
                 </div>
                 <div class="product-moq-info">
                   <div class="moq-detail">MOQ: {{ product.moq || 'N/A' }} Items</div>
