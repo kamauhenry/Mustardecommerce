@@ -4,7 +4,7 @@
       <!-- Breadcrumb Navigation -->
       <div class="breadcrumb">
         <router-link to="/">Home</router-link> &gt;
-        <router-link :to="`/category/${categorySlug}`">{{ categorySlug|| 'Category' }}</router-link> &gt;
+        <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug|| 'Category' }}</router-link> &gt;
         <span>{{ product?.name || 'Product' }}</span>
       </div>
 
@@ -46,7 +46,7 @@
           <div class="pricing">
             <h2 class="price">KES {{ product?.price || '0' }}</h2>
             <p class="moq-info">Below MOQ price: KES {{ product?.price || '0' }}</p>
-        
+
             <p class="moq-info">Below MOQ price: KES {{ product?.price || '0' }}</p>
             <p class="moq-info">MOQ Per Person: {{ product?.moq || 'N/A' }} items/bundle</p>
           </div>
@@ -82,7 +82,7 @@
                 </div>
                 <div class="attribute">
                   <label>Quantity</label>
-                  <input type="number"id="qantity"  v-model="quantity" min="1" />
+                  <input type="number" id="quantity"  v-model="quantity" min="1" />
                 </div>
               </div>
             </div>
@@ -127,9 +127,9 @@
         <button class="add-review">Add Review</button>
       </div>
     </div>
-    
+
     <!-- Auth Modals Component -->
-    <AuthModals :autoShowLogin="showAuthModal" />
+    <!-- <AuthModals :autoShowLogin="showAuthModal" /> -->
   </MainLayout>
 </template>
 
@@ -138,14 +138,14 @@
 import { onMounted, computed, ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '../components/navigation/MainLayout.vue';
-import AuthModals from '@/components/auth/AuthModals.vue';
+// import AuthModals from '@/components/auth/AuthModals.vue';
 
 export default {
   name: "productDetails",
   props: { categorySlug: String, productSlug: String },
   components: {
     MainLayout,
-    AuthModals
+    // AuthModals
   },
   setup(props) {
     const store = useEcommerceStore();
@@ -181,7 +181,7 @@ export default {
       );
       return variant ? variant.id : null;
     });
-   
+
     const handleAddToCart = async () => {
       try {
         // Validate size and color selection
@@ -192,15 +192,15 @@ export default {
 
         // Add to cart will handle authentication checks
         await store.addToCart(
-          product.value.id, 
-          selectedVariantId.value, 
+          product.value.id,
+          selectedVariantId.value,
           quantity.value
         );
-        
+
         alert('Product added to cart successfully!');
       } catch (error) {
         console.error('Add to cart error:', error);
-        
+
         // The store will handle showing the auth modal if needed
         if (error.message === 'Please log in to add items to cart') {
           // Optional: you can add additional user feedback here

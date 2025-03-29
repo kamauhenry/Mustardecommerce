@@ -4,7 +4,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
     name: "app",
     data(){
       return{
-        
+
         cart:{
           items:[]
         }
@@ -23,9 +23,9 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
     computed:{
       cartTotalLength() {
-      
+
       const items = this.store.cart.items || [];
-      
+
       //sum up quantities
       return items.reduce((total, item) => total + (item.quantity || 0), 0);
     }
@@ -109,6 +109,10 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 .category-p, .about-h2, .category-title {
   color: var(--text-color-thirteen);
+}
+
+.see-more-link {
+  background-color: var(--text-color-thirteen);
 }
 
 .category-link, .about-p, .moq-info, .product-price, .product-name, .no-products {

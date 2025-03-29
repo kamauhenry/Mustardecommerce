@@ -9,15 +9,15 @@
         <div class="products-grid">
           <div class="breadcrumb">
             <router-link to="/">Home</router-link> &gt;
-            <router-link :to="`/category/${categorySlug}`">{{ categorySlug|| 'Category' }}</router-link> 
+            <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug|| 'Category' }}</router-link>
           </div>
           <div v-if="products.length > 0" class="products">
             <div v-for="product in products" :key="product.id" class="product-card">
-              <router-link 
-                :to="{ 
+              <router-link
+                :to="{
                   name: 'product-detail',
                   params: { categorySlug: categorySlug, productSlug: product.slug }
-                }" 
+                }"
                 class="product-link"
               >
                 <img
@@ -131,11 +131,13 @@ export default {
 
 /* Individual product card */
 .product-card {
-  flex: 0 0 calc(25% - 0.75rem); /* 4 cards per row on large screens, adjusted for gap */
+  flex: 0 0 calc(20% - 0.75rem); /* 4 cards per row on large screens, adjusted for gap */
   max-width: calc(25% - 0.75rem); /* Ensures consistent width */
   display: flex;
+  margin: 0 1rem;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   border-radius: 6px;
   padding: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Subtle shadow to match screenshot */
@@ -156,8 +158,8 @@ export default {
 }
 
 .product-image {
-  width: 100%;
-  height: 150px; /* Fixed height for consistency */
+  width: 300px;
+  height: 300px; /* Fixed height for consistency */
   object-fit: cover;
   border-radius: 4px;
   margin-bottom: 0.75rem;
