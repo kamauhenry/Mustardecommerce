@@ -107,15 +107,15 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2, .category-title {
+.category-p, .about-h2, .category-title, .search-results-h1 {
   color: var(--text-color-thirteen);
 }
 
 .see-more-link {
-  background-color: var(--text-color-thirteen);
+  background-color: #f28c38;
 }
 
-.category-link, .about-p, .moq-info, .product-price, .product-name, .no-products {
+.category-link, .about-p, .moq-info, .product-price, .product-name, .no-products, .loading, .no-products, .product-image {
   color: var(--text-color-eleven);
 
 }

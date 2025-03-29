@@ -1,45 +1,45 @@
 <template>
   <MainLayout>
     <div class="search-results">
-      <h1>Search Results for "{{ searchQuery }}"</h1>
-      
+      <h1 class="search-results-h1">Search Results for "{{ searchQuery }}"</h1>
+
       <div v-if="isLoading" class="loading">
         Loading results...
       </div>
-      
+
       <div v-else-if="!searchResults || searchResults.length === 0" class="no-results">
         No results found for "{{ searchQuery }}"
       </div>
-      
+
       <div v-else class="products">
         <div v-for="product in searchResults" :key="product.id" class="product-card">
-          <router-link 
-            :to="{ 
+          <router-link
+            :to="{
               name: 'product-detail',
               params: { categorySlug: product.category_slug, productSlug: product.slug }
-            }" 
+            }"
             class="product-link"
           >
             <div class="product-content">
-              <div class="product-details">
-                <h3 class="product-name">{{ product.name }}</h3>
-                <p class="product-price">KES {{ product.price }}</p>
-                <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
-                <!-- Progress bar container -->
-                <div class="moq-progress-container">
-                    <div 
-                      class="moq-progress-bar" 
-                      :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
-                    ></div>
-                    <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
-                </div>
-              </div>
               <img
                 v-if="product.thumbnail || product.image"
                 :src="product.thumbnail || product.image"
                 :alt="product.name"
                 class="product-image"
               />
+              <div class="product-details">
+                <h3 class="product-name">{{ product.name }}</h3>
+                <p class="product-price">KES {{ product.price }}</p>
+                <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
+                <!-- Progress bar container -->
+                <div class="moq-progress-container">
+                    <div
+                      class="moq-progress-bar"
+                      :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
+                    ></div>
+                    <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
+                </div>
+              </div>
             </div>
           </router-link>
         </div>
@@ -63,7 +63,7 @@ export default {
     const route = useRoute()
     const router = useRouter()
     const ecommerceStore = useEcommerceStore()
-    
+
     const searchQuery = computed(() => route.query.q || '')
     const searchResults = computed(() => ecommerceStore.searchResults)
     const isLoading = computed(() => ecommerceStore.searchLoading)
@@ -95,7 +95,7 @@ export default {
     const viewProduct = (slug) => {
       router.push({ name: 'product-detail', params: { slug } })
     }
-    
+
     return {
       searchQuery,
       searchResults,
@@ -145,7 +145,6 @@ h1 {
   padding: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: transform 0.2s ease;
-  background-color: white;
 }
 
 .product-card:hover {
@@ -205,9 +204,9 @@ h1 {
 
 .product-content {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   width: 100%;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .product-details {
@@ -217,12 +216,13 @@ h1 {
 }
 
 .product-image {
-  width: 150px;
-  height: 150px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
   border-radius: 4px;
   margin-left: 0.75rem;
   background-color: #e0e0e0;
+  margin-bottom: 1rem;
 }
 
 .product-name {

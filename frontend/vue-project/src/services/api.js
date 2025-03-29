@@ -89,7 +89,7 @@ const fetchCategories = async (api) => {
 
 const fetchCategoryProducts = async (api, categorySlug, page = 1, perPage = 5) => {
   try {
-    const response = await api.get(`category/${categorySlug}/products/`, { params: { page, per_page: perPage } }, {
+    const response = await api.get(`/category/${categorySlug}/products`, { params: { page, per_page: perPage } }, {
       timeout: 60000,  // Increased timeout to 60 seconds
     });
     return response.data;
@@ -197,7 +197,7 @@ const checkoutCart = async (api, cartId, shippingMethod, shippingAddress, paymen
     const response = await api.post(`carts/${cartId}/checkout/`, {
       shipping_method: shippingMethod,
       shipping_address: shippingAddress,
- 
+
     });
     return response.data;
   } catch (error) {
