@@ -4,7 +4,7 @@
       <!-- Breadcrumb Navigation -->
       <div class="breadcrumb">
         <router-link to="/">Home</router-link> &gt;
-        <router-link :to="`/category/${categorySlug}`">{{ categorySlug|| 'Category' }}</router-link> &gt;
+        <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug|| 'Category' }}</router-link> &gt;
         <span>{{ product?.name || 'Product' }}</span>
       </div>
 
@@ -82,7 +82,7 @@
                 </div>
                 <div class="attribute">
                   <label>Quantity</label>
-                  <input type="number"id="qantity"  v-model="quantity" min="1" />
+                  <input type="number" id="quantity"  v-model="quantity" min="1" />
                 </div>
               </div>
             </div>
