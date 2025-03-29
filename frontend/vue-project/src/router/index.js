@@ -11,6 +11,8 @@ import CategoriesPage from '@/views/CategoryProducts.vue';
 import ProductDetails from '@/views/ProductDetails.vue';
 import CompletedOrders from '@/views/CompletedOrders.vue';
 import SearchResults from '../views/SearchResults.vue';
+import Confirmation from '@/views/Confirmation.vue';
+import Checkout from '@/views/Checkout.vue';
 
 const routes = [
   { path: '/', component: Home },
@@ -22,9 +24,21 @@ const routes = [
   { path: '/about', component: About },
   { path: '/contact', component: Contact },
   { path: '/cart', component: Cart },
+  {
+    path: '/Checkout',
+    name: 'Checkout',
+    component: Checkout,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/checkout/confirmation',
+    name: 'checkout-confirmation',
+    component: Confirmation,
+    meta: { requiresAuth: true }
+  },
   { path: '/category/:categorySlug', component: CategoryPage, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },
-  { path: '/products/:categorySlug/:productSlug', component: ProductDetails, props: true },
+  { path: '/product/:categorySlug/:productSlug',name: 'product-detail', component: ProductDetails, props: true },
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
 

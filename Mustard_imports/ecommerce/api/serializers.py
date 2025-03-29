@@ -5,17 +5,40 @@ from django.contrib.auth import get_user_model, authenticate
 
 User = get_user_model()
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'user_type', 'points', 'affiliate_code', 'location')
+        read_only_fields = ('id', 'points', 'affiliate_code') # These fields might be auto-generated or managed server-side
 
+class UserCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'password', 'user_type', 'location')
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('email', 'user_type', 'location') # Include fields you want to allow updating
+        read_only_fields = ('id', 'username', 'points', 'affiliate_code')
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     variant_info = serializers.SerializerMethodField()
     line_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-
+    price_per_piece = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     class Meta:
         model = CartItem
         fields = ['id', 'product', 'product_name', 'variant',
-                  'variant_info', 'quantity', 'line_total', 'added_at']
+                  'variant_info', 'quantity', 'line_total', 'added_at','price_per_piece']
         read_only_fields = ['line_total']
 
     def get_variant_info(self, obj):
@@ -23,6 +46,7 @@ class CartItemSerializer(serializers.ModelSerializer):
             'color': obj.variant.color,
             'size': obj.variant.size
         }
+
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -35,35 +59,63 @@ class CartSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'items', 'total_items', 'subtotal',
                   'created_at', 'last_updated']
         read_only_fields = ['user', 'items', 'total_items', 'subtotal']
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    line_total = serializers.SerializerMethodField()
 
+    class Meta:
+        model = OrderItem
+        fields = [
+            'id', 
+            'product', 
+                
+            'color',
+            'variant',
+            'quantity', 
+            'price', 
+            'line_total'
+        ]
+
+    def get_line_total(self, obj):
+        return obj.quantity * obj.price
 
 class OrderSerializer(serializers.ModelSerializer):
-    product_name = serializers.ReadOnlyField(source='product.name')
-    variant_info = serializers.SerializerMethodField()
+    items = OrderItemSerializer(many=True, read_only=True)
+    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Order
-        fields = ['id', 'user', 'product', 'product_name', 'variant',
-                  'variant_info', 'quantity', 'price', 'shipping_method',
-                  'payment_status', 'delivery_status',
-                  'collection_status', 'is_cancelled', 'created_at']
-        read_only_fields = ['price']
-
-    def get_variant_info(self, obj):
-        return {
-            'color': obj.variant.color,
-            'size': obj.variant.size
-        }
+        fields = [
+            'id','user', 'shipping_method', 'shipping_address', 
+            'payment_status', 'delivery_status', 'created_at', 
+             'items', 'total_price'
+        ]
+        read_only_fields = ['id','user', 'total_price']
 
 
 class CompletedOrderSerializer(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField()
+    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
     class Meta:
         model = CompletedOrder
-        fields = '__all__'
-        read_only_fields = ['order_number', 'user', 'product',
-                            'variant_details', 'price_paid', 'completion_date']
+        fields = [
+            'id', 'original_order', 'order_number', 'user', 
+            'shipping_method', 'payment_method', 
+            'mpesa_confirmation_code', 'order_date', 
+            'completion_date', 'items', 'total_price'
+        ]
+        read_only_fields = [
+            'order_number', 'user', 'shipping_method', 
+            'payment_method', 'completion_date', 'total_price'
+        ]
 
-
+    def get_items(self, obj):
+        """
+        Retrieve items from the original order
+        """
+        return OrderItemSerializer(obj.items, many=True).data
 class CustomerReviewSerializer(serializers.ModelSerializer):
     username = serializers.ReadOnlyField(source='user.username')
 

@@ -1,18 +1,13 @@
-
 import { defineStore, storeToRefs } from 'pinia';
 import api from '@/services/api';
-console.log('api in ecommerce.js:', api);
+import { fetchCurrentUserInfo } from '@/services/api';
 
-console.log('Local storage userId:', localStorage.getItem('userId'));
-
-// Create an API instance to use throughout the store
-let apiInstance = null;
 
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
     const state = {
       currentUser: null,
-      userId: localStorage.getItem('userId') || null,
+      userId: null,
       apiInstance: null,
       cart: null,
       userLoading: false,
@@ -49,81 +44,99 @@ export const useEcommerceStore = defineStore('ecommerce', {
         orders: null,
         completedOrders: null,
       },
-
     };
-
-    // Initialize API instance with the store
-    apiInstance = api.createApiInstance(state);
 
     return state;
   },
-
+  getters: {
+    isAuthenticated: (state) => !!localStorage.getItem('authToken'),
+    isAuthModalVisible: (state) => state.showAuthModal,
+    cartItemCount: (state) => state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+    cartTotal: (state) => state.cart?.items?.reduce((sum, item) => sum + item.line_total, 0) || 0,
+    getSearchResults: (state) => state.searchResults,
+    isSearchLoading: (state) => state.searchLoading,
+    getRecentSearches: (state) => state.recentSearches,
+  },
   actions: {
-
-      // Initialize API instance with current store state
-      initializeApiInstance() {
-        this.apiInstance = api.createApiInstance(this);
-      },
+    initializeApiInstance() {
+      // Pass the store reference to createApiInstance
+      this.apiInstance = api.createApiInstance(this);
+    },
   
-      async fetchCurrentUserInfo() {
-        this.userLoading = true;
-        this.userError = null;
-        
-        try {
-          // Ensure API instance is created
-          if (!this.apiInstance) {
-            this.initializeApiInstance();
-          }
-  
-          const userData = await api.fetchCurrentUserInfo(this.apiInstance);
-          
-          if (userData.user_id) {
-            this.currentUser = {
-              id: userData.user_id,
-              username: userData.username
-            };
-            this.setUserId(userData.user_id);
-          }
-  
-          return this.currentUser;
-        } catch (error) {
-          this.userError = error.message || 'Failed to fetch user information';
-          this.currentUser = null;
-          this.userId = null;
-          
-          throw error;
-        } finally {
-          this.userLoading = false;
+    async login(username, password) {
+      try {
+        if (!this.apiInstance) {
+          this.initializeApiInstance();
         }
-      },
-  
-      async fetchCart() {
-        try {
-          // Ensure we have a user ID
-          if (!this.userId) {
-            this.showAuthModal = true;
-            throw new Error('Please log in to view your cart');
-          }
-  
-          // Ensure API instance is initialized
-          if (!this.apiInstance) {
-            this.initializeApiInstance();
-          }
-  
-          const cart = await api.fetchCart(this.apiInstance, this.userId);
-          this.cart = cart;
-          return cart;
-        } catch (error) {
-          // If cart doesn't exist, create one
-          if (error.response && error.response.status === 404) {
-            return this.createCart();
-          }
-          
-          console.error('Cart fetch error:', error);
+        const response = await api.login(this.apiInstance, username, password);
+        console.log('Login response:', response);
+        // Set user details based on backend response
+        this.userId = response.user_id;
+        this.currentUser = {
+          id: response.user_id,
+          username: response.username,
+        };
+      
+        return response;
+      } catch (error) {
+        console.error('Login failed:', error);
+        this.showAuthModal = true;
+        throw error;
+      }
+    },
+
+    async fetchCurrentUserInfo() {
+      try {
+        // If no token, show auth modal
+        if (!this.isAuthenticated) {
+          this.showAuthModal = true;
           return null;
         }
-      },
-  
+
+        // Ensure apiInstance is initialized
+        if (!this.apiInstance) {
+          this.initializeApiInstance();
+        }
+        
+        // Use the imported fetchCurrentUserInfo function
+        const userData = await fetchCurrentUserInfo(this.apiInstance);
+        
+        this.userId = userData.id;
+        this.currentUser = {
+          id: userData.id,
+          username: userData.username,
+        };
+        
+        return userData;
+      } catch (error) {
+        console.error('Authentication check failed:', error);
+        this.showAuthModal = true;
+        this.logout(); // Clear any invalid token
+        throw error;
+      }
+    },
+
+
+    logout() {
+      // Optional: Call backend logout if needed
+      if (this.apiInstance) {
+        logout(this.apiInstance);
+      }
+      
+      // Clear local state
+      this.userId = null;
+      this.currentUser = null;
+      this.cart = null;
+      this.orders = [];
+      this.completedOrders = [];
+      
+      // Remove token from storage
+      localStorage.removeItem('authToken');
+      
+      // Reinitialize API instance
+      this.initializeApiInstance();
+    },
+    
       async createCart() {
         try {
           // Ensure we have a user ID and API instance
@@ -150,7 +163,64 @@ export const useEcommerceStore = defineStore('ecommerce', {
           throw error;
         }
       },
-  
+      async checkout(checkoutData) {
+        try {
+          // 1. Validate cart existence
+          if (!this.cart || !this.cart.id) {
+            throw new Error('No active cart found');
+          }
+      
+          // 2. Ensure API instance is initialized
+          if (!this.apiInstance) {
+            this.initializeApiInstance();
+          }
+      
+          // 3. Prepare default checkout data with fallback values
+          const defaultCheckoutData = {
+            cart_id: this.cart.id,
+            shipping_method: 'standard',
+            shipping_address: this.currentUser?.location || 'shop pick up',
+            payment_method: 'default'  // Add a default payment method
+          };
+      
+          // 4. Merge default data with provided checkout data
+          const finalCheckoutData = { 
+            ...defaultCheckoutData, 
+            ...checkoutData 
+          };
+          console.log('Checkout Data:', finalCheckoutData);
+      
+          // 5. Perform checkout API call
+          const response = await this.apiInstance.post(
+            `/carts/${this.cart.id}/checkout/`, 
+            finalCheckoutData
+          );
+          
+          // 6. Post-checkout cleanup and data refresh
+          this.cart = null;  // Clear cart
+          localStorage.removeItem('cartId');
+          
+          // 7. Fetch updated orders data
+          await this.fetchOrdersData();
+      
+          // 8. Return the response for further handling
+          return response.data;
+        } catch (err) {
+          // 9. Enhanced error handling
+          console.error('Full Checkout Error:', err);
+          console.error('Error Response:', err.response?.data);
+          console.error('Error Status:', err.response?.status);
+          // 10. Provide more informative error
+          const errorMessage = err.response?.data?.error || 
+                               err.message || 
+                               'Checkout failed. Please try again.';
+          
+          // Optionally, you could add a toast or error notification here
+          throw new Error(errorMessage);
+        }
+      },
+
+
       async addToCart(productId, variantId, quantity = 1) {
         try {
           // Ensure user is logged in
@@ -193,12 +263,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         }
       },
   
-      setUserId(userId) {
-        this.userId = userId;
-        localStorage.setItem('userId', userId);
-        // Reinitialize API instance with new user context
-        this.initializeApiInstance();
-      },
+
   
       logout() {
         this.userId = null;
@@ -209,32 +274,20 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.initializeApiInstance();
       },
 
-
-
-    async fetchCategories() {
-      this.loading.categories = true;
-      this.error.categories = null;
-      try {
-        const data = await api.fetchCategories(apiInstance);
-        this.categories = data;
-      } catch (error) {
-        this.error.categories = error.message || 'Failed to load categories';
-      } finally {
-        this.loading.categories = false;
-      }
-    },
     async fetchAllCategoriesWithProducts() {
       this.loading.allCategoriesWithProducts = true;
       this.error.allCategoriesWithProducts = null;
-
       try {
-        // Ensure API instance is initialized
         if (!this.apiInstance) {
+          console.log('apiInstance is null, initializing...');
           this.initializeApiInstance();
         }
-
-        const response = await this.apiInstance.get('categories/with-products/');
-        this.allCategoriesWithProducts = response.data;
+        console.log('apiInstance after init:', this.apiInstance);
+        if (!this.apiInstance) {
+          throw new Error('apiInstance failed to initialize');
+        }
+        const data = await api.fetchAllCategoriesWithProducts(this.apiInstance);
+        this.allCategoriesWithProducts = data;
       } catch (error) {
         console.error('Fetch Categories Error:', error);
         this.error.allCategoriesWithProducts = error.message || 'Failed to load categories with products';
@@ -242,16 +295,54 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.allCategoriesWithProducts = false;
       }
     },
+    
+    async fetchCategories() {
+      this.loading.categories = true;
+      this.error.categories = null;
+      try {
+        if (!this.apiInstance) {
+          console.log('apiInstance is null, initializing...');
+          this.initializeApiInstance();
+        }
+        console.log('apiInstance after init:', this.apiInstance);
+        if (!this.apiInstance) {
+          throw new Error('apiInstance failed to initialize');
+        }
+        const data = await api.fetchCategories(this.apiInstance);
+        this.categories = data;
+      } catch (error) {
+        this.error.categories = error.message || 'Failed to load categories';
+      } finally {
+        this.loading.categories = false;
+      }
+    },
+
+    async fetchCategoryProducts(categorySlug, page = 1) {
+      // Optional: Ensure apiInstance is initialized
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+      this.loading.categoryProducts = true;
+      try {
+        // Use this.apiInstance instead of apiInstance
+        const data = await api.fetchCategoryProducts(this.apiInstance, categorySlug, page);
+        if (!this.categoryProducts[categorySlug]) this.categoryProducts[categorySlug] = { products: [], total: data.total };
+        this.categoryProducts[categorySlug].products.push(...data.products);
+      } catch (error) {
+        this.error.categoryProducts = error.message || `Failed to load products for ${categorySlug}`;
+      } finally {
+        this.loading.categoryProducts = false;
+      }
+    },
 
     async searchProducts(query, page = 1, perPage = 10) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.setSearchLoading(true);
       try {
-        console.log(`Searching for: ${query}`);
-        console.log('api in searchProducts:', api);
-        console.log('api.createApiInstance:', api.createApiInstance);
-        const apiInstance = api.createApiInstance(this);
-        console.log('After creating apiInstance', apiInstance);
-        const response = await api.searchProducts(apiInstance, query, page, perPage);
+        // Use this.apiInstance directly instead of creating a new instance
+        const response = await api.searchProducts(this.apiInstance, query, page, perPage);
         this.searchResults = response.results || [];
         this.totalSearchResults = response.total || 0;
         if (query && !this.recentSearches.includes(query)) {
@@ -275,31 +366,32 @@ export const useEcommerceStore = defineStore('ecommerce', {
     
     async fetchSearchSuggestions(query) {
       if (!query || query.length < 2) {
-        this.searchSuggestions = []
-        return
+        this.searchSuggestions = [];
+        return;
       }
       
       try {
-        const response = await apiClient.get('/products/', {
+        // Replace apiClient with this.apiInstance
+        const response = await this.apiInstance.get('/products/', {
           params: {
             search: query,
             page: 1,
             per_page: 5,
             ordering: '-created_at'
           }
-        })
+        });
         
         // Handle different response structures
         if (Array.isArray(response.data)) {
-          this.searchSuggestions = response.data
+          this.searchSuggestions = response.data;
         } else if (response.data.products) {
-          this.searchSuggestions = response.data.products
+          this.searchSuggestions = response.data.products;
         } else {
-          this.searchSuggestions = response.data.results || []
+          this.searchSuggestions = response.data.results || [];
         }
       } catch (error) {
-        console.error('Error fetching suggestions:', error)
-        this.searchSuggestions = []
+        console.error('Error fetching suggestions:', error);
+        this.searchSuggestions = [];
       }
     },
     
@@ -350,37 +442,18 @@ export const useEcommerceStore = defineStore('ecommerce', {
         console.error('Could not clear recent searches from localStorage', e)
       }
     },
-    async fetchAllCategoriesWithProducts() {
-      this.loading.allCategoriesWithProducts = true;
-      try {
-        const data = await api.fetchAllCategoriesWithProducts(apiInstance);
-        this.allCategoriesWithProducts = data;
-      } catch (error) {
-        this.error.allCategoriesWithProducts = error.message || 'Failed to load categories';
-      } finally {
-        this.loading.allCategoriesWithProducts = false;
-      }
-    },
-
-    async fetchCategoryProducts(categorySlug, page = 1) {
-      this.loading.categoryProducts = true;
-      try {
-        const data = await api.fetchCategoryProducts(apiInstance, categorySlug, page);
-        if (!this.categoryProducts[categorySlug]) this.categoryProducts[categorySlug] = { products: [], total: data.total };
-        this.categoryProducts[categorySlug].products.push(...data.products);
-      } catch (error) {
-        this.error.categoryProducts = error.message || `Failed to load products for ${categorySlug}`;
-      } finally {
-        this.loading.categoryProducts = false;
-      }
-    },
-
+ 
     async fetchProductDetails(categorySlug, productSlug) {
+      // Ensure apiInstance is initialized
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.productDetails = true;
       this.error.productDetails = null;
       const key = `${categorySlug}:${productSlug}`;
       try {
-        const data = await api.fetchProductDetails(apiInstance, categorySlug, productSlug);
+        // Use this.apiInstance instead of apiInstance
+        const data = await api.fetchProductDetails(this.apiInstance, categorySlug, productSlug);
         this.productDetails[key] = data;
       } catch (error) {
         this.error.productDetails = error.message || 'Failed to load product details';
@@ -389,20 +462,25 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
+
+    // Fetch Orders Data
     async fetchOrdersData() {
-      if (!this.userId) throw new Error('User ID not set');
-      this.loading.orders = true;
-      this.error.orders = null;
       try {
-        const data = await api.fetchOrders(apiInstance, this.userId);
-        this.orders = data;
-      } catch (error) {
-        this.error.orders = error.message || 'Failed to load orders';
+        this.loading.orders = true;
+        this.error.orders = null;
+
+        const response = await this.apiInstance.get('orders/');
+        this.orders = response.data;
+        
+        // Separate completed orders
+        this.completedOrders = this.orders.filter(order => order.status === 'Completed');
+      } catch (err) {
+        this.error.orders = 'Could not load orders. Please try again.';
+        console.error('Error loading orders:', err);
       } finally {
         this.loading.orders = false;
       }
     },
-
     async fetchCompletedOrdersData() {
       if (!this.userId) throw new Error('User ID not set');
       this.loading.completedOrders = true;
@@ -445,13 +523,5 @@ export const useEcommerceStore = defineStore('ecommerce', {
     storage: localStorage,
   },
 
-  getters: {
-    isAuthenticated: (state) => !!state.userId,
-    isAuthModalVisible: (state) => state.showAuthModal,
-    cartItemCount: (state) => state.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
-    cartTotal: (state) => state.cart?.items?.reduce((sum, item) => sum + item.line_total, 0) || 0,
-    getSearchResults: (state) => state.searchResults,
-    isSearchLoading: (state) => state.searchLoading,
-    getRecentSearches: (state) => state.recentSearches,
-  },
+
 });

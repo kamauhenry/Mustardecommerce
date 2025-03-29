@@ -8,78 +8,91 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view ,  permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import AnonymousUser, User
 from django.contrib.auth import get_user_model
-from django.views.decorators.csrf import ensure_csrf_cookie
-
+from rest_framework.authtoken.models import Token
+from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
-from ..models import (
-    User, Category, Product, ProductVariant,
-    Order, CompletedOrder, CustomerReview, MOQRequest,
-    Cart, CartItem
-)
-from .serializers import (
-    UserSerializer, CategorySerializer, ProductSerializer,
-    ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,CategoriesProductsSerializer,
-    CustomerReviewSerializer, MOQRequestSerializer, CartSerializer,
-    CartItemSerializer, RegisterSerializer, LoginSerializer
-)
+from ..models import *
+from .serializers import *
+from django.http import JsonResponse, Http404
+from django.db import IntegrityError
+import logging
 
 User = get_user_model()
 
 # Authentication Views
 
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        elif self.action == 'update' or self.action == 'partial_update':
+            return UserUpdateSerializer
+        return super().get_serializer_class()
+
 class LoginView(APIView):
-
-    @method_decorator(ensure_csrf_cookie)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
-    
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            login(request, user)
+            # Create or get a token for this user
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Login successful',
                 'user_id': user.id,
-                'username': user.username
+                'username': user.username,
+                'token': token.key  # Return the token to the client
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
-        if isinstance(request.user, AnonymousUser):
-            return Response({'message': 'Not logged in'}, status=status.HTTP401_UNAUTHORIZED)
-        return Response({
-            'message': 'Logged in',
-            'user_id': request.user.id,
-            'username': request.user.username
-        }, status=status.HTTP_200_OK)
+        # Token validation should be handled by permission classes in each view
+        # This endpoint is kept for compatibility
+        if request.user.is_authenticated:
+            return Response({
+                'message': 'Logged in',
+                'user_id': request.user.id,
+                'username': request.user.username
+            }, status=status.HTTP_200_OK)
+        return Response({'message': 'Not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
 
 class RegisterView(APIView):
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            login(request, user)
+            # Create a token for the new user
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'User registered successfully',
                 'user_id': user.id,
-                'username': user.username
-            }, status=status.HTTP201_CREATED)
+                'username': user.username,
+                'token': token.key  # Return the token to the client
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_user(request):
 
+    user = request.user
+    return JsonResponse({
+        'id': user.id,
+        'username': user.username,
+    })
 
 
 @api_view(['POST'])
@@ -104,6 +117,358 @@ def create_cart(request, user_id=None):
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_cart(request, user_id):
+    # Ensure the requesting user is either the cart owner or an admin
+    if request.user.id != user_id and not request.user.is_staff:
+        return Response(
+            {"detail": "You do not have permission to access this cart."}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        # Try to get an existing cart or create a new one
+        cart, created = Cart.objects.get_or_create(user_id=user_id)
+        serializer = CartSerializer(cart)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_item_to_cart(request):
+    try:
+        cart_id = request.data.get('cart_id')
+        product_id = request.data.get('product_id')
+        variant_id = request.data.get('variant_id')
+        quantity = request.data.get('quantity', 1)
+
+        cart = Cart.objects.get(id=cart_id)
+        product = Product.objects.get(id=product_id)
+        variant = ProductVariant.objects.get(id=variant_id)
+
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart, 
+            product=product, 
+            variant=variant,
+            defaults={'quantity': quantity}
+        )
+
+        if not created:
+            cart_item.quantity += quantity
+            cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    except Cart.DoesNotExist:
+        return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_cart_item_quantity(request, item_id):  # Add item_id as URL param
+    try:
+        # Get cart_id from request data (optional, depending on your needs)
+        cart_id = request.data.get('cart_id')
+        new_quantity = request.data.get('quantity')
+
+        # Validate new_quantity
+        if not isinstance(new_quantity, int) or new_quantity < 1:
+            return Response({"error": "Invalid quantity"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch cart item using item_id and optionally cart_id
+        if cart_id:
+            cart_item = CartItem.objects.get(id=item_id, cart_id=cart_id)
+        else:
+            cart_item = CartItem.objects.get(id=item_id)
+
+        # Check authorization
+        if cart_item.cart.user != request.user:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        cart_item.quantity = new_quantity
+        cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except CartItem.DoesNotExist:
+        return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def remove_cart_item(request, cart_id):  # Add cart_id as URL param
+    try:
+        item_id = request.data.get('item_id')
+
+        if not item_id:
+            return Response({"error": "Item ID required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Find the cart item
+        cart_item = CartItem.objects.get(id=item_id, cart_id=cart_id)
+        
+        # Authorization check
+        if cart_item.cart.user != request.user:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Delete the cart item
+        cart_item.delete()
+
+        # Return updated cart
+        cart = Cart.objects.get(id=cart_id)
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except CartItem.DoesNotExist:
+        return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+logger = logging.getLogger(__name__)
+
+@api_view(['POST']) 
+@permission_classes([IsAuthenticated]) 
+def process_checkout(request, cart_id): 
+    try:
+        # Log incoming request data
+        logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
+        
+        # Extract checkout data with defaults
+        shipping_method = request.data.get('shipping_method', 'standard') 
+        shipping_address = request.data.get('shipping_address', 'shop pick up')
+
+        # Retrieve the cart
+        try:
+            cart = Cart.objects.get(id=cart_id)
+        except Cart.DoesNotExist:
+            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the user owns the cart
+        if cart.user != request.user:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check if the cart has items
+        if cart.items.count() == 0:
+            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Log cart items before processing
+        logger.info(f"Cart contains {cart.items.count()} items")
+        
+        # Create order with all necessary details
+        order = Order.objects.create(
+            user=cart.user,
+            shipping_method=shipping_method,
+            shipping_address=shipping_address,
+        )
+        
+        # Prepare order items
+        order_items = []
+        total_price = Decimal('0.00')
+
+        for cart_item in cart.items.all():
+            try:
+                # Calculate price per unit (check for division by zero)
+                if cart_item.quantity > 0:
+                    price_per_unit = cart_item.line_total / cart_item.quantity
+                else:
+                    price_per_unit = Decimal('0.00')
+                    logger.warning(f"Cart item {cart_item.id} has quantity 0")
+
+                # Log values before creating order item
+                logger.info(f"Creating order item: product={cart_item.product.id}, " 
+                           f"quantity={cart_item.quantity}, price={price_per_unit}")
+
+                # Create order item
+                order_item = OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.product,
+                    variant=cart_item.variant,
+                    quantity=cart_item.quantity,
+                    price=price_per_unit
+                )
+                
+                # Calculate total price
+                total_price += cart_item.line_total
+                order_items.append(order_item)
+            except Exception as item_error:
+                logger.error(f"Error creating order item: {str(item_error)}")
+                raise  # Re-raise to be caught by outer exception handler
+
+        # Update order with total price
+        logger.info(f"Total price calculated: {total_price}")
+        order.total_price = total_price
+        order.save()
+
+        # Clear the cart after checkout
+        cart.items.all().delete()
+
+        # Serialize and return the order
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except IntegrityError as e:
+        logger.error(f"IntegrityError during checkout: {str(e)}")
+        return Response(
+            {"error": "Failed to create order due to a database conflict. Please try again."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during checkout: {str(e)}", exc_info=True)
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def format_phone_number(phone_number):
+    """
+    Format phone number to start with 254 if it starts with 0
+    
+    Args:
+        phone_number (str): Input phone number
+    
+    Returns:
+        str: Formatted phone number
+    """
+    # Remove any spaces or dashes
+    phone_number = ''.join(phone_number.split())
+    
+    # Check if number starts with 0
+    if phone_number.startswith('0'):
+        # Replace leading 0 with 254
+        return f'254{phone_number[1:]}'
+    
+    # If already starts with 254, return as is
+    if phone_number.startswith('254'):
+        return phone_number
+    
+    # If no country code, assume local number and add 254
+    if len(phone_number) == 9 and phone_number[0] in '17':
+        return f'254{phone_number}'
+    
+    # If number is too short or invalid, raise an error
+    if len(phone_number) < 9:
+        raise ValueError("Invalid phone number: number is too short")
+    
+    # If number doesn't match expected formats, return original
+    return phone_number
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_payment(request):
+    """
+    View to process payment for an order
+    """
+    try:
+        order_id = request.data.get('order_id')
+        phone_number = request.data.get('phone_number')
+        payment_method = request.data.get('payment_method', 'other')
+
+
+                # Format phone number
+        try:
+            formatted_phone_number = format_phone_number(phone_number)
+        except ValueError as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Retrieve the order
+        order = Order.objects.get(
+            id=order_id, 
+            user=request.user, 
+            payment_status='pending'
+        )
+
+        # Create payment record
+        payment = Payment.objects.create(
+            order=order,
+            phone_number=phone_number,
+            payment_method=payment_method,
+            amount=order.total_price,
+            payment_status='pending'
+        )
+
+        # Update order payment status
+        order.payment_status = 'paid'
+        order.save()
+
+        # Update payment status
+        payment.payment_status = 'completed'
+        payment.save()
+
+        return Response({
+            'order_id': order.id,
+            'amount': payment.amount,
+            'phone_number': payment.phone_number,
+            'payment_method': payment.payment_method,
+            'payment_status': payment.payment_status
+        }, status=status.HTTP_200_OK)
+
+    except Order.DoesNotExist:
+        return Response(
+            {"error": "Order not found or already paid"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_payment_details(request, order_id):
+    """
+    View to retrieve payment details for a specific order
+    """
+    try:
+        payment = Payment.objects.get(
+            order_id=order_id, 
+            order__user=request.user
+        )
+        
+        return Response({
+            'order_id': payment.order.id,
+            'amount': payment.amount,
+            'phone_number': payment.phone_number,
+            'payment_method': payment.payment_method,
+            'payment_status': payment.payment_status,
+            'payment_date': payment.payment_date
+        }, status=status.HTTP_200_OK)
+
+    except Payment.DoesNotExist:
+        return Response(
+            {"error": "Payment not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_orders(request):
+    """
+    Retrieve all orders for the authenticated user
+    """
+    try:
+        orders = Order.objects.filter(user=request.user).prefetch_related('items__product')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -345,120 +710,6 @@ class ProductDetail(APIView):
         product = self.get_object(category_slug, product_slug)
         serializer = ProductSerializer(product)
         return Response(serializer.data)
-
-@method_decorator(ensure_csrf_cookie, name='dispatch')
-class CartViewSet(viewsets.ModelViewSet):
-    serializer_class = CartSerializer
-    permission_classes = [IsOwnerOrAdmin]
-
-    def list(self, request):
-        # Allow filtering carts by user
-        user_id = request.query_params.get('user_id')
-        if user_id:
-            queryset = Cart.objects.filter(user_id=user_id)
-        else:
-            queryset = Cart.objects.filter(user=request.user)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def create(self, request):
-        # Ensure a user can only create a cart for themselves
-        serializer = self.get_serializer(data={
-            'user': request.user.id
-        })
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    def get_queryset(self):
-        return Cart.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        cart, created = Cart.objects.get_or_create(user=self.request.user)
-        serializer.save(user=self.request.user)
-    @action(detail=False, methods=['GET'])
-    def my_cart(self, request):
-        # Endpoint to get current user's cart
-        cart, created = Cart.objects.get_or_create(user=request.user)
-        serializer = self.get_serializer(cart)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['get'])
-    def view_items(self, request, pk=None):
-        cart = self.get_object()
-        cart_items = cart.items.all()
-        serializer = CartItemSerializer(cart_items, many=True)
-        return Response(serializer.data)
-
-
-    @action(detail=True, methods=['post'])
-    def add_item(self, request, pk=None):
-        cart = self.get_object()
-        product_id = request.data.get('product')
-        variant_id = request.data.get('variant')
-        quantity = int(request.data.get('quantity', 1))
-
-        try:
-            product = Product.objects.get(pk=product_id)
-            variant = ProductVariant.objects.get(pk=variant_id, product=product)
-        except (Product.DoesNotExist, ProductVariant.DoesNotExist):
-            return Response({"error": "Product or variant not found"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if product.moq_status == 'active' and quantity > product.moq_per_person:
-            return Response(
-                {"error": f"Maximum {product.moq_per_person} items allowed per person for this group buy"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        cart_item, created = CartItem.objects.get_or_create(
-            cart=cart, product=product, variant=variant, defaults={'quantity': quantity}
-        )
-        if not created:
-            cart_item.quantity += quantity
-            cart_item.save()
-
-        serializer = CartSerializer(cart)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'])
-    def remove_item(self, request, pk=None):
-        cart = self.get_object()
-        item_id = request.data.get('item_id')
-        try:
-            item = CartItem.objects.get(pk=item_id, cart=cart)
-            item.delete()
-            return Response(status=status.HTTP204_NO_CONTENT)
-        except CartItem.DoesNotExist:
-            return Response({"error": "Item not found in cart"}, status=status.HTTP404_NOT_FOUND)
-
-    @action(detail=True, methods=['post'])
-    def checkout(self, request, pk=None):
-        cart = self.get_object()
-        if cart.items.count() == 0:
-            return Response({"error": "Cart is empty"}, status=status.HTTP400_BAD_REQUEST)
-
-        orders = []
-        for item in cart.items.all():
-            order = Order.objects.create(
-                user=self.request.user,
-                product=item.product,
-                variant=item.variant,
-                quantity=item.quantity,
-                price=item.line_total / item.quantity,  # Use line_total logic from model
-                shipping_method=request.data.get('shipping_method', 'standard'),
-                shipping_address=request.data.get('shipping_address', self.request.user.location or ''),
-                payment_method=request.data.get('payment_method')
-            )
-            if order.product.moq_status == 'active' and order.product.current_moq_count() >= order.product.moq:
-                order.delivery_status = 'delivered'  # Auto-complete MOQ orders
-                order.payment_status = 'paid'
-                order.move_to_completed()
-            orders.append(order)
-
-        cart.items.all().delete()
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data, status=status.HTTP201_CREATED)
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer

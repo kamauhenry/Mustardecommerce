@@ -119,6 +119,7 @@ onUnmounted(() => {
 });
 
 const categories = computed(() => store.allCategoriesWithProducts);
+
 </script>
 
 <style scoped>

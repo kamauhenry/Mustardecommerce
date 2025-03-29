@@ -25,7 +25,7 @@
               >
                 <router-link
                   :to="{
-                    path: `/products/${category.slug}/${product.slug}`,
+                    name: 'product-detail',
                     params: { categorySlug: category.slug, productSlug: product.slug }
                   }"
                   class="product-link"

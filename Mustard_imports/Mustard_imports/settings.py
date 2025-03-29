@@ -46,7 +46,6 @@ INSTALLED_APPS = [
 # Django REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -60,6 +59,16 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
 }
+# Djoser settings for token-based authentication
+DJOSER = {
+    'SEND_ACTIVATION_EMAIL': False,
+    'TOKEN_MODEL': 'rest_framework.authtoken.models.Token',
+    'SERIALIZERS': {
+        'user_create': 'ecommerce.api.serializers.UserCreateSerializer',
+        'user': 'ecommerce.api.serializers.UserSerializer',
+    },
+}
+
 
 CACHES = {
     'default': {
@@ -71,22 +80,23 @@ CACHES = {
     }
 }
 
-# Optional: This is to ensure Django sessions are stored in Redis
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-
-    'corsheaders.middleware.CorsMiddleware',
+  
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.common.CommonMiddleware',
+    
 ]
+
+
+# CORS Settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue.js development server
     "http://127.0.0.1:8000",  # Django server
@@ -95,17 +105,14 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Expanded list of allowed headers
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'x-user-id',       # Custom header for user ID
-    'Authorization',   # For authentication tokens
-    'content-disposition',  # Corrected lowercase
-    'x-requested-with', # Common for AJAX requests
-    'cache-control',   # Browser cache control
-    'pragma'           # HTTP cache control
+    'authorization',  # Lowercase for consistency
+    'content-disposition',
+    'x-requested-with',
+    'cache-control',
+    'pragma'
 ]
 
-# If needed, you can also explicitly set allowed methods
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -115,13 +122,16 @@ CORS_ALLOW_METHODS = [
     'PUT'
 ]
 
+# Remove or minimize CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
 ]
-# Ensure these are set
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read the cookie
-CSRF_COOKIE_SAMESITE = 'Lax'  # Or 'None' if using HTTPS
-SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False
+
+# Simplified session settings or remove if not needed
+SESSION_COOKIE_SAMESITE = None
+SESSION_COOKIE_SECURE = False
+
 
 ROOT_URLCONF = 'Mustard_imports.urls'
 from django.conf import settings
@@ -218,3 +228,8 @@ if VUE_APP_DIR.exists():
 else:
     STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
     MEDIA_ROOT = BASE_DIR.parent / 'media'
+
+
+# Token-based authentication specific
+ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_EMAIL_REQUIRED = False

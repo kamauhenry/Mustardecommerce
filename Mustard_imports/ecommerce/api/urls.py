@@ -1,11 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import (
-    CategoryViewSet, ProductViewSet, ProductDetail, CategoryProductsView,
-    CategoriesWithProductsViewSet, AllCategoriesWithProductsView,
-    CartViewSet, OrderViewSet, CompletedOrderViewSet, CustomerReviewViewSet,
-    MOQRequestViewSet, RegisterView, LoginView, create_cart 
-)
+from .views import *
 from ecommerce.api import views
 # Creating DRF router
 router = routers.DefaultRouter()
@@ -14,11 +9,12 @@ router = routers.DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
 
 router.register(r'products', ProductViewSet, basename='product')  # Added basename for ProductViewSet
-router.register(r'carts', CartViewSet, basename='cart')
+
 router.register(r'orders', OrderViewSet, basename='order')
 router.register(r'completed-orders', CompletedOrderViewSet, basename='completed-order')
 router.register(r'reviews', CustomerReviewViewSet, basename='review')
 router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')
+router.register(r'users', views.UserViewSet, basename='user')
 
 # Define URL patterns
 urlpatterns = [
@@ -28,7 +24,8 @@ urlpatterns = [
     # Custom authentication views
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
-    
+    path('auth/user/', get_current_user, name='get_current_user'),
+
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
     path('products/search/', views.search, name='search'), 
@@ -40,10 +37,16 @@ urlpatterns = [
 
     # Custom cart and order actions
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
+    path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),
     path('create_cart/', create_cart, name='create-cart'),
-    path('carts/<int:pk>/items/', CartViewSet.as_view({'get': 'view_items'}), name='cart-view-items'),
-    path('carts/<int:pk>/add_item/', CartViewSet.as_view({'post': 'add_item'}), name='cart-add-item'),
-    path('carts/<int:pk>/remove_item/', CartViewSet.as_view({'post': 'remove_item'}), name='cart-remove-item'),
-    path('carts/<int:pk>/checkout/', CartViewSet.as_view({'post': 'checkout'}), name='cart-checkout'),
-    path('orders/<int:pk>/cancel/', OrderViewSet.as_view({'post': 'cancel'}), name='order-cancel'),
+    path('carts/add-item/', add_item_to_cart, name='add-item-to-cart'),
+    path('cart-items/<int:item_id>/update_cart_item_quantity/', update_cart_item_quantity, name='update-cart-item-quantity'),
+    path('carts/<int:cart_id>/remove_item/', remove_cart_item, name='remove-cart-item'),
+    path('carts/<int:cart_id>/checkout/', process_checkout, name='process-checkout'),
+
+    #custom  payment actions 
+  
+    path('process-payment/', process_payment, name='process_payment'),
+    path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
+
 ]

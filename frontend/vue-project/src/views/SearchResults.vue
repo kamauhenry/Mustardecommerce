@@ -15,7 +15,7 @@
         <div v-for="product in searchResults" :key="product.id" class="product-card">
           <router-link 
             :to="{ 
-              path: `/products/${product.category_slug}/${product.slug}`,
+              name: 'product-detail',
               params: { categorySlug: product.category_slug, productSlug: product.slug }
             }" 
             class="product-link"

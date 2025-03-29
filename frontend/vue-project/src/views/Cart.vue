@@ -16,7 +16,6 @@
       <div v-else-if="!isAuthenticated" class="auth-prompt">
         <p>Please login to view and manage your cart</p>
         <button @click="goToLogin" class="login-button">Login</button>
-        <button @click="continueAsGuest" class="guest-button">Continue as Guest</button>
       </div>
       
       <div v-else-if="cartItems.length === 0" class="empty-cart">
@@ -27,30 +26,26 @@
       <div v-else class="cart-items">
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-image">
-            <img :src="item.variant?.image || item.product?.image || '/default-product.jpg'" :alt="item.product?.name">
+            <img :src="item.variant?.image || item.product?.picture || '/default-product.jpg'" :alt="item.product_name">
           </div>
-          
           <div class="item-details">
-            <h3>{{ item.product?.name }}</h3>
-            <p v-if="item.variant">Variant: {{ item.variant.name }}</p>
+            <h3>PRODUCT: {{ item.product_name }}</h3>
+            <p v-if="item.variant">color: {{ item.variant_info.color }}</p>
+            <p v-if="item.variant">size: {{ item.variant_info.size }}</p>
             <p>Quantity: {{ item.quantity }}</p>
-            <p>Price: ${{ formatPrice(item.variant?.price || 0) }}</p>
-            <p>Total: ${{ formatPrice(item.line_total) }}</p>
+            <p>Price: KES{{ formatPrice(item.price_per_piece || 0) }}</p>
+            <p>Total: KES{{ formatPrice(item.line_total) }}</p>
           </div>
-          
           <div class="item-actions">
-            <button @click="updateQuantity(item.id, item.quantity - 1)" 
-                    :disabled="item.quantity <= 1">-</button>
+            <button @click="updateQuantity(item.id, item.quantity - 1)" :disabled="item.quantity <= 1">-</button>
             <span>{{ item.quantity }}</span>
             <button @click="updateQuantity(item.id, item.quantity + 1)">+</button>
             <button @click="removeItem(item.id)" class="remove-button">Remove</button>
           </div>
         </div>
-        
         <div class="cart-summary">
-          <p>Subtotal: ${{ formatPrice(cartSubtotal) }}</p>
-          <p>Tax: ${{ formatPrice(cartTax) }}</p>
-          <p class="total">Total: ${{ formatPrice(cartTotal) }}</p>
+          <p>Subtotal: KES{{ formatPrice(cartSubtotal) }}</p>
+          <p class="total">Total: KES{{ formatPrice(cartTotal) }}</p>
           <button @click="checkout" class="checkout-button">Proceed to Checkout</button>
         </div>
       </div>
@@ -58,143 +53,134 @@
   </MainLayout>
 </template>
 
+
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
-import axios from 'axios';
 import MainLayout from '../components/navigation/MainLayout.vue';
 
 export default {
-  components: {
-    MainLayout
-  },
+  components: { MainLayout },
   setup() {
     const store = useEcommerceStore();
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
-    
+
     // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
-    const cartItems = computed(() => store.cart?.items || []);
-    const cartItemCount = computed(() => 
-      cartItems.value.reduce((total, item) => total + item.quantity, 0));
-    const cartSubtotal = computed(() => 
-      cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0));
-    const cartTax = computed(() => cartSubtotal.value * 0.1); // 10% tax
-    const cartTotal = computed(() => cartSubtotal.value + cartTax.value);
-    
-    // Format price to have 2 decimal places
+    const cartItems = ref([]);
+    const cartItemCount = computed(() =>
+      cartItems.value.reduce((total, item) => total + item.quantity, 0)
+    );
+    const cartSubtotal = computed(() =>
+      cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0)
+    );
+    const cartTotal = computed(() => cartSubtotal.value);
+
+    // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
-    
+
     // Navigation
     const goToLogin = () => router.push('/login');
     const goToProducts = () => router.push('/products');
-    
-    // Continue as guest
-    const continueAsGuest = async () => {
-      await fetchCartAsGuest();
-    };
-    
-    // Fetch cart data
+
+    // Fetch cart using store.apiInstance
     const fetchCart = async () => {
-      loading.value = true;
-      error.value = null;
-      
+      if (!store.userId) {
+        console.error('User ID is not set');
+        return { error: 'User ID is not set' };
+      }
       try {
-        await store.fetchCartData();
+        const response = await store.apiInstance.get(`/users/${store.userId}/cart/`);
+        console.log('Cart data:', response.data); 
+        return { data: response.data };
       } catch (err) {
-        error.value = 'Could not load your cart. Please try again.';
-        console.error('Error loading cart:', err);
-      } finally {
-        loading.value = false;
+        if (err.response && err.response.status === 401) {
+          return { error: 'Authentication failed. Please log in again.' };
+        } else {
+          return { error: 'Failed to fetch cart' };
+        }
       }
     };
-    
-    // Fetch cart as guest
-    const fetchCartAsGuest = async () => {
+
+    // Load cart data, ensuring user info is fetched first
+    const loadCart = async () => {
       loading.value = true;
-      error.value = null;
-      
       try {
-        // Get or create session-based cart
-        const response = await axios.get('/api/carts/current/');
-        store.cart = response.data;
-        // Save cart ID to localStorage for future requests
-        if (response.data && response.data.id) {
-          localStorage.setItem('cartId', response.data.id);
+        // Fetch user info to ensure userId and apiInstance are set
+        await store.fetchCurrentUserInfo();
+        const result = await fetchCart();
+        if (result.error) {
+          error.value = result.error;
+        } else {
+          store.cart = result.data;
+          cartItems.value = result.data.items || [];
+          error.value = null;
         }
       } catch (err) {
-        error.value = 'Could not create guest cart. Please try again.';
-        console.error('Error creating guest cart:', err);
+        error.value = 'Please login to view your cart';
+        console.error(err);
       } finally {
         loading.value = false;
       }
     };
-    
-    // Retry fetch if it failed
-    const retryFetch = () => {
-      isAuthenticated.value ? fetchCart() : fetchCartAsGuest();
-    };
-    
+
+    // Retry fetch by reusing loadCart
+    const retryFetch = () => loadCart();
+
     // Update item quantity
     const updateQuantity = async (itemId, newQuantity) => {
       if (newQuantity < 1) return;
-      
       try {
-        await axios.post(`/api/cart-items/${itemId}/update-quantity/`, {
-          quantity: newQuantity
+        if (!store.apiInstance) store.initializeApiInstance();
+        await store.apiInstance.post(`/cart-items/${itemId}/update_cart_item_quantity/`, {
+          quantity: newQuantity,
+          cart_id: store.cart.id
         });
-        fetchCart();
+        await fetchCart();
       } catch (err) {
         console.error('Failed to update quantity:', err);
       }
     };
-    
-    // Remove item from cart
+
+    // Remove item
     const removeItem = async (itemId) => {
       try {
-        await axios.post(`/api/carts/${store.cart.id}/remove_item/`, { 
-          item_id: itemId 
+        if (!store.apiInstance) store.initializeApiInstance();
+        await store.apiInstance.post(`/carts/${store.cart.id}/remove_item/`, {
+          item_id: itemId
         });
-        fetchCart();
+        await fetchCart();
       } catch (err) {
         console.error('Failed to remove item:', err);
       }
     };
-    
+
     // Checkout
     const checkout = async () => {
       if (!cartItems.value.length) return;
-      
       try {
-        await axios.post(`/api/carts/${store.cart.id}/checkout/`, {
+        const checkoutData = {
           shipping_method: 'standard',
-          shipping_address: store.user?.location || 'Please enter your address',
-          payment_method: 'Credit Card', // This would come from a form
+          shipping_address: store.user?.location || 'shop pick uo',
+          payment_method: 'mpesa'
+        };
+        const orderResponse = await store.checkout(checkoutData);
+        router.push({
+          name: 'Checkout',
+          query: { orderId: orderResponse.id }
         });
-        await fetchCart();
-        await store.fetchOrdersData();
-        router.push('/checkout/success');
       } catch (err) {
-        console.error('Checkout failed:', err);
+        console.error('Checkout process failed:', err.message);
+        alert(err.message);
       }
     };
-    
-    // On component mount
-    onMounted(() => {
-      if (isAuthenticated.value) {
-        fetchCart();
-      } else {
-        // Check if we have a cart ID in localStorage
-        const cartId = localStorage.getItem('cartId');
-        if (cartId) {
-          fetchCartAsGuest();
-        }
-      }
-    });
-    
+
+    // Load cart when component mounts
+    onMounted(loadCart);
+
     return {
       loading,
       error,
@@ -202,12 +188,12 @@ export default {
       cartItems,
       cartItemCount,
       cartSubtotal,
-      cartTax,
       cartTotal,
       formatPrice,
       goToLogin,
       goToProducts,
-      continueAsGuest,
+      fetchCart,
+      loadCart,
       retryFetch,
       updateQuantity,
       removeItem,
@@ -216,6 +202,7 @@ export default {
   }
 };
 </script>
+
 
 <style scoped>
 .cart-container {

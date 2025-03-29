@@ -1,53 +1,60 @@
-
 import axios from 'axios';
-function getCsrfToken() {
-  const csrfToken = document.cookie.split('; ')
-    .find(row => row.startsWith('csrftoken='))
-    ?.split('=')[1];
-  return csrfToken;
+
+function getAuthToken() {
+  return localStorage.getItem('authToken');
 }
 
-// the api instance creation function
 export const createApiInstance = (store) => {
+  console.log('Creating apiInstance with store:', store);
   const api = axios.create({
     baseURL: 'http://localhost:8000/api/',
     timeout: 150000,
-    withCredentials: true, // Include cookies if authentication is involved
   });
-
-
-  // Add request interceptor with dynamic store access
   api.interceptors.request.use(
     (config) => {
-      if (store.userId) {
-        config.headers['X-User-Id'] = store.userId;
+      const token = getAuthToken();
+      console.log('Request interceptor - token:', token);
+      if (token) {
+        config.headers['Authorization'] = `Token ${token}`;
       }
       return config;
     },
     (error) => Promise.reject(error)
   );
-    // Response Interceptor for global error handling
-    api.interceptors.request.use(
-      (config) => {
-        const csrfToken = getCsrfToken();
-        if (csrfToken) {
-          config.headers['X-CSRFToken'] = csrfToken;
+  api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        console.log('Response interceptor - unauthorized, logging out');
+        localStorage.removeItem('authToken');
+        if (store && typeof store.logout === 'function') {
+          store.logout();
         }
-        if (store.userId) {
-          config.headers['X-User-Id'] = store.userId;
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
+      }
+      return Promise.reject(error);
+    }
+  );
+  console.log('apiInstance created:', api);
   return api;
 };
 
 
-const fetchCurrentUserInfo = async (api) => {
+
+const login = async (apiInstance, username, password) => {
   try {
-    const response = await api.get('auth/login/');
+    const response = await apiInstance.post('auth/login/', { username, password });
+    const token = response.data.token;
+    localStorage.setItem('authToken', token);
+    return response.data;
+  } catch (error) {
+    console.error('Login error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const fetchCurrentUserInfo = async (apiInstance) => {
+  try {
+    const response = await apiInstance.get('auth/user/');
     return response.data;
   } catch (error) {
     console.error('Error fetching current user info:', error.response?.data || error.message);
@@ -55,6 +62,17 @@ const fetchCurrentUserInfo = async (api) => {
   }
 };
 
+const logout = async (api) => {
+  try {
+    // Optional: implement server-side logout if needed
+    await api.post('auth/logout/');
+  } catch (error) {
+    console.error('Logout error:', error.response?.data || error.message);
+  } finally {
+    // Always remove the token from local storage
+    localStorage.removeItem('authToken');
+  }
+};
 // Named exports for specific API calls using the dynamic api instance
 const fetchCategories = async (api) => {
   try {
@@ -81,22 +99,15 @@ const fetchCategoryProducts = async (api, categorySlug, page = 1, perPage = 5) =
   }
 }; //works
 
-const fetchProductDetails = async (api, categorySlug, productSlug) => {
-  try {
-    const response = await api.get(`products/${categorySlug}/${productSlug}/`, {
-      timeout: 60000,  // Increased timeout to 60 seconds
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching product details:', error.response?.data || error.message);
-    throw error;
-  }
-}; //works
+const fetchProductDetails = async (apiInstance, categorySlug, productSlug) => {
+  const response = await apiInstance.get(`products/${categorySlug}/${productSlug}/`);
+  return response.data;
+};
 
 const fetchAllCategoriesWithProducts = async (api) => {
   try {
     const response = await api.get('all-categories-with-products/', {
-      timeout: 60000,  // Increased timeout to 60 seconds
+      timeout: 120000,  // Increased timeout to 60 seconds
     });
     return response.data;
   } catch (error) {
@@ -107,9 +118,11 @@ const fetchAllCategoriesWithProducts = async (api) => {
 
 const fetchCart = async (api, userId) => {
   try {
-    // Assuming you want to first fetch the user's cart
     const response = await api.get(`users/${userId}/cart/`, {
-      timeout: 60000
+      timeout: 60000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
     return response.data;
   } catch (error) {
@@ -120,10 +133,11 @@ const fetchCart = async (api, userId) => {
 
 
 
+
 const fetchOrders = async (api, userId) => {
   if (!userId) throw new Error('User ID not set');
   try {
-    const response = await api.get(`orders/?user=${userId}`);
+    const response = await api.get(`orders/user-orders/?user=${userId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching orders:', error.response?.data || error.message);
@@ -183,7 +197,7 @@ const checkoutCart = async (api, cartId, shippingMethod, shippingAddress, paymen
     const response = await api.post(`carts/${cartId}/checkout/`, {
       shipping_method: shippingMethod,
       shipping_address: shippingAddress,
-      payment_method: paymentMethod,
+ 
     });
     return response.data;
   } catch (error) {
@@ -230,7 +244,9 @@ const api = {
   checkoutCart,
   cancelOrder,
   searchProducts,
-  createCart
+  createCart,
+  login,
+  logout
 };
 
 // Export the api object as the default export

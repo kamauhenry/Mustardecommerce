@@ -36,7 +36,6 @@
 <script setup>
 import { ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
-import api from '@/services/api';
 
 const username = ref('');
 const password = ref('');
@@ -48,19 +47,12 @@ const emit = defineEmits(['switch-to-register', 'close']);
 const login = async () => {
   error.value = null;
   try {
-    const apiInstance = api.createApiInstance(store);
-    const response = await apiInstance.post('auth/login/', {
-      username: username.value,
-      password: password.value,
-    });
-
-    const { user_id, username: userName } = response.data;
-    store.setUserId(user_id);
-    console.log(`Logged in as ${userName}`);
+    const response = await store.login(username.value, password.value);
+    console.log(`Logged in as ${response.username}`);
     emit('close');
   } catch (err) {
-    error.value = err.response?.data?.error || 'Login failed';
-    console.error('Login failed:', err.response?.data);
+    error.value = err.message || 'Login failed';
+    console.error('Login failed:', err);
   }
 };
 
