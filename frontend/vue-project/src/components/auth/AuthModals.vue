@@ -1,7 +1,7 @@
 <template>
   <div class="auth-buttons">
     <template v-if="store.isAuthenticated">
-      <span class="welcome-text">Welcome, {{ store.username }}</span>
+      <!-- <span class="welcome-text">Welcome, {{ store.username }}</span> -->
       <button @click="store.logout" class="icon-button">
         <LogoutIcon />
       </button>
