@@ -22,7 +22,21 @@ from ..models import *
 from .serializers import *
 from django.http import JsonResponse, Http404
 from django.db import IntegrityError
+from django.db import transaction
+from django.utils import timezone
 import logging
+from django.db import connection, transaction
+from django.db.models import Max
+
+
+def reset_order_id_sequence():
+    with connection.cursor() as cursor:
+        # Get the current maximum ID
+        cursor.execute("SELECT MAX(id) FROM ecommerce_order")
+        max_id = cursor.fetchone()[0] or 0
+        # Reset the sequence to be higher than the current maximum
+        cursor.execute(f"SELECT setval('ecommerce_order_id_seq', {max_id + 1}, false)")
+
 
 User = get_user_model()
 
@@ -138,12 +152,11 @@ def get_user_cart(request, user_id):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def add_item_to_cart(request):
+def add_item_to_cart(request, cart_id):
     try:
-        cart_id = request.data.get('cart_id')
+        # cart_id is now coming from the URL parameter
         product_id = request.data.get('product_id')
         variant_id = request.data.get('variant_id')
         quantity = request.data.get('quantity', 1)
@@ -170,9 +183,11 @@ def add_item_to_cart(request):
         return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
     except Product.DoesNotExist:
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+    except ProductVariant.DoesNotExist:
+        return Response({"error": "Product variant not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -238,14 +253,14 @@ def remove_cart_item(request, cart_id):  # Add cart_id as URL param
 
 
 logger = logging.getLogger(__name__)
-
 @api_view(['POST']) 
 @permission_classes([IsAuthenticated]) 
 def process_checkout(request, cart_id): 
     try:
+
         # Log incoming request data
         logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
-        
+        reset_order_id_sequence()
         # Extract checkout data with defaults
         shipping_method = request.data.get('shipping_method', 'standard') 
         shipping_address = request.data.get('shipping_address', 'shop pick up')
@@ -266,20 +281,31 @@ def process_checkout(request, cart_id):
             
         # Log cart items before processing
         logger.info(f"Cart contains {cart.items.count()} items")
-        
-        # Create order with all necessary details
-        order = Order.objects.create(
-            user=cart.user,
-            shipping_method=shipping_method,
-            shipping_address=shipping_address,
-        )
-        
-        # Prepare order items
-        order_items = []
-        total_price = Decimal('0.00')
+        highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
+        next_id = highest_id + 1
+        # Use a database transaction to ensure atomicity
+        with transaction.atomic():
+            # Check if an order was already created for this cart but not completed
+            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+            for existing_order in existing_orders:
+                # If we find a recent order with no items, it might be a failed checkout
+                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:  # 5 min
+                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
+                    existing_order.delete()
+            
+            # Create order with all necessary details
+            order = Order.objects.create(
+                id=next_id, 
+                user=cart.user,
+                shipping_method=shipping_method,
+                shipping_address=shipping_address,
+            )
+            
+            # Prepare order items
+            order_items = []
+            total_price = Decimal('0.00')
 
-        for cart_item in cart.items.all():
-            try:
+            for cart_item in cart.items.all():
                 # Calculate price per unit (check for division by zero)
                 if cart_item.quantity > 0:
                     price_per_unit = cart_item.line_total / cart_item.quantity
@@ -303,21 +329,18 @@ def process_checkout(request, cart_id):
                 # Calculate total price
                 total_price += cart_item.line_total
                 order_items.append(order_item)
-            except Exception as item_error:
-                logger.error(f"Error creating order item: {str(item_error)}")
-                raise  # Re-raise to be caught by outer exception handler
 
-        # Update order with total price
-        logger.info(f"Total price calculated: {total_price}")
-        order.total_price = total_price
-        order.save()
+            # Update order with total price
+            logger.info(f"Total price calculated: {total_price}")
+            order.total_price = total_price
+            order.save()
 
-        # Clear the cart after checkout
-        cart.items.all().delete()
+            # Clear the cart after checkout
+            cart.items.all().delete()
 
-        # Serialize and return the order
-        serializer = OrderSerializer(order)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Serialize and return the order
+            serializer = OrderSerializer(order)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
     except IntegrityError as e:
         logger.error(f"IntegrityError during checkout: {str(e)}")
         return Response(

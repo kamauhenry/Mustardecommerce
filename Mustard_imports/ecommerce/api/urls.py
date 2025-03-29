@@ -38,8 +38,10 @@ urlpatterns = [
     # Custom cart and order actions
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
     path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),
+    path('orders/', get_user_orders, name='get-user-orders'),
+    path('orders/', get_user_orders, name='get-user-orders'),
     path('create_cart/', create_cart, name='create-cart'),
-    path('carts/add-item/', add_item_to_cart, name='add-item-to-cart'),
+    path('carts/<int:cart_id>/add_item/', add_item_to_cart, name='add-item-to-cart'),
     path('cart-items/<int:item_id>/update_cart_item_quantity/', update_cart_item_quantity, name='update-cart-item-quantity'),
     path('carts/<int:cart_id>/remove_item/', remove_cart_item, name='remove-cart-item'),
     path('carts/<int:cart_id>/checkout/', process_checkout, name='process-checkout'),
