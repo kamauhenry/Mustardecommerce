@@ -1,41 +1,60 @@
 <template>
   <MainLayout>
     <div class="container">
+      <!-- Breadcrumb -->
+      <div class="breadcrumb">
+        <router-link to="/">Home</router-link> >
+        <router-link :to="`/category/${categorySlug}/products`">{{ categoryName || categorySlug || 'Category' }}</router-link>
+      </div>
+
+      <!-- Loading state -->
       <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
+
+      <!-- Error message -->
       <div v-else-if="store.error.categoryProducts" class="error">
         Error: {{ store.error.categoryProducts }}
+        <button @click="retryLoading" class="underline ml-2">Retry</button>
       </div>
-      <div v-else>
-        <div class="products-grid">
-          <div class="breadcrumb">
-            <router-link to="/">Home</router-link> &gt;
-            <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug|| 'Category' }}</router-link>
-          </div>
-          <div v-if="products.length > 0" class="products">
-            <div v-for="product in products" :key="product.id" class="product-card">
-              <router-link
-                :to="{
-                  name: 'product-detail',
-                  params: { categorySlug: categorySlug, productSlug: product.slug }
-                }"
-                class="product-link"
-              >
-                <img
-                  v-if="product.thumbnail"
-                  :src="product.thumbnail"
-                  :alt="product.name"
-                  class="product-image"
-                />
+
+      <!-- Products Grid -->
+      <div v-else class="products-grid">
+        <div v-if="products.length > 0" class="products">
+          <div v-for="product in products" :key="product.id" class="product-card">
+            <router-link
+              :to="{
+                name: 'product-detail',
+                params: { categorySlug: categorySlug, productSlug: product.slug }
+              }"
+              class="product-link"
+            >
+              <img
+                v-if="product.thumbnail"
+                :src="product.thumbnail"
+                :alt="product.name"
+                class="product-image"
+              />
+              <div class="product-info">
                 <h3 class="product-name">{{ product.name }}</h3>
-                <p class="product-price">KES {{ product.price }}</p>
-                <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
-                <p class="moq-status">{{ product.moq_status || 'N/A' }}</p>
-              </router-link>
-            </div>
+                <div class="product-price">
+                  <span class="price-highlight">KES {{ product.price }}</span>
+                  <span v-if="product.below_moq_price" class="below-moq-price">Below MOQ Price: KES {{ product.below_moq_price }}</span>
+                </div>
+                <div class="product-moq-info">
+                  <div class="moq-detail">MOQ: {{ product.moq || 'N/A' }} Items</div>
+                </div>
+                <div class="product-status">
+                  <span class="status-text">{{ product.moq_status || 'Active' }}</span>
+                  <div class="progress-container">
+                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '0'}%` }"></div>
+                    <span class="progress-text">{{ product.moq_progress?.percentage || '0' }}% Orders</span>
+                  </div>
+                </div>
+              </div>
+            </router-link>
           </div>
-          <div v-else class="no-products">
-            No products available
-          </div>
+        </div>
+        <div v-else class="no-products">
+          No products available
         </div>
       </div>
     </div>
@@ -43,79 +62,96 @@
 </template>
 
 <script>
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
-import MainLayout from '../components/navigation/MainLayout.vue';
+import MainLayout from '@/components/navigation/MainLayout.vue';
 
 export default {
-  props: { categorySlug: String },
+  name: 'CategoryProducts',
   components: { MainLayout },
-  setup(props) {
+  setup() {
+    const route = useRoute();
     const store = useEcommerceStore();
 
+    // Get category slug from route params
+    const categorySlug = computed(() => route.params.categorySlug);
+
+    // Fetch category products when the component is mounted or the category slug changes
     onMounted(() => {
-      store.fetchCategoryProducts(props.categorySlug);
+      if (!store.apiInstance) {
+        store.initializeApiInstance();
+      }
+      if (categorySlug.value) {
+        store.fetchCategoryProducts(categorySlug.value);
+      }
     });
 
-    const category = computed(() => {
-      return store.categoryProducts[props.categorySlug]?.category;
+    // Watch for changes in categorySlug and refetch products
+    watch(categorySlug, (newSlug) => {
+      if (newSlug) {
+        store.fetchCategoryProducts(newSlug);
+      }
     });
 
+    // Compute category name for breadcrumb
+    const categoryName = computed(() => {
+      const categoryData = store.categoryProducts[categorySlug.value]?.category;
+      return categoryData?.name || '';
+    });
+
+    // Compute products for the current category
     const products = computed(() => {
-      return store.categoryProducts[props.categorySlug]?.products || [];
+      return store.categoryProducts[categorySlug.value]?.products || [];
     });
+
+    // Retry loading products
+    const retryLoading = () => {
+      if (categorySlug.value) {
+        store.fetchCategoryProducts(categorySlug.value);
+      }
+    };
 
     return {
       store,
-      category,
+      categorySlug,
+      categoryName,
       products,
+      retryLoading,
     };
   },
 };
 </script>
+
 <style scoped>
-/* Category title */
-.category-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin: 0.5rem 0 1rem 0;
+.container {
+  font-family: 'Roboto', sans-serif;
+  padding: 12px;
 }
+
 /* Breadcrumb styling */
 .breadcrumb {
   font-size: 14px;
   margin-bottom: 10px;
 }
 
-/* Style for router-link (which renders as <a> tags) */
 .breadcrumb a {
-  color: #5E5500; /* Set the color to 5E5500 */
-  text-decoration: none; /* Remove underline */
+  color: #5E5500;
+  text-decoration: none;
 }
 
-/* Remove hover effects */
-.breadcrumb a:hover {
-  color: #5E5500; /* Keep the same color on hover */
-  text-decoration: none; /* Ensure no underline on hover */
-}
-
-/* Style for visited links */
-.breadcrumb a:visited {
-  color: #5E5500; /* Keep the same color after being visited */
-  text-decoration: none; /* Ensure no underline after being visited */
-}
-
-/* Style for active/focused links (when clicked) */
+.breadcrumb a:hover,
+.breadcrumb a:visited,
 .breadcrumb a:active,
 .breadcrumb a:focus {
-  color: #5E5500; /* Keep the same color when clicked or focused */
-  text-decoration: none; /* Ensure no underline when clicked or focused */
+  color: #5E5500;
+  text-decoration: none;
 }
 
-/* Style for the current page (non-link) */
 .breadcrumb span {
-  color: #5E5500; /* Match the color for consistency */
+  color: #5E5500;
 }
+
 /* Products grid container */
 .products-grid {
   display: flex;
@@ -124,143 +160,156 @@ export default {
 
 /* Products container */
 .products {
-  display: flex;
-  flex-wrap: wrap; /* Allows wrapping to the next row */
-  gap: 1rem; /* Consistent spacing between cards */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
 }
 
 /* Individual product card */
 .product-card {
-  flex: 0 0 calc(20% - 0.75rem); /* 4 cards per row on large screens, adjusted for gap */
-  max-width: calc(25% - 0.75rem); /* Ensures consistent width */
-  display: flex;
-  margin: 0 1rem;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  border-radius: 6px;
-  padding: 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Subtle shadow to match screenshot */
-  transition: transform 0.2s ease;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .product-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
-.product-link:hover {
-  text-decoration: none; /* Ensures no underline on hover */
-  color: inherit; /* Maintains original text color */
-}
-.product-link{
-  text-decoration: none; /* Ensures no underline on hover */
-  color: inherit; /* Maintains original text color */
+
+.product-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 
 .product-image {
-  width: 300px;
-  height: 300px; /* Fixed height for consistency */
+  height: 120px; /* Adjusted to match the image */
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #666;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 4px;
-  margin-bottom: 0.75rem;
-  background-color: #e0e0e0; /* Placeholder background if no image */
+}
+
+.product-info {
+  padding: 8px; /* Reduced padding to match the compact look */
 }
 
 .product-name {
-  font-size: 0.95rem;
+  font-size: 0.85rem; /* Smaller font to match the image */
   font-weight: 600;
   margin: 0.25rem 0;
   text-align: left;
   line-height: 1.2;
   display: -webkit-box;
-  -webkit-line-clamp: 2; /* Limit to 2 lines */
-  line-clamp: 2;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .product-price {
-  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  margin: 0.25rem 0;
+}
+
+.price-highlight {
+  font-size: 0.9rem; /* Slightly smaller to match the image */
   font-weight: 700;
+}
+
+.below-moq-price {
+  font-size: 0.7rem;
+}
+
+.product-moq-info {
+  font-size: 0.7rem; /* Smaller font to match the image */
   margin: 0.25rem 0;
 }
 
-/* MOQ info */
-.moq-info {
-  font-size: 0.75rem;
-  margin: 0.25rem 0;
+.moq-detail {
+  color: #777;
 }
 
-/* MOQ status (e.g., active, not_applicable) */
-.moq-status {
-  font-size: 0.75rem;
-  color: #28a745; /* Green for status */
+.product-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-text {
+  font-size: 0.7rem; /* Smaller font to match the image */
+  color: #28a745; /* Green for active status */
   background-color: #e6f4ea;
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.4rem;
   border-radius: 12px;
   margin: 0.25rem 0;
+  width: fit-content;
 }
 
-/* No products available message */
-.no-products {
-  text-align: center;
-  padding: 1rem;
-  font-size: 0.9rem;
-  color: #666;
-  font-style: italic;
+.progress-container {
+  position: relative;
+  height: 20px;
+  width: 100%;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #8BC34A;
+  border-radius: 10px;
+}
+
+.progress-text {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-size: 0.7rem; /* Smaller font to match the image */
+  font-weight: 500;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Loading and error states */
 .loading,
-.error {
+.error,
+.no-products {
   text-align: center;
   padding: 2rem;
   font-size: 1.1rem;
-  color: #666;
 }
 
 /* Responsive adjustments */
-@media (max-width: 1200px) {
-  .product-card {
-    flex: 0 0 calc(33.33% - 0.75rem); /* 3 cards per row */
-    max-width: calc(33.33% - 0.75rem);
+@media (max-width: 1024px) {
+  .products {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
 
 @media (max-width: 768px) {
-  .product-card {
-    flex: 0 0 calc(50% - 0.75rem); /* 2 cards per row */
-    max-width: calc(50% - 0.75rem);
-  }
-
-  .product-image {
-    height: 120px; /* Smaller image height on mobile */
-  }
-
-  .product-name {
-    font-size: 0.85rem;
-  }
-
-  .product-price {
-    font-size: 0.8rem;
-  }
-
-  .moq-info,
-  .moq-status {
-    font-size: 0.7rem;
+  .products {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
 @media (max-width: 480px) {
-  .product-card {
-    flex: 0 0 calc(50% - 0.75rem); /* 1 card per row */
-    max-width: calc(50% - 0.75rem);
+  .products {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
-
   .product-image {
-    height: 100px; /* Even smaller image height */
-    width: auto;
+    height: 100px;
   }
 }
 </style>
