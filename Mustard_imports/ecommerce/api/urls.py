@@ -51,4 +51,10 @@ urlpatterns = [
     path('process-payment/', process_payment, name='process_payment'),
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
 
+    # Profile
+    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
+    path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery-locations'),
+    path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set-default-location'),
+    path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delete-location'),
+
 ]

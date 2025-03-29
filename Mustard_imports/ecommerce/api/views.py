@@ -811,3 +811,72 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
         serializer = MOQRequestSerializer(moq_request)
         return Response(serializer.data)
     
+
+class UserProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {
+            'username': user.username,
+            'email': user.email,
+            'name': user.first_name,
+            'phone': getattr(user, 'phone', ''),
+            'gender': getattr(user, 'gender', ''),
+            'dob': getattr(user, 'dob', ''),
+            'avatar': getattr(user, 'avatar', ''),
+        }
+        return Response(data)
+
+    def put(self, request):
+        user = request.user
+        data = request.data
+        user.first_name = data.get('name', user.first_name)
+        user.email = data.get('email', user.email)
+        if 'phone' in data:
+            user.phone = data['phone']
+        if 'gender' in data:
+            user.gender = data['gender']
+        if 'dob' in data:
+            user.dob = data['dob']
+        if 'avatar' in data:
+            user.avatar = data['avatar']
+        user.save()
+        return Response({
+            'username': user.username,
+            'email': user.email,
+            'name': user.first_name,
+            'phone': user.phone,
+            'gender': user.gender,
+            'dob': user.dob,
+            'avatar': user.avatar,
+        })
+
+class DeliveryLocationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Mocked for now; replace with actual model
+        locations = [
+            {'id': 1, 'name': 'Home', 'address': '123 Nairobi St, Nairobi', 'isDefault': True},
+            {'id': 2, 'name': 'Office', 'address': '456 Business Bay, Nairobi', 'isDefault': False},
+        ]
+        return Response(locations)
+
+    def post(self, request):
+        data = request.data
+        new_location = {
+            'id': 3,  # Generate a unique ID in a real app
+            'name': data.get('name'),
+            'address': data.get('address'),
+            'isDefault': data.get('isDefault', False),
+        }
+        return Response(new_location, status=status.HTTP_201_CREATED)
+
+    def put(self, request, location_id):
+        # Mocked for now; update the default location in a real app
+        return Response({'message': 'Set as default'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, location_id):
+        # Mocked for now; delete the location in a real app
+        return Response(status=status.HTTP_204_NO_CONTENT)

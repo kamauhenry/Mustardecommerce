@@ -99,15 +99,15 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   }
 }
 
-.category-card {
+.category-card, .popup-content, .user-info-section, .locations-section {
   background-color: var(--categories-bg);
 }
 
-.product-card {
+.product-card, .user-info, .delivery-locations {
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1 {
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label {
   color: var(--text-color-thirteen);
 }
 
@@ -115,7 +115,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: #f28c38;
 }
 
-.category-link, .about-p, .moq-info, .product-price, .product-name, .no-products, .loading, .no-products, .product-image {
+.category-link, .about-p, .moq-info, .product-price, .product-name, .no-products, .loading, .no-products, .product-image, .location-name, .location-address, .map-loading, .set-default-label {
   color: var(--text-color-eleven);
 
 }
@@ -131,6 +131,10 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 .campaign-p, .search-p {
   color: var(--campaigns-bg);
   font-weight: 700;
+}
+
+.info-value, .location-details h3, .location-details p, .no-locations {
+  color: var(--campaigns-bg);
 }
 
 .page-title {
