@@ -225,7 +225,7 @@ class Order(models.Model):
         ('pickup', 'Local Pickup'),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipping_method = models.CharField(max_length=20, choices=SHIPPING_METHOD_CHOICES, default='standard')
     shipping_address = models.CharField(max_length=255, blank=True, null=True)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
@@ -272,7 +272,7 @@ class Order(models.Model):
         order_item.delete()
         self.update_total_price()
 
-        
+
     def mark_as_completed(self):
         """
         Method to handle order completion logic

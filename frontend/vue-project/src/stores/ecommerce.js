@@ -193,7 +193,8 @@ export const useEcommerceStore = defineStore('ecommerce', {
           // 5. Perform checkout API call
           const response = await this.apiInstance.post(
             `/carts/${this.cart.id}/checkout/`, 
-            finalCheckoutData
+            finalCheckoutData,
+            { timeout: 15000 } 
           );
           
           // 6. Post-checkout cleanup and data refresh
