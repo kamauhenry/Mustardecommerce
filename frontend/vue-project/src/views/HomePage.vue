@@ -16,7 +16,16 @@
           :key="category.id"
           class="category-card"
         >
-          <h2 class="category-title">{{ category.name }}</h2>
+          <div class="category-top">
+            <h2 class="category-title">{{ category.name }}</h2>
+            <router-link
+              v-if="category.products && category.products.length > 0"
+              :to="`/category/${category.slug}/products`"
+              class="see-more-link"
+            >
+              See More
+            </router-link>
+          </div>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
             <div
                 v-for="product in category.products.slice(0, 4)"
@@ -34,11 +43,11 @@
                   <h3 class="product-name">{{ product.name }}</h3>
                   <p class="product-price">KES {{ product.price }}</p>
                   <p class="moq-info">MOQ: {{ product.moq }} items</p>
-                  
+
                   <!-- Progress bar container -->
                   <div class="moq-progress-container">
-                    <div 
-                      class="moq-progress-bar" 
+                    <div
+                      class="moq-progress-bar"
                       :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
                     ></div>
                     <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
@@ -49,13 +58,6 @@
           <div v-else class="no-products">
             No products available
           </div>
-          <router-link
-            v-if="category.products && category.products.length > 0"
-            :to="`/category/${category.slug}/products`"
-            class="see-more-link"
-          >
-            See More
-          </router-link>
         </div>
       </div>
     </div>
@@ -111,7 +113,7 @@ export default {
 .product-link {
   text-decoration: none; /* Removes underline */
   color: inherit; /* Inherits text color from parent */
- 
+
 }
 
 /* Prevent hover effects typically associated with links */
@@ -160,6 +162,7 @@ export default {
 /* Individual product card */
 .product-card {
   display: flex;
+  border-color: #e6f4ea;
   flex-direction: column;
   align-items: flex-start;
   border-radius: 6px;
@@ -168,7 +171,7 @@ export default {
 }
 
 .product-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -255,20 +258,28 @@ export default {
   font-weight: bold;
 }
 
+.category-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 /* "See More" link styling */
 .see-more-link {
-  display: block; /* Ensure it takes its own line */
   text-align: right; /* Align to the right like in the second page */
   font-size: 0.8rem; /* Smaller font to match the second page */
   font-weight: 600;
-  color: #666;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 10px;
   text-transform: uppercase;
   text-decoration: none;
   margin-top: 0.5rem;
 }
 
 .see-more-link:hover {
-  color: #f28c38; /* Orange on hover */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Loading and error states */
