@@ -5,10 +5,17 @@ from django.contrib.auth import get_user_model, authenticate
 
 User = get_user_model()
 
+class DeliveryLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryLocation
+        fields = ('id', 'name', 'address', 'latitude', 'longitude', 'is_default', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
 class UserSerializer(serializers.ModelSerializer):
+    delivery_locations = DeliveryLocationSerializer(many=True, read_only=True)
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'user_type', 'points', 'affiliate_code', 'location')
+        fields = ('id', 'username', 'email', 'user_type', 'points', 'affiliate_code', 'delivery_locations')
         read_only_fields = ('id', 'points', 'affiliate_code') # These fields might be auto-generated or managed server-side
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -27,7 +34,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('email', 'user_type', 'location') # Include fields you want to allow updating
+        fields = ('email', 'user_type') # Include fields you want to allow updating
         read_only_fields = ('id', 'username', 'points', 'affiliate_code')
 
 class CartItemSerializer(serializers.ModelSerializer):

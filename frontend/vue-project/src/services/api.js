@@ -109,18 +109,15 @@ export const getDeliveryLocations = async (api) => {
   }
 };
 
-// Update these functions in api.js to ensure they handle coordinates
 export const addDeliveryLocation = async (api, location) => {
   try {
-    // Make sure the location object includes all necessary fields for the backend
     const locationData = {
       name: location.name,
       address: location.address,
       latitude: location.latitude,
       longitude: location.longitude,
-      is_default: location.isDefault
+      is_default: location.isDefault,
     };
-
     const response = await api.post('user/delivery-locations/', locationData);
     return response.data;
   } catch (error) {

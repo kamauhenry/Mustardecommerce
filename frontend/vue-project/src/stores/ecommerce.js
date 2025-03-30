@@ -199,11 +199,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
           this.showAuthModal = true;
           throw new Error('Please log in to add items to cart');
         }
-    
+
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }
-    
+
         // Fetch cart if it’s not already in state
         if (!this.cart) {
           try {
@@ -214,7 +214,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
             if (!this.cart) this.cart = { id: null, items: [] };
           }
         }
-    
+
         const response = await api.addToCart(
           this.apiInstance,
           this.cart.id,
@@ -222,7 +222,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
           variantId,
           quantity
         );
-    
+
         this.cart = response || { id: this.cart.id, items: [] };
         return response;
       } catch (error) {
@@ -466,9 +466,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     // Delivery Location Actions
     async fetchDeliveryLocations() {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       this.loading.deliveryLocations = true;
       this.error.deliveryLocations = null;
       try {
@@ -482,9 +479,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async addDeliveryLocation(location) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         const response = await api.addDeliveryLocation(this.apiInstance, location);
         this.deliveryLocations.push(response);
@@ -494,14 +488,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async setDefaultDeliveryLocation(locationId) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         await api.setDefaultDeliveryLocation(this.apiInstance, locationId);
-        this.deliveryLocations = this.deliveryLocations.map(loc => ({
+        this.deliveryLocations = this.deliveryfiLocations.map(loc => ({
           ...loc,
-          isDefault: loc.id === locationId,
+          is_default: loc.id === locationId,  // Update is_default field
         }));
       } catch (error) {
         throw new Error(error.message || 'Failed to set default delivery location');
@@ -509,9 +500,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async deleteDeliveryLocation(locationId) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         await api.deleteDeliveryLocation(this.apiInstance, locationId);
         this.deliveryLocations = this.deliveryLocations.filter(loc => loc.id !== locationId);

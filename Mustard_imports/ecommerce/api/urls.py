@@ -51,11 +51,11 @@ urlpatterns = [
     path('process-payment/', process_payment, name='process_payment'),
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
 
-    # Profile
-    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
-    path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery-locations'),
-    path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set-default-location'),
-    path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delete-location'),
+# Profile
+    path('user/profile/', views.UserProfileView.as_view(), name='user-profile'),
+    path('user/delivery-locations/', views.DeliveryLocationView.as_view(), name='delivery_locations'),
+    path('user/delivery-locations/<int:location_id>/', views.DeliveryLocationView.as_view(), name='delivery_location_detail'),
+    path('user/delivery-locations/<int:location_id>/set-default/', views.DeliveryLocationView.as_view(), name='set_default_location'),
     path('autocomplete/', views.autocomplete, name='autocomplete'),
     path('place-details/', views.place_details, name='place_details'),
 ]

@@ -149,8 +149,8 @@ const selectSuggestion = async (suggestion) => {
       id: suggestion.place_id,
       name: suggestion.structured_formatting.main_text || result.name,
       address,
-      lat,
-      lng,
+      latitude: lat,  // Changed from lat to latitude to match backend
+      longitude: lng,  // Changed from lng to longitude to match backend
     };
     suggestions.value = [];
     searchQuery.value = '';
@@ -194,8 +194,8 @@ const handleMapClick = async (event) => {
       id: `${newCenter.lat}-${newCenter.lng}`,
       name: address.split(',')[0],
       address,
-      lat: newCenter.lat,
-      lng: newCenter.lng,
+      latitude: newCenter.lat,
+      longitude: newCenter.lng,
     };
   } catch (error) {
     console.error('Error geocoding:', error);
@@ -203,8 +203,8 @@ const handleMapClick = async (event) => {
       id: `${newCenter.lat}-${newCenter.lng}`,
       name: 'Unknown Location',
       address: 'Unknown Address',
-      lat: newCenter.lat,
-      lng: newCenter.lng,
+      latitude: newCenter.lat,
+      longitude: newCenter.lng,
     };
   }
 };
@@ -222,8 +222,8 @@ const handleMarkerDrag = async (event) => {
       ...selectedLocation.value,
       name: address.split(',')[0],
       address,
-      lat: newCenter.lat,
-      lng: newCenter.lng,
+      latitude: newCenter.lat,
+      longitude: newCenter.lng,
     };
   } catch (error) {
     console.error('Error geocoding:', error);
@@ -231,17 +231,18 @@ const handleMarkerDrag = async (event) => {
       ...selectedLocation.value,
       name: 'Unknown Location',
       address: 'Unknown Address',
-      lat: newCenter.lat,
-      lng: newCenter.lng,
+      latitude: newCenter.lat,
+      longitude: newCenter.lng,
     };
   }
 };
 
 const addLocation = () => {
   emit('add-location', {
-    id: selectedLocation.value.id,
     name: selectedLocation.value.name,
     address: selectedLocation.value.address,
+    latitude: selectedLocation.value.latitude,
+    longitude: selectedLocation.value.longitude,
     isDefault: setAsDefault.value,
   });
 };

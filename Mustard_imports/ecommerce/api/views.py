@@ -861,33 +861,56 @@ class UserProfileView(APIView):
 class DeliveryLocationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
-        # Mocked for now; replace with actual model
-        locations = [
-            {'id': 1, 'name': 'Home', 'address': '123 Nairobi St, Nairobi', 'isDefault': True},
-            {'id': 2, 'name': 'Office', 'address': '456 Business Bay, Nairobi', 'isDefault': False},
-        ]
-        return Response(locations)
+    def get(self, request, location_id=None):
+        """Retrieve all delivery locations for the authenticated user."""
+        locations = DeliveryLocation.objects.filter(user=request.user)
+        serializer = DeliveryLocationSerializer(locations, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def post(self, request):
+    def post(self, request, location_id=None):
+        """Add a new delivery location for the authenticated user."""
         data = request.data
-        new_location = {
-            'id': 3,  # Generate a unique ID in a real app
+        serializer = DeliveryLocationSerializer(data={
             'name': data.get('name'),
             'address': data.get('address'),
-            'isDefault': data.get('isDefault', False),
-        }
-        return Response(new_location, status=status.HTTP_201_CREATED)
+            'latitude': data.get('latitude'),  # Include latitude
+            'longitude': data.get('longitude'),  # Include longitude
+            'is_default': data.get('is_default', False),  # Changed key to match API
+            'user': request.user.id
+        })
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, location_id):
-        # Mocked for now; update the default location in a real app
+    def put(self, request, location_id=None):
+        """Set a location as the default for the authenticated user."""
+        if not location_id:
+            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        location.is_default = True
+        location.save()  # This will trigger the save method to unset other defaults
         return Response({'message': 'Set as default'}, status=status.HTTP_200_OK)
 
-    def delete(self, request, location_id):
-        # Mocked for now; delete the location in a real app
+    def delete(self, request, location_id=None):
+        """Delete a delivery location for the authenticated user."""
+        if not location_id:
+            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        location.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
+    
+  
 def autocomplete(request):
     query = request.GET.get('input', '')
     if not query:

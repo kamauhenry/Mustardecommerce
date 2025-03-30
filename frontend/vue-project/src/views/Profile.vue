@@ -1,130 +1,88 @@
 <template>
   <MainLayout>
-    <div class="profile-container">
-      <div class="profile-header">
-        <h1>Profile</h1>
-      </div>
-
-      <!-- User Info Section -->
-      <div class="user-info-section">
-        <div class="profile-photo-container">
-          <div class="profile-photo" @click="triggerFileInput">
-            <span v-if="!user.profilePhoto">CLICK TO CHANGE PHOTO</span>
-            <img v-else :src="user.profilePhoto" alt="Profile Photo" />
+    <div class="profile-page">
+      <h1>Profile</h1>
+      <div v-if="isLoading" class="loading">Loading...</div>
+      <div v-else>
+        <!-- User Profile Section -->
+        <div class="profile-section">
+          <h2>User Information</h2>
+          <div class="profile-photo">
+            <img
+              v-if="user.profile_photo"
+              :src="user.profile_photo"
+              alt="Profile Photo"
+              class="photo"
+            />
+            <div v-else class="photo-placeholder">No Photo</div>
+            <button @click="triggerFileInput" class="change-photo-btn">
+              Change Photo
+            </button>
+            <input
+              type="file"
+              ref="fileInput"
+              @change="handleProfilePhotoChange"
+              style="display: none"
+              accept="image/*"
+            />
           </div>
-          <input type="file" ref="fileInput" style="display: none" @change="handleProfilePhotoChange" accept="image/*" />
-
-          <div class="profile-actions">
-            <button class="action-button primary-button" @click="editUser">Edit User</button>
-            <button class="action-button secondary-button" @click="changePassword">Change Password</button>
-          </div>
+          <p><strong>Username:</strong> {{ user.username || 'N/A' }}</p>
+          <p><strong>Email:</strong> {{ user.email || 'N/A' }}</p>
+          <p><strong>User Type:</strong> {{ user.user_type || 'N/A' }}</p>
+          <p><strong>Points:</strong> {{ user.points || 0 }}</p>
+          <p><strong>Affiliate Code:</strong> {{ user.affiliate_code || 'N/A' }}</p>
+          <p><strong>Join Date:</strong> {{ formatDate(user.date_joined) }}</p>
+          <button @click="editUser" class="edit-btn">Edit Profile</button>
+          <button @click="changePassword" class="change-password-btn">
+            Change Password
+          </button>
         </div>
 
-        <div class="user-details">
-          <h2 class="user-name">User Information</h2>
-
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Username</span>
-              <span class="info-value">{{ user.username }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Affiliate Code</span>
-              <span class="info-value">{{ user.affiliate_code || 'Not available' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">{{ user.points ? 'Points' : 'Affiliate Points' }}</span>
-              <span class="info-value">{{ user.points || 0 }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Phone</span>
-              <span class="info-value">{{ user.phone || 'Not set' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Member Since</span>
-              <span class="info-value">{{ formatDate(user.date_joined) }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Email</span>
-              <span class="info-value">{{ user.email || 'Not set' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Items Ordered</span>
-              <span class="info-value">{{ user.orders_count || 0 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Delivery Locations Section -->
-      <div class="locations-section">
-        <div class="section-header">
-          <h2>DELIVERY LOCATIONS</h2>
-          <button class="add-button" @click="showAddLocationPopup">ADD +</button>
-        </div>
-
-        <div class="locations-container">
-          <div v-if="deliveryLocations.length === 0" class="no-locations">
-            No delivery locations added yet.
-          </div>
-
-          <div v-else class="location-map-grid">
-            <div v-for="location in deliveryLocations" :key="location.id" class="location-map-item">
-              <div class="map-container">
-                <!-- Map display would go here - using a placeholder for now -->
-                <div class="map-placeholder">
-                  <!-- You would integrate an actual map component here -->
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    frameborder="0"
-                    scrolling="no"
-                    marginheight="0"
-                    marginwidth="0"
-                    :src="`https://maps.google.com/maps?q=${encodeURIComponent(location.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`">
-                  </iframe>
-                </div>
-
-                <div class="location-actions">
-                  <button class="location-edit-btn" @click="editLocation(location.id)">
-                    <span class="icon-edit">✏️</span>
-                  </button>
-                  <button class="location-delete-btn" @click="deleteLocation(location.id)">
-                    <span class="icon-delete">🗑️</span>
-                  </button>
-                </div>
-              </div>
-
+        <!-- Delivery Locations Section -->
+        <div class="locations-section">
+          <h2>Delivery Locations</h2>
+          <button @click="showAddLocationPopup" class="add-location-btn">
+            Add New Location
+          </button>
+          <ul class="locations-list">
+            <li v-for="location in deliveryLocations" :key="location.id">
               <div class="location-details">
-                <h3>{{ location.name }}</h3>
-                <p>{{ location.address }}</p>
-                <span v-if="location.isDefault" class="default-badge">Default</span>
+                <span class="location-name">{{ location.name }}</span>
+                <span class="location-address">{{ location.address }}</span>
+                <span v-if="location.is_default" class="default-tag">[Default]</span>
               </div>
-            </div>
-          </div>
+              <div class="location-actions">
+                <button
+                  @click="setAsDefault(location.id)"
+                  :disabled="location.is_default"
+                  class="set-default-btn"
+                >
+                  Set as Default
+                </button>
+                <button @click="confirmDeleteLocation(location.id)" class="delete-btn">
+                  Delete
+                </button>
+              </div>
+            </li>
+          </ul>
         </div>
       </div>
 
       <!-- Add Location Popup -->
       <AddDeliveryLocationPopup
         v-if="showPopup"
-        @close="closePopup"
         @add-location="addLocation"
+        @close="closePopup"
       />
 
+      <!-- Delete Confirmation Modal -->
       <div v-if="showDeleteModal" class="modal-overlay">
-        <div class="modal">
-          <h2>Confirm Delete</h2>
+        <div class="modal-content">
+          <h3>Confirm Deletion</h3>
           <p>Are you sure you want to delete this location?</p>
           <div class="modal-actions">
-            <button class="cancel-button" @click="cancelDeleteLocation">Cancel</button>
-            <button class="delete-button" @click="deleteLocation">Delete</button>
+            <button @click="cancelDeleteLocation" class="cancel-btn">Cancel</button>
+            <button @click="deleteLocation" class="confirm-btn">Delete</button>
           </div>
         </div>
       </div>
@@ -151,11 +109,11 @@ export default {
     const showPopup = ref(false);
     const isLoading = ref(true);
     const fileInput = ref(null);
-    const showDeleteModal = ref(false); // Add this line
-    const locationToDeleteId = ref(null); // Add this line
-    const { proxy } = getCurrentInstance()
+    const showDeleteModal = ref(false);
+    const locationToDeleteId = ref(null);
+    const { proxy } = getCurrentInstance();
 
-    // Use the store to fetch user profile and delivery locations
+    // Fetch user profile and delivery locations on mount
     onMounted(async () => {
       try {
         isLoading.value = true;
@@ -195,7 +153,7 @@ export default {
         proxy.$toast.success('Profile photo updated successfully!');
       } catch (error) {
         console.error('Failed to update profile photo:', error);
-        proxy.$toast.error(`Failed to update profile photo`);
+        proxy.$toast.error('Failed to update profile photo');
       }
     };
 
@@ -213,14 +171,9 @@ export default {
         proxy.$toast.success('Location added successfully!');
         closePopup();
       } catch (error) {
-        proxy.$toast.error(`Failed to add location`);
+        proxy.$toast.error('Failed to add location');
         console.error('Failed to add location:', error);
       }
-    };
-
-    const editLocation = (locationId) => {
-      // Would need to implement a location editing component
-      proxy.$toast.error('Edit location functionality to be implemented.');
     };
 
     const setAsDefault = async (locationId) => {
@@ -228,14 +181,17 @@ export default {
         await store.setDefaultDeliveryLocation(locationId);
         proxy.$toast.success('Default delivery location changed successfully!');
       } catch (error) {
-        proxy.$toast.error(`Failed to set default location`);
+        proxy.$toast.error('Failed to set default location');
         console.error('Failed to set default location:', error);
       }
     };
 
-    const deleteLocation = async (locationId) => {
+    const confirmDeleteLocation = (locationId) => {
       locationToDeleteId.value = locationId;
       showDeleteModal.value = true;
+    };
+
+    const deleteLocation = async () => {
       try {
         await store.deleteDeliveryLocation(locationToDeleteId.value);
         proxy.$toast.success('Location deleted successfully!');
@@ -257,13 +213,11 @@ export default {
     };
 
     const editUser = () => {
-      // Would need to implement a profile editing component
-      proxy.$toast.error(`Edit profile functionality to be implemented.`);
+      proxy.$toast.error('Edit profile functionality to be implemented.');
     };
 
     const changePassword = () => {
-      // Would need to implement a profile editing component
-      proxy.$toast.error(`Edit profile functionality to be implemented.`);
+      proxy.$toast.error('Edit profile functionality to be implemented.');
     };
 
     return {
@@ -272,15 +226,17 @@ export default {
       showPopup,
       isLoading,
       fileInput,
+      showDeleteModal,
       formatDate,
       triggerFileInput,
       handleProfilePhotoChange,
       showAddLocationPopup,
       closePopup,
       addLocation,
-      editLocation,
       setAsDefault,
+      confirmDeleteLocation,
       deleteLocation,
+      cancelDeleteLocation,
       editUser,
       changePassword,
     };
@@ -289,258 +245,173 @@ export default {
 </script>
 
 <style scoped>
-/* Main Container */
-.profile-container {
-  font-family: 'Roboto', sans-serif;
+.profile-page {
+  padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
 }
 
-.profile-header h1 {
-  color: #ff5722;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
+.loading {
+  text-align: center;
+  font-size: 1.2rem;
+  color: #666;
 }
 
-/* User Info Section */
-.user-info-section {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 3rem;
+.profile-section,
+.locations-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 2rem;
+  background: #f9f9f9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.profile-photo-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 250px;
+.profile-section h2,
+.locations-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .profile-photo {
-  width: 250px;
-  height: 250px;
-  background-color: #b0bec5;
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: white;
-  font-size: 0.875rem;
-  text-align: center;
-  border-radius: 4px;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.profile-photo img {
-  width: 100%;
-  height: 100%;
+.photo,
+.photo-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
   object-fit: cover;
 }
 
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.action-button {
-  padding: 0.75rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.primary-button {
-  background-color: #ff5722;
-  color: white;
-}
-
-.primary-button:hover {
-  background-color: #e64a19;
-}
-
-.secondary-button {
-  background-color: #f5f5f5;
-  color: #333;
-}
-
-.secondary-button:hover {
-  background-color: #e0e0e0;
-}
-
-.user-details {
-  flex: 1;
-}
-
-.user-name {
-  font-size: 1.75rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.25rem;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.info-label {
-  font-size: 0.875rem;
-  font-weight: 700;
-}
-
-.info-value {
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-/* Delivery Locations Section */
-.locations-section {
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 2rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
-  color: #ff5722;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.add-button {
-  background-color: #ff5722;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.add-button:hover {
-  background-color: #e64a19;
-}
-
-.no-locations {
-  text-align: center;
-  padding: 2rem;
-  font-style: italic;
-}
-
-.location-map-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.location-map-item {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-}
-
-.location-map-item:hover {
-  transform: translateY(-4px);
-}
-
-.map-container {
-  position: relative;
-  height: 200px;
-  width: 100%;
-}
-
-.map-placeholder {
-  height: 100%;
-  width: 100%;
-  background-color: #f5f5f5;
+.photo-placeholder {
+  background: #ddd;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #666;
+  font-size: 0.9rem;
+}
+
+.change-photo-btn,
+.edit-btn,
+.change-password-btn,
+.add-location-btn,
+.set-default-btn,
+.delete-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.change-photo-btn {
+  background: #f28c38;
+  color: white;
+}
+
+.change-photo-btn:hover {
+  background: #e07b30;
+}
+
+.edit-btn {
+  background: #4CAF50;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #45a049;
+}
+
+.change-password-btn {
+  background: #2196F3;
+  color: white;
+}
+
+.change-password-btn:hover {
+  background: #1e87db;
+}
+
+.add-location-btn {
+  background: #f28c38;
+  color: white;
+  margin-bottom: 1rem;
+}
+
+.add-location-btn:hover {
+  background: #e07b30;
+}
+
+.locations-list {
+  list-style: none;
+  padding: 0;
+}
+
+.locations-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.location-details {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.location-name {
+  font-weight: 600;
+}
+
+.location-address {
+  color: #666;
+}
+
+.default-tag {
+  color: #4CAF50;
+  font-size: 0.85rem;
 }
 
 .location-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   display: flex;
   gap: 0.5rem;
 }
 
-.location-edit-btn, .location-delete-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.location-edit-btn {
-  background-color: #ff5722;
+.set-default-btn {
+  background: #2196F3;
   color: white;
 }
 
-.location-delete-btn {
-  background-color: #f44336;
+.set-default-btn:hover:not(:disabled) {
+  background: #1e87db;
+}
+
+.set-default-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.delete-btn {
+  background: #f44336;
   color: white;
 }
 
-.location-details {
-  padding: 1rem;
+.delete-btn:hover {
+  background: #da190b;
 }
 
-.location-details h3 {
-  margin: 0 0 0.5rem 0;
-  font-weight: 600;
-}
-
-.location-details p {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.875rem;
-}
-
-.default-badge {
-  display: inline-block;
-  background-color: #e8f5e9;
-  color: #2e7d32;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
@@ -548,66 +419,50 @@ export default {
   z-index: 1000;
 }
 
-.modal {
+.modal-content {
   background: white;
-  padding: 20px;
+  padding: 1.5rem;
   border-radius: 8px;
   width: 90%;
-  max-width: 500px;
+  max-width: 400px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  text-align: center;
 }
 
-.modal h2 {
-  font-size: 1.5rem;
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.modal p {
-  font-size: 1.1rem;
-  color: #666;
-  margin-bottom: 20px;
+.modal-content h3 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .modal-actions {
   display: flex;
-  justify-content: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
-.cancel-button,
-.delete-button {
-  padding: 10px 20px;
+.cancel-btn,
+.confirm-btn {
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
 }
 
-.cancel-button {
-  background-color: #ddd;
+.cancel-btn {
+  background: #f5f5f5;
   color: #333;
 }
 
-.delete-button {
-  background-color: #f44336;
+.cancel-btn:hover {
+  background: #e0e0e0;
+}
+
+.confirm-btn {
+  background: #f44336;
   color: white;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .user-info-section {
-    flex-direction: column;
-  }
-
-  .profile-photo-container {
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
+.confirm-btn:hover {
+  background: #da190b;
 }
 </style>
