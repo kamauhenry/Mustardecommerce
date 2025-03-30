@@ -67,8 +67,8 @@
                 <div class="product-status">
                   <span class="status-text">{{ product.moq_status || 'Active' }}</span>
                   <div class="progress-container">
-                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '40'}%` }"></div> <!-- Development-->
-                    <span class="progress-text">{{ product.moq_progress?.percentage || '40' }}% Orders</span>
+                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '60'}%` }"></div> <!-- Development-->
+                    <span class="progress-text">{{ product.moq_progress?.percentage || '60' }}% Orders</span>
                   </div>
                 </div>
               </div>

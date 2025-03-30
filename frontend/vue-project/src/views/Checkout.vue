@@ -76,7 +76,8 @@
 
             <div class="totals">
               <p>Subtotal: KES {{ subtotal.toFixed(2) }}</p>
-              <p>Tax (10%): KES {{ tax.toFixed(2) }}</p>
+              <!-- <p>Tax (10%): KES {{ tax.toFixed(2) }}</p> -->
+              <p>Total: KES {{ total.toFixed(2) }}</p>
             </div>
           </div>
 
