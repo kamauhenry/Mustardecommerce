@@ -99,8 +99,10 @@ MIDDLEWARE = [
 # CORS Settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue.js development server
-    "http://127.0.0.1:8000",  # Django server
-    "http://localhost:8000"   # Added for flexibility
+    "http://127.0.0.1:8080",  # Nginx load balancer
+    "http://localhost:8080"   # Added for flexibility
+    # "http://127.0.0.1:8000",  # Django server
+    # "http://localhost:8000"   # Added for flexibility
 ]
 
 CORS_ALLOW_CREDENTIALS = True

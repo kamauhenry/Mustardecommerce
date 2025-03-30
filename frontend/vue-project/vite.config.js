@@ -31,7 +31,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000', // Fixed to include 'http:'
+        // target: 'http://127.0.0.1:8000', // Fixed to include 'http:'
+        target: 'http://127.0.0.1:8080',  // Use Nginx as the backend gateway
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api'),

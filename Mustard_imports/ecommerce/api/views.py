@@ -594,7 +594,10 @@ class ProductsView(APIView):
             page = int(request.query_params.get('page', 1))
             per_page = int(request.query_params.get('per_page', 5))
 
-            products = Product.objects.all()
+            products = cache.get("products")
+            if not products:
+                products = list(Product.objects.select_related("category").all())
+                cache.set("products", products, timeout=300)
             if category_slug:
                 products = products.filter(category__slug=category_slug)
 
@@ -746,7 +749,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         if user_id and self.request.user.is_authenticated:
             return Order.objects.filter(user_id=user_id)
         if self.request.user.is_staff:
-            return Order.objects.all()
+            return Order.objects.prefetch_related("items").all()
         return Order.objects.filter(user=self.request.user)
 
     @action(detail=True, methods=['post'])
