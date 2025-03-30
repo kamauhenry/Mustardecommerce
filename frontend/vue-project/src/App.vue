@@ -131,7 +131,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: var(--campaigns-bg);
 }
 
-.see-more-link {
+.see-more-link, .show-more {
   background-color: #f28c38;
 }
 

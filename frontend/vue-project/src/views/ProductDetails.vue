@@ -707,17 +707,17 @@ export default {
 }
 
 .show-more {
-  background: none;
-  border: 1px solid #333;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  padding: 10px;
+  border-radius: 10px;
   text-transform: uppercase;
+  text-decoration: none;
+  margin-top: 0.5rem;
 }
 
 .show-more:hover {
-  background-color: #f5f5f5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Responsiveness */
