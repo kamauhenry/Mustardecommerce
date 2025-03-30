@@ -2,7 +2,7 @@
   <div class="track-order-modal">
     <div class="modal-header">
       <h2>Track Order</h2>
-      <button @click="$emit('close')" class="close-button">×</button>
+      <!-- <button @click="$emit('close')" class="close-button">×</button> -->
     </div>
     <div class="modal-content">
       <div class="form-group">

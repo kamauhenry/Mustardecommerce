@@ -2,7 +2,7 @@
   <div class="request-moq-modal">
     <div class="modal-header">
       <h2>Request MOQ Campaign</h2>
-      <button @click="$emit('close')" class="close-button">×</button>
+      <!-- <button @click="$emit('close')" class="close-button">×</button> -->
     </div>
     <div class="modal-content">
       <div class="form-group">
