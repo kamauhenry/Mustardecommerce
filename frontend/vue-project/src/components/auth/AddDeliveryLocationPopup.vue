@@ -4,6 +4,29 @@
     <div class="popup-content">
       <h2 class="popup-title">Please provide a delivery location</h2>
 
+      <!-- Search Bar -->
+      <div class="search-container">
+        <input
+          type="text"
+          v-model="searchQuery"
+          @input="debouncedFetchSuggestions"
+          @keydown="handleKeydown"
+          placeholder="Search for a location..."
+          class="search-input"
+        />
+        <ul v-if="suggestions.length > 0" class="suggestions-dropdown">
+          <li
+            v-for="(suggestion, index) in suggestions"
+            :key="suggestion.place_id"
+            @click="selectSuggestion(suggestion)"
+            :class="{ 'highlighted': index === highlightedIndex }"
+            class="suggestion-item"
+          >
+            {{ suggestion.description }}
+          </li>
+        </ul>
+      </div>
+
       <!-- Display Selected Location -->
       <div v-if="selectedLocation" class="location-details">
         <span class="location-name">{{ selectedLocation.name }}</span>
@@ -44,17 +67,30 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import { GoogleMap, Marker } from 'vue3-google-map';
 import axios from 'axios';
 import Toast from 'vue-toast-notification';
 
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const emit = defineEmits(['add-location', 'close']);
-const selectedLocation = ref('');
+const selectedLocation = ref(null);
 const setAsDefault = ref(false);
 const mapType = ref('roadmap');
 const mapCenter = ref({ lat: -1.286389, lng: 36.817223 });
+const searchQuery = ref('');
+const suggestions = ref([]);
+const highlightedIndex = ref(-1);
+const isLoading = ref(false);
+
+// Debounce function to limit API calls
+const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
 
 async function fetchPlaceName(lat, lng) {
   try {
@@ -72,6 +108,87 @@ async function fetchPlaceName(lat, lng) {
   }
 }
 
+const fetchSuggestions = async () => {
+  if (!searchQuery.value) {
+    suggestions.value = [];
+    return;
+  }
+
+  try {
+    const response = await axios.get(
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        searchQuery.value
+      )}&key=${googleMapsApiKey}&types=geocode`
+    );
+
+    if (response.data.status !== 'OK') {
+      throw new Error(response.data.error_message || 'API request failed');
+    }
+
+    suggestions.value = response.data.predictions;
+    highlightedIndex.value = -1;
+  } catch (error) {
+    console.error('Error fetching suggestions:', error);
+    Toast.open({
+      message: `Error fetching suggestions: ${error.message}`,
+      type: 'error',
+    });
+    suggestions.value = [];
+  }
+};
+
+// Debounced version of fetchSuggestions
+const debouncedFetchSuggestions = debounce(fetchSuggestions, 300);
+
+const selectSuggestion = async (suggestion) => {
+  try {
+    const response = await axios.get(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.place_id}&key=${googleMapsApiKey}`
+    );
+    const result = response.data.result;
+    const { lat, lng } = result.geometry.location;
+
+    mapCenter.value = { lat, lng };
+    const address = await fetchPlaceName(lat, lng);
+    selectedLocation.value = {
+      id: suggestion.place_id,
+      name: suggestion.structured_formatting.main_text || result.name,
+      address,
+      lat,
+      lng,
+    };
+    suggestions.value = [];
+    searchQuery.value = '';
+  } catch (error) {
+    console.error('Error fetching place details:', error);
+    Toast.open({
+      message: 'Error selecting location',
+      type: 'error',
+    });
+  }
+};
+
+const handleKeydown = (event) => {
+  if (!suggestions.value.length) return;
+
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      highlightedIndex.value = Math.min(highlightedIndex.value + 1, suggestions.value.length - 1);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      highlightedIndex.value = Math.max(highlightedIndex.value - 1, -1);
+      break;
+    case 'Enter':
+      event.preventDefault();
+      if (highlightedIndex.value >= 0) {
+        selectSuggestion(suggestions.value[highlightedIndex.value]);
+      }
+      break;
+  }
+};
+
 const handleMapClick = async (event) => {
   const newCenter = {
     lat: event.latLng.lat(),
@@ -80,42 +197,16 @@ const handleMapClick = async (event) => {
   mapCenter.value = newCenter;
 
   try {
-    const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${newCenter.lat},${newCenter.lng}&key=${googleMapsApiKey}`
-    );
-    const results = response.data.results;
-    let addressName = 'Unknown Location';
-
-    if (results && results.length > 0) {
-      const addressComponents = results[0].address_components;
-      // Attempt to find a suitable name (e.g., neighborhood, route, locality)
-      const neighborhood = addressComponents.find(component => component.types.includes('neighborhood'));
-      const route = addressComponents.find(component => component.types.includes('route'));
-      const locality = addressComponents.find(component => component.types.includes('locality'));
-
-      if (neighborhood) {
-        addressName = neighborhood.long_name;
-      } else if (route) {
-        addressName = route.long_name;
-      } else if (locality) {
-        addressName = locality.long_name;
-      } else {
-        addressName = results[0].formatted_address; // Fallback to formatted address
-      }
-    }
-
     const address = await fetchPlaceName(newCenter.lat, newCenter.lng);
     selectedLocation.value = {
       id: `${newCenter.lat}-${newCenter.lng}`,
-      name: addressName,
+      name: address.split(',')[0],
       address,
       lat: newCenter.lat,
       lng: newCenter.lng,
     };
   } catch (error) {
     console.error('Error geocoding:', error);
-    
-    // Handle error appropriately, perhaps show a default name
     selectedLocation.value = {
       id: `${newCenter.lat}-${newCenter.lng}`,
       name: 'Unknown Location',
@@ -134,40 +225,16 @@ const handleMarkerDrag = async (event) => {
   mapCenter.value = newCenter;
 
   try {
-    const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${newCenter.lat},${newCenter.lng}&key=${googleMapsApiKey}`
-    );
-    const results = response.data.results;
-    let addressName = 'Unknown Location';
-
-    if (results && results.length > 0) {
-      const addressComponents = results[0].address_components;
-      // Attempt to find a suitable name (e.g., neighborhood, route, locality)
-      const neighborhood = addressComponents.find(component => component.types.includes('neighborhood'));
-      const route = addressComponents.find(component => component.types.includes('route'));
-      const locality = addressComponents.find(component => component.types.includes('locality'));
-
-      if (neighborhood) {
-        addressName = neighborhood.long_name;
-      } else if (route) {
-        addressName = route.long_name;
-      } else if (locality) {
-        addressName = locality.long_name;
-      } else {
-        addressName = results[0].formatted_address; // Fallback to formatted address
-      }
-    }
+    const address = await fetchPlaceName(newCenter.lat, newCenter.lng);
     selectedLocation.value = {
       ...selectedLocation.value,
-      name: addressName,
+      name: address.split(',')[0],
+      address,
       lat: newCenter.lat,
       lng: newCenter.lng,
     };
-    const address = await fetchPlaceName(newCenter.lat, newCenter.lng);
-    selectedLocation.value.address = address;
   } catch (error) {
     console.error('Error geocoding:', error);
-    // Handle error appropriately, perhaps show a default name
     selectedLocation.value = {
       ...selectedLocation.value,
       name: 'Unknown Location',
@@ -186,10 +253,21 @@ const addLocation = () => {
     isDefault: setAsDefault.value,
   });
 };
+
+onMounted(() => {
+  // Ensure Google Maps script is loaded
+  if (!window.google) {
+    console.error('Google Maps API not loaded');
+    Toast.open({
+      message: 'Google Maps API failed to load',
+      type: 'error',
+    });
+  }
+});
 </script>
 
-
 <style scoped>
+/* Same styles as before, no changes needed here */
 .popup-overlay {
   position: fixed;
   top: 0;
@@ -217,28 +295,48 @@ const addLocation = () => {
   margin-bottom: 1rem;
 }
 
-.location-name, .location-address {
-  display: block;
-}
-
-.location-select {
+.search-container {
+  position: relative;
   margin-bottom: 1rem;
 }
 
-.label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.select {
+.search-input {
   width: 100%;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1001;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.suggestion-item {
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background: #f5f5f5;
+}
+
+.location-name,
+.location-address {
+  display: block;
 }
 
 .map-container {
