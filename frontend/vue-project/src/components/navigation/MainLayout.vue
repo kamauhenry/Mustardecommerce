@@ -13,12 +13,17 @@
 
     <FooterPage />
     <CookiesConsent />
+
     <Modal :isOpen="showTrackOrderModal" @close="showTrackOrderModal = false">
       <TrackOrderModal @close="showTrackOrderModal = false" />
     </Modal>
 
     <Modal :isOpen="showRequestMOQModal" @close="showRequestMOQModal = false">
       <RequestMOQModal @close="showRequestMOQModal = false" />
+    </Modal>
+
+    <Modal :isOpen="showLoginModal" @close="showLoginModal = false">
+      <LoginModal @close="showLoginModal = false" />
     </Modal>
   </div>
 </template>
@@ -33,8 +38,8 @@ import FooterPage from "@/components/footer/FooterPage.vue";
 import CookiesConsent from "@/views/CookiesConsent.vue";
 import TrackOrderModal from '@/components/auth/TrackOrder.vue';
 import RequestMOQModal from '@/components/auth/RequestMOQ.vue';
+import LoginModal from '@/components/auth/LoginModal.vue';
 import Modal from '@/components/auth/Modal.vue';
-
 
 export default {
   components: {
@@ -46,6 +51,7 @@ export default {
     CookiesConsent,
     TrackOrderModal,
     RequestMOQModal,
+    LoginModal,
     Modal,
   },
   setup() {
@@ -55,14 +61,34 @@ export default {
     const showRequestMOQModal = ref(false);
     const showLoginModal = ref(false);
     const showRegisterModal = ref(false);
+
     const updateScreenSize = () => {
       isMobile.value = window.innerWidth <= 768;
     };
+
+    const openTrackOrderModal = () => {
+      showTrackOrderModal.value = true;
+    };
+
+    const openRequestMOQModal = () => {
+      showRequestMOQModal.value = true;
+    };
+
+    const openLoginModal = () => {
+      showLoginModal.value = true;
+    };
+
     const closeModals = () => {
+      showTrackOrderModal.value = false;
+      showRequestMOQModal.value = false;
       showLoginModal.value = false;
       showRegisterModal.value = false;
     };
 
+    // Provide the modal control functions to child components
+    provide('openTrackOrderModal', openTrackOrderModal);
+    provide('openRequestMOQModal', openRequestMOQModal);
+    provide('openLoginModal', openLoginModal);
     provide('closeModals', closeModals);
 
     onMounted(() => {
@@ -78,6 +104,8 @@ export default {
       isSidebarOpen,
       showTrackOrderModal,
       showRequestMOQModal,
+      showLoginModal,
+      showRegisterModal,
     };
   },
 };
