@@ -26,12 +26,12 @@
       <div v-else class="cart-items">
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-image">
-            <img :src="item.variant?.image || item.product?.picture || grey" :alt="item.product_name">
+            <img :src="item.variant?.image || item.product?.picture || grey">
           </div>
           <div class="item-details">
-            <h3>PRODUCT: {{ item.product_name }}</h3>
-            <p v-if="item.variant">color: {{ item.variant_info.color }}</p>
-            <p v-if="item.variant">size: {{ item.variant_info.size }}</p>
+            <h3>{{ item.product_name }}</h3>
+            <p v-if="item.variant">Color: {{ item.variant_info.color }}</p>
+            <p v-if="item.variant">Size: {{ item.variant_info.size }}</p>
             <p>Quantity: {{ item.quantity }}</p>
             <p>Price: KES{{ formatPrice(item.price_per_piece || 0) }}</p>
             <p>Total: KES{{ formatPrice(item.line_total) }}</p>
@@ -236,7 +236,7 @@ export default {
 
 .spinner {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #1a3c5e;
+  border-top: 4px solid #f28c38;
   border-radius: 50%;
   width: 30px;
   height: 30px;
@@ -264,6 +264,8 @@ export default {
   width: 80px;
   height: 80px;
   margin-right: 20px;
+  background: rgb(196, 196, 196);
+  border-radius: 10px;
 }
 
 .item-image img {
@@ -306,7 +308,13 @@ export default {
 
 .item-actions .remove-button {
   font-size: 1rem;
-  color: #999;
+  background-color: #e74c3c;
+  color: white;
+}
+
+.item-actions .remove-button:hover {
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .item-actions .quantity-controls {
@@ -329,7 +337,7 @@ export default {
 }
 
 .cart-summary {
-  margin-top: 30px;
+  margin-top: 1rem;
   padding: 20px;
   text-align: right;
 }
@@ -347,7 +355,7 @@ export default {
 }
 
 .checkout-button {
-  background-color: #1a3c5e;
+  background-color: #e74c3c;
   color: white;
   padding: 15px;
   border: none;
@@ -355,13 +363,16 @@ export default {
   font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
-  width: 100%;
+  width: 50%;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
   cursor: pointer;
   margin-top: 20px;
 }
 
 .checkout-button:hover {
-  background-color: #153048;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 button {
@@ -371,7 +382,7 @@ button {
   cursor: pointer;
 }
 
-.retry-button, .login-button, .shop-button {
+.retry-button, .login-button, .shop-button  {
   background-color: #e74c3c;
   color: white;
 }
