@@ -15,6 +15,7 @@ from pathlib import Path
 from corsheaders.defaults import default_headers
 
 from dotenv import load_dotenv
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -86,7 +87,6 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-  
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -100,9 +100,10 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue.js development server
     "http://127.0.0.1:8080",  # Nginx load balancer
-    "http://localhost:8080"   # Added for flexibility
-    # "http://127.0.0.1:8000",  # Django server
-    # "http://localhost:8000"   # Added for flexibility
+    "http://localhost:8080",   # Added for flexibility
+
+    "http://127.0.0.1:8000",  # Django server
+    "http://localhost:8000"   # Added for flexibility
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -136,9 +137,6 @@ SESSION_COOKIE_SECURE = False
 
 
 ROOT_URLCONF = 'Mustard_imports.urls'
-from django.conf import settings
-
-print("Template DIRS:", os.path.join(BASE_DIR.parent, 'frontend', 'vue-project', 'dist'))
 SITE_URL = 'http://127.0.0.1:8000/'
 TEMPLATES = [
     {
@@ -155,14 +153,12 @@ TEMPLATES = [
         },
     },
 ]
-print("Expected template path:", settings.TEMPLATES[0]['DIRS'])
 
 WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 # Load environment variables from .env
-load_dotenv()
 # Database configuration using .env, inspired by your guide
 DATABASES = {
     'default': {

@@ -56,5 +56,6 @@ urlpatterns = [
     path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery-locations'),
     path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set-default-location'),
     path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delete-location'),
-
+    path('autocomplete/', views.autocomplete, name='autocomplete'),
+    path('place-details/', views.place_details, name='place_details'),
 ]

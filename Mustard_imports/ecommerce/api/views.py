@@ -27,6 +27,9 @@ from django.utils import timezone
 import logging
 from django.db import connection, transaction
 from django.db.models import Max
+import requests
+from django.http import JsonResponse
+from django.conf import settings
 
 
 def reset_order_id_sequence():
@@ -883,3 +886,46 @@ class DeliveryLocationView(APIView):
     def delete(self, request, location_id):
         # Mocked for now; delete the location in a real app
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def autocomplete(request):
+    query = request.GET.get('input', '')
+    if not query:
+        return JsonResponse({'status': 'error', 'message': 'No input provided'}, status=400)
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same as Vue frontend
+    # Alternatively, use settings.GOOGLE_MAPS_API_KEY if defined in settings.py
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/autocomplete/json?"
+        f"input={query}&key={api_key}&types=geocode"
+    )
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        data = response.json()
+        return JsonResponse(data)
+    except requests.RequestException as e:
+        print(f"Error fetching autocomplete data: {str(e)}")  # Log error for debugging
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+def place_details(request):
+    place_id = request.GET.get('place_id', '')
+    if not place_id:
+        return JsonResponse({'status': 'error', 'message': 'No place_id provided'}, status=400)
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same key as frontend
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/details/json?"
+        f"place_id={place_id}&key={api_key}"
+    )
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return JsonResponse(data)
+    except requests.RequestException as e:
+        print(f"Error fetching place details: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

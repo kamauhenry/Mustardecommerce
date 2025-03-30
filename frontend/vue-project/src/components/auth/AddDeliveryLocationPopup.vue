@@ -1,4 +1,3 @@
-<!-- AddDeliveryLocationPopup.vue -->
 <template>
   <div class="popup-overlay">
     <div class="popup-content">
@@ -67,12 +66,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, getCurrentInstance } from 'vue';
 import { GoogleMap, Marker } from 'vue3-google-map';
 import axios from 'axios';
-import Toast from 'vue-toast-notification';
 
-const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const googleMapsApiKey = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8';
 const emit = defineEmits(['add-location', 'close']);
 const selectedLocation = ref(null);
 const setAsDefault = ref(false);
@@ -83,7 +81,11 @@ const suggestions = ref([]);
 const highlightedIndex = ref(-1);
 const isLoading = ref(false);
 
-// Debounce function to limit API calls
+// Get toast instance
+const instance = getCurrentInstance();
+const toast = instance.appContext.config.globalProperties.$toast;
+
+// Debounce function
 const debounce = (func, delay) => {
   let timeoutId;
   return (...args) => {
@@ -100,10 +102,8 @@ async function fetchPlaceName(lat, lng) {
     const results = response.data.results;
     return results.length > 0 ? results[0].formatted_address : 'Unknown Location';
   } catch (error) {
-    Toast.open({
-      message: `Error fetching place name: ${error.message || 'Unknown error'}`,
-      type: 'error',
-    });
+    console.error('Error fetching place name:', error);
+    toast.error(`Error fetching place name: ${error.message || 'Unknown error'}`);
     return 'Unknown Location';
   }
 }
@@ -116,35 +116,30 @@ const fetchSuggestions = async () => {
 
   try {
     const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-        searchQuery.value
-      )}&key=${googleMapsApiKey}&types=geocode`
+      `http://localhost:8000/api/autocomplete/?input=${encodeURIComponent(searchQuery.value)}`
     );
-
     if (response.data.status !== 'OK') {
       throw new Error(response.data.error_message || 'API request failed');
     }
-
     suggestions.value = response.data.predictions;
     highlightedIndex.value = -1;
   } catch (error) {
     console.error('Error fetching suggestions:', error);
-    Toast.open({
-      message: `Error fetching suggestions: ${error.message}`,
-      type: 'error',
-    });
+    toast.error(`Error fetching suggestions: ${error.message}`);
     suggestions.value = [];
   }
 };
 
-// Debounced version of fetchSuggestions
 const debouncedFetchSuggestions = debounce(fetchSuggestions, 300);
 
 const selectSuggestion = async (suggestion) => {
   try {
     const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.place_id}&key=${googleMapsApiKey}`
+      `http://localhost:8000/api/place-details/?place_id=${suggestion.place_id}`
     );
+    if (response.data.status !== 'OK') {
+      throw new Error(response.data.error_message || 'Place details request failed');
+    }
     const result = response.data.result;
     const { lat, lng } = result.geometry.location;
 
@@ -161,10 +156,7 @@ const selectSuggestion = async (suggestion) => {
     searchQuery.value = '';
   } catch (error) {
     console.error('Error fetching place details:', error);
-    Toast.open({
-      message: 'Error selecting location',
-      type: 'error',
-    });
+    toast.error(`Error selecting location: ${error.message}`);
   }
 };
 
@@ -253,21 +245,10 @@ const addLocation = () => {
     isDefault: setAsDefault.value,
   });
 };
-
-onMounted(() => {
-  // Ensure Google Maps script is loaded
-  if (!window.google) {
-    console.error('Google Maps API not loaded');
-    Toast.open({
-      message: 'Google Maps API failed to load',
-      type: 'error',
-    });
-  }
-});
 </script>
 
 <style scoped>
-/* Same styles as before, no changes needed here */
+/* Same styles as before */
 .popup-overlay {
   position: fixed;
   top: 0;
