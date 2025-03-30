@@ -77,7 +77,6 @@
             <div class="totals">
               <p>Subtotal: KES {{ subtotal.toFixed(2) }}</p>
               <p>Tax (10%): KES {{ tax.toFixed(2) }}</p>
-              <p>Total: KES {{ total.toFixed(2) }}</p>
             </div>
           </div>
 
@@ -105,6 +104,7 @@
     },
     setup() {
       const store = useEcommerceStore();
+      console.log('cart state:', store.cart)
       const router = useRouter();
 
       const loading = ref(false);
@@ -123,10 +123,7 @@
       const subtotal = computed(() =>
         cartItems.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
       );
-
-      const tax = computed(() => subtotal.value * 0.1);
-
-      const total = computed(() => subtotal.value + tax.value);
+      const total =  subtotal.value;
 
       const isFormValid = computed(() =>
         shippingDetails.value.fullName &&
@@ -169,10 +166,10 @@
         error,
         shippingDetails,
         paymentMethod,
+        cart: store.cart,
         cartItems,
         subtotal,
-        tax,
-        total,
+         total,
         isFormValid,
         processCheckout,
         retryCheckout

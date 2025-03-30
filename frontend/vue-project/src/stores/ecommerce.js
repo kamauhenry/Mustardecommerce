@@ -199,15 +199,22 @@ export const useEcommerceStore = defineStore('ecommerce', {
           this.showAuthModal = true;
           throw new Error('Please log in to add items to cart');
         }
-
-        if (!this.cart) {
-          await this.createCart();
-        }
-
+    
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }
-
+    
+        // Fetch cart if it’s not already in state
+        if (!this.cart) {
+          try {
+            this.cart = await api.fetchCart(this.apiInstance, this.userId);
+          } catch (error) {
+            // If fetch fails (e.g., no cart exists), create a new one
+            await this.createCart();
+            if (!this.cart) this.cart = { id: null, items: [] };
+          }
+        }
+    
         const response = await api.addToCart(
           this.apiInstance,
           this.cart.id,
@@ -215,8 +222,8 @@ export const useEcommerceStore = defineStore('ecommerce', {
           variantId,
           quantity
         );
-
-        this.cart = response;
+    
+        this.cart = response || { id: this.cart.id, items: [] };
         return response;
       } catch (error) {
         console.error('Add to cart error:', error);
