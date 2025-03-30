@@ -1,7 +1,9 @@
 <template>
   <div class="auth-buttons">
     <template v-if="store.isAuthenticated">
-      <IconCart/>
+      <router-link to="/cart">
+        <IconCart/>
+      </router-link>
     </template>
     <template v-else>
       <button @click="openLoginModal" class="icon-button">
