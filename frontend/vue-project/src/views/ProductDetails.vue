@@ -182,7 +182,7 @@
       <div class="related-products">
         <h3>You May Also Like</h3>
         <p>Explore similar products...</p>
-        <button class="show-more">Show More</button>
+        <router-link :to="`/category/${categorySlug}/products`" class="show-more">Show More</router-link>
       </div>
     </div>
   </MainLayout>

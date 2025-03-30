@@ -220,16 +220,18 @@ export default {
 .cart-title {
   font-size: 1.5rem;
   font-weight: 600;
-  text-transform: uppercase;
   text-align: center;
   margin-bottom: 30px;
-  color: #333;
 }
 
 .loading-state, .error-state, .auth-prompt, .empty-cart {
   text-align: center;
   padding: 40px 0;
   color: #666;
+}
+
+.empty-cart p {
+  margin-bottom: 1rem;
 }
 
 .spinner {
@@ -370,7 +372,7 @@ button {
 }
 
 .retry-button, .login-button, .shop-button {
-  background-color: #1a3c5e;
+  background-color: #e74c3c;
   color: white;
 }
 

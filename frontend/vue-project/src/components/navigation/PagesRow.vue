@@ -61,5 +61,6 @@ export default {
   font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
+  color: #000;
 }
 </style>

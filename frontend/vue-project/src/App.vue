@@ -111,7 +111,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3 {
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title {
   color: var(--text-color-thirteen);
 }
 
