@@ -231,7 +231,8 @@ export const fetchCompletedOrders = async (api, userId) => {
 
 export const createCart = async (api, userId) => {
   try {
-    const response = await api.post(`carts/`, { userId: userId });
+    console.log(`Creating cart at: /api/users/${userId}/create_cart/`);
+    const response = await api.post(`users/${userId}/create_cart/`, { userId: userId });
     return response.data;
   } catch (error) {
     console.error('Error creating cart:', error.response?.data || error.message);
