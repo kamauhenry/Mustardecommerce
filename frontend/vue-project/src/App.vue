@@ -60,6 +60,8 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --faq-question-bg: var(--vt-c-black);
   --faq-answer-bg: var(--vt-c-black-mute);
   --campaigns-bg: var(--vt-c-white-soft);
+  --tabs-bg: #3a3a3a;
+  --breadcrumb-bg: #bdbdbd;
 }
 
 [data-theme="light"] {
@@ -82,6 +84,8 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --faq-question-bg: var(--background-color-three);
   --faq-answer-bg: var(--vt-c-white-soft);
   --campaigns-bg: var(--vt-c-black-soft);
+  --tabs-bg: #b8b8b8;
+  --breadcrumb-bg: #414141;
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -103,12 +107,28 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: var(--categories-bg);
 }
 
-.product-card, .user-info, .delivery-locations {
+.product-card, .user-info, .delivery-locations, .product-right {
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label {
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3 {
   color: var(--text-color-thirteen);
+}
+
+.tabs {
+  border-bottom: 1px solid var(--tabs-bg);
+}
+
+.related-products {
+  border-top: 1px solid var(--tabs-bg);
+}
+
+.tabs button, .tabs button.active {
+  color: var(--campaigns-bg);
+}
+
+.tabs button.active::after {
+  background-color: var(--campaigns-bg);
 }
 
 .see-more-link {
@@ -119,6 +139,15 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   color: var(--text-color-eleven);
 
 }
+
+.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price {
+  color: var(--campaigns-bg);
+}
+
+.breadcrumb, .breadcrumb a, .breadcrumb span {
+  color: var(--breadcrumb-bg);
+}
+
 
 .category-link:hover {
   color: var(--text-color-twelve);

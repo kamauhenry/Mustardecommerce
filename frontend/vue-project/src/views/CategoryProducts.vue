@@ -3,8 +3,7 @@
     <div class="container">
       <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <router-link to="/">Home</router-link> >
-        <router-link :to="`/category/${categorySlug}/products`">{{ categoryName || categorySlug || 'Category' }}</router-link>
+        <router-link to="/">Home</router-link> / <router-link :to="`/category/${categorySlug}/products`">{{ categoryName || categorySlug || 'Category' }}</router-link>
       </div>
 
       <!-- Loading state -->
@@ -132,25 +131,16 @@ export default {
 
 /* Breadcrumb styling */
 .breadcrumb {
-  font-size: 14px;
-  margin-bottom: 10px;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
 }
 
 .breadcrumb a {
-  color: #5E5500;
   text-decoration: none;
 }
 
-.breadcrumb a:hover,
-.breadcrumb a:visited,
-.breadcrumb a:active,
-.breadcrumb a:focus {
-  color: #5E5500;
-  text-decoration: none;
-}
-
-.breadcrumb span {
-  color: #5E5500;
+.breadcrumb a:hover {
+  text-decoration: underline;
 }
 
 /* Products grid container */
