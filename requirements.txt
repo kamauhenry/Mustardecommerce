@@ -36,4 +36,10 @@ sqlparse
 tomlkit
 tzdata
 urllib3
+
 django-redis
+dotenv
+django-redis
+redis
+twilio
+
