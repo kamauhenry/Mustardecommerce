@@ -212,20 +212,18 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Static and Media Files Configuration
 STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
 
-# Vue.js Build Directory (inside `dist`)
 VUE_APP_DIR = BASE_DIR.parent / 'frontend' / 'vue-project' / 'dist'
 
 if VUE_APP_DIR.exists():
-    STATICFILES_DIRS = [VUE_APP_DIR]  # Serve Vue assets as static files
-    STATIC_ROOT = VUE_APP_DIR / 'staticfiles'  # Collect Django static files here
-    MEDIA_ROOT = VUE_APP_DIR / 'media'  # Store media files here
+    STATICFILES_DIRS = [VUE_APP_DIR]
+    STATIC_ROOT = VUE_APP_DIR / 'staticfiles'
 else:
-    STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
-    MEDIA_ROOT = BASE_DIR.parent / 'media'
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_ROOT = BASE_DIR / 'ecommerce' / 'media'
 
 
 # Token-based authentication specific

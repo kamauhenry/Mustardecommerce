@@ -159,10 +159,11 @@ export const fetchCategories = async (api) => {
   }
 };
 
-export const fetchCategoryProducts = async (api, categorySlug, page = 1, perPage = 5) => {
+export const fetchCategoryProducts = async (api, categorySlug) => {
   try {
-    const response = await api.get(`/category/${categorySlug}/products`, {
-      params: { page, per_page: perPage },
+    console.log(`Fetching category products for slug: ${categorySlug}`);
+    console.log(`Request URL: category/${categorySlug}/products/`);
+    const response = await api.get(`category/${categorySlug}/products/`, {
       timeout: 60000,
     });
     return response.data;

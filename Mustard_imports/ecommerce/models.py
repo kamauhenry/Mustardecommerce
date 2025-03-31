@@ -55,6 +55,7 @@ class Category(models.Model):
     slug = models.SlugField(null=True, blank=True)
     description = models.TextField(blank=True, null=True)  # Add description field
     image = models.ImageField(upload_to='category_images/', blank=True, null=True)  # Add image field
+    is_active = models.BooleanField(default=True)  # Added is_active field
     
     class Meta:
         ordering = ('name',)

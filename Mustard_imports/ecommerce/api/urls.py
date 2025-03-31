@@ -31,9 +31,11 @@ urlpatterns = [
     path('products/search/', views.search, name='search'), 
     # Product and category-related URLs
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
+    path('api/categories/', CategoryListView.as_view(), name='category-list'),
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
+    path('test-image/', views.test_image, name='test-image'),
 
     # Custom cart and order actions
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),

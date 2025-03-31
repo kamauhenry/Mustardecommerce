@@ -29,8 +29,16 @@ from django.db import connection, transaction
 from django.db.models import Max
 import requests
 from django.http import JsonResponse
+from django.http import FileResponse
 from django.conf import settings
+import os
 
+def test_image(request):
+    image_path = os.path.join(settings.MEDIA_ROOT, 'category_images', 'agriculture.jpeg')
+    if os.path.exists(image_path):
+        return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
+    else:
+        return get_object_or_404("File not found", status=404)
 
 def reset_order_id_sequence():
     with connection.cursor() as cursor:
@@ -543,7 +551,8 @@ class CategoryProductsView(APIView):
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            category = get_object_or_404(Category, slug=category_slug)
+            # Fetch the category, ensuring it's active
+            category = get_object_or_404(Category, slug=category_slug, is_active=True)
             products = Product.objects.filter(category=category).order_by('-created_at')
 
             page = int(request.query_params.get('page', 1))
@@ -555,7 +564,12 @@ class CategoryProductsView(APIView):
 
             serializer = ProductSerializer(products, many=True, context={'request': request})
             response_data = {
-                'category': {'slug': category.slug, 'name': category.name},
+                'category': {
+                    'slug': category.slug,
+                    'name': category.name,
+                    'description': category.description,
+                    'image': request.build_absolute_uri(category.image.url) if category.image else None
+                },
                 'products': serializer.data,
                 'total': total,
             }
@@ -567,9 +581,9 @@ class CategoryProductsView(APIView):
 
             return Response(response_data)
         except Http404:
-            return Response({'error': 'Category not found'}, status=status.HTTP404_NOT_FOUND)
+            return Response({'error': 'Category not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CategoriesWithProductsViewSet(APIView):
     permission_classes = [permissions.AllowAny]
@@ -578,6 +592,16 @@ class CategoriesWithProductsViewSet(APIView):
         categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class CategoryListView(APIView):
+    def get(self, request):
+        try:
+            categories = Category.objects.all()
+            serializer = CategorySerializer(categories, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ProductsView(APIView):
     permission_classes = [permissions.AllowAny]

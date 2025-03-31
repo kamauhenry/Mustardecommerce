@@ -21,8 +21,8 @@
       <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
 
       <!-- Error message -->
-      <div v-else-if="store.error.categoryProducts" class="error">
-        Error: {{ store.error.categoryProducts }}
+      <div v-else-if="categoryError" class="error">
+        Error: {{ categoryError }}
         <button @click="retryLoading" class="underline ml-2">Retry</button>
       </div>
 
@@ -78,77 +78,114 @@
 </template>
 
 <script>
-import { onMounted, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
-import MainLayout from '@/components/navigation/MainLayout.vue';
+  import { onMounted, computed, watch, onUnmounted } from 'vue';
+  import { useRoute } from 'vue-router';
+  import { useEcommerceStore } from '@/stores/ecommerce';
+  import MainLayout from '@/components/navigation/MainLayout.vue';
 
-export default {
-  name: 'CategoryProducts',
-  components: { MainLayout },
-  setup() {
-    const route = useRoute();
-    const store = useEcommerceStore();
+  export default {
+    name: 'CategoryProducts',
+    components: { MainLayout },
+    setup() {
+      const route = useRoute();
+      const store = useEcommerceStore();
 
-    // Get category slug from route params
-    const categorySlug = computed(() => route.params.categorySlug);
+      // Get category slug from route params
+      const categorySlug = computed(() => {
+        const slug = route.params.categorySlug || '';
+        console.log('Category Slug:', slug);
+        return slug;
+      });
 
-    // Fetch category products when the component is mounted or the category slug changes
-    onMounted(() => {
-      if (!store.apiInstance) {
-        store.initializeApiInstance();
-      }
-      if (categorySlug.value) {
-        store.fetchCategoryProducts(categorySlug.value);
-      }
-    });
+      // Fetch category products when the component is mounted or the category slug changes
+      onMounted(() => {
+        if (!store.apiInstance) {
+          store.initializeApiInstance();
+        }
+        if (categorySlug.value) {
+          console.log('Fetching data for category:', categorySlug.value);
+          store.fetchCategoryProducts(categorySlug.value);
+        }
+      });
 
-    // Watch for changes in categorySlug and refetch products
-    watch(categorySlug, (newSlug) => {
-      if (newSlug) {
-        store.fetchCategoryProducts(newSlug);
-      }
-    });
+      // Watch for changes in categorySlug and refetch products
+      watch(categorySlug, (newSlug) => {
+        if (newSlug) {
+          console.log('Category slug changed, refetching data for:', newSlug);
+          store.fetchCategoryProducts(newSlug);
+        }
+      });
 
-    // Compute category details
-    const categoryName = computed(() => {
-      const categoryData = store.categoryProducts[categorySlug.value]?.category;
-      return categoryData?.name || '';
-    });
+      // Clean up error state when the component is unmounted
+      onUnmounted(() => {
+        if (categorySlug.value) {
+          store.error.categoryProducts[categorySlug.value] = null;
+          console.log(`Cleared error for category: ${categorySlug.value}`);
+        }
+      });
 
-    const categoryDescription = computed(() => {
-      const categoryData = store.categoryProducts[categorySlug.value]?.category;
-      return categoryData?.description || '';
-    });
+      // Compute category details
+      const categoryName = computed(() => {
+        const name = store.categoryProducts[categorySlug.value]?.category?.name || '';
+        console.log('Computed categoryName:', name);
+        return name;
+      });
 
-    const categoryImage = computed(() => {
-      const categoryData = store.categoryProducts[categorySlug.value]?.category;
-      return categoryData?.image || ''; // Fallback to empty string if no image
-    });
+      const categoryDescription = computed(() => {
+        const description = store.categoryProducts[categorySlug.value]?.category?.description || '';
+        console.log('Computed categoryDescription:', description);
+        return description;
+      });
 
-    // Compute products for the current category
-    const products = computed(() => {
-      return store.categoryProducts[categorySlug.value]?.products || [];
-    });
+      const categoryImage = computed(() => {
+        const image = store.categoryProducts[categorySlug.value]?.category?.image || '';
+        console.log('Computed categoryImage:', image);
+        return image;
+      });
 
-    // Retry loading products
-    const retryLoading = () => {
-      if (categorySlug.value) {
-        store.fetchCategoryProducts(categorySlug.value);
-      }
-    };
+      // Compute products for the current category
+      const products = computed(() => {
+        const products = store.categoryProducts[categorySlug.value]?.products || [];
+        console.log('Computed products:', products);
+        return products;
+      });
 
-    return {
-      store,
-      categorySlug,
-      categoryName,
-      categoryDescription,
-      categoryImage,
-      products,
-      retryLoading,
-    };
-  },
-};
+      // Compute category-specific error
+      const categoryError = computed(() => {
+        const error = store.error.categoryProducts[categorySlug.value] || null;
+        console.log('Computed categoryError:', error);
+        return error;
+      });
+
+      // Retry loading products
+      const retryLoading = () => {
+        if (categorySlug.value) {
+          console.log('Retrying fetch for category:', categorySlug.value);
+          store.fetchCategoryProducts(categorySlug.value);
+        }
+      };
+
+      // Debug the store state
+      watch(() => store.categoryProducts, (newValue) => {
+        console.log('Store categoryProducts updated:', newValue);
+      }, { deep: true });
+
+      watch(() => store.error.categoryProducts, (newError) => {
+        console.log('Store error.categoryProducts updated:', newError);
+      }, { deep: true });
+
+      return {
+        store,
+        categorySlug,
+        categoryName,
+        categoryDescription,
+        categoryImage,
+        products,
+        categoryError,
+        retryLoading,
+      };
+    },
+  };
 </script>
 
 <style scoped>

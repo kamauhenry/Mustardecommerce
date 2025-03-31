@@ -195,10 +195,10 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class CategorySerializer(serializers.ModelSerializer):
-  
+    image = serializers.ImageField(max_length=None, use_url=True, allow_null=True)
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description', 'image']
+        fields = ['id', 'name', 'slug', 'description', 'image', 'is_active']
 
 
 
