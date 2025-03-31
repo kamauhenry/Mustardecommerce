@@ -3,16 +3,26 @@
     <div class="container">
       <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <router-link to="/">Home</router-link> >
-        <router-link :to="`/category/${categorySlug}/products`">{{ categoryName || categorySlug || 'Category' }}</router-link>
+        <router-link to="/">Home</router-link> /
+        <router-link :to="`/category/${categorySlug}/products`">{{
+          categoryName || categorySlug || 'Category'
+        }}</router-link>
+      </div>
+
+      <!-- Category Header -->
+      <div class="category-header" :style="{ backgroundImage: `url(${categoryImage})` }">
+        <div class="category-header-content">
+          <h1 class="category-title">{{ categoryName || 'Category' }}</h1>
+          <p class="category-description">{{ categoryDescription || 'No description available.' }}</p>
+        </div>
       </div>
 
       <!-- Loading state -->
       <div v-if="store.loading.categoryProducts" class="loading">Loading products...</div>
 
       <!-- Error message -->
-      <div v-else-if="store.error.categoryProducts" class="error">
-        Error: {{ store.error.categoryProducts }}
+      <div v-else-if="categoryError" class="error">
+        Error: {{ categoryError }}
         <button @click="retryLoading" class="underline ml-2">Retry</button>
       </div>
 
@@ -37,7 +47,9 @@
                 <h3 class="product-name">{{ product.name }}</h3>
                 <div class="product-price">
                   <span class="price-highlight">KES {{ product.price }}</span>
-                  <span v-if="product.below_moq_price" class="below-moq-price">Below MOQ Price: KES {{ product.below_moq_price }}</span>
+                  <span v-if="product.below_moq_price" class="below-moq-price"
+                    >Below MOQ Price: KES {{ product.below_moq_price }}</span
+                  >
                   <span v-else class="below-moq-price">Below MOQ Price: NA</span>
                 </div>
                 <div class="product-moq-info">
@@ -46,82 +58,134 @@
                 <div class="product-status">
                   <span class="status-text">{{ product.moq_status || 'Active' }}</span>
                   <div class="progress-container">
-                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '0'}%` }"></div>
-                    <span class="progress-text">{{ product.moq_progress?.percentage || '0' }}% Orders</span>
+                    <div
+                      class="progress-bar"
+                      :style="{ width: `${product.moq_progress?.percentage || '0'}%` }"
+                    ></div>
+                    <span class="progress-text"
+                      >{{ product.moq_progress?.percentage || '0' }}% Orders</span
+                    >
                   </div>
                 </div>
               </div>
             </router-link>
           </div>
         </div>
-        <div v-else class="no-products">
-          No products available
-        </div>
+        <div v-else class="no-products">No products available</div>
       </div>
     </div>
   </MainLayout>
 </template>
 
 <script>
-import { onMounted, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
-import MainLayout from '@/components/navigation/MainLayout.vue';
+  import { onMounted, computed, watch, onUnmounted } from 'vue';
+  import { useRoute } from 'vue-router';
+  import { useEcommerceStore } from '@/stores/ecommerce';
+  import MainLayout from '@/components/navigation/MainLayout.vue';
 
-export default {
-  name: 'CategoryProducts',
-  components: { MainLayout },
-  setup() {
-    const route = useRoute();
-    const store = useEcommerceStore();
+  export default {
+    name: 'CategoryProducts',
+    components: { MainLayout },
+    setup() {
+      const route = useRoute();
+      const store = useEcommerceStore();
 
-    // Get category slug from route params
-    const categorySlug = computed(() => route.params.categorySlug);
+      // Get category slug from route params
+      const categorySlug = computed(() => {
+        const slug = route.params.categorySlug || '';
+        console.log('Category Slug:', slug);
+        return slug;
+      });
 
-    // Fetch category products when the component is mounted or the category slug changes
-    onMounted(() => {
-      if (!store.apiInstance) {
-        store.initializeApiInstance();
-      }
-      if (categorySlug.value) {
-        store.fetchCategoryProducts(categorySlug.value);
-      }
-    });
+      // Fetch category products when the component is mounted or the category slug changes
+      onMounted(() => {
+        if (!store.apiInstance) {
+          store.initializeApiInstance();
+        }
+        if (categorySlug.value) {
+          console.log('Fetching data for category:', categorySlug.value);
+          store.fetchCategoryProducts(categorySlug.value);
+        }
+      });
 
-    // Watch for changes in categorySlug and refetch products
-    watch(categorySlug, (newSlug) => {
-      if (newSlug) {
-        store.fetchCategoryProducts(newSlug);
-      }
-    });
+      // Watch for changes in categorySlug and refetch products
+      watch(categorySlug, (newSlug) => {
+        if (newSlug) {
+          console.log('Category slug changed, refetching data for:', newSlug);
+          store.fetchCategoryProducts(newSlug);
+        }
+      });
 
-    // Compute category name for breadcrumb
-    const categoryName = computed(() => {
-      const categoryData = store.categoryProducts[categorySlug.value]?.category;
-      return categoryData?.name || '';
-    });
+      // Clean up error state when the component is unmounted
+      onUnmounted(() => {
+        if (categorySlug.value) {
+          store.error.categoryProducts[categorySlug.value] = null;
+          console.log(`Cleared error for category: ${categorySlug.value}`);
+        }
+      });
 
-    // Compute products for the current category
-    const products = computed(() => {
-      return store.categoryProducts[categorySlug.value]?.products || [];
-    });
+      // Compute category details
+      const categoryName = computed(() => {
+        const name = store.categoryProducts[categorySlug.value]?.category?.name || '';
+        console.log('Computed categoryName:', name);
+        return name;
+      });
 
-    // Retry loading products
-    const retryLoading = () => {
-      if (categorySlug.value) {
-        store.fetchCategoryProducts(categorySlug.value);
-      }
-    };
+      const categoryDescription = computed(() => {
+        const description = store.categoryProducts[categorySlug.value]?.category?.description || '';
+        console.log('Computed categoryDescription:', description);
+        return description;
+      });
 
-    return {
-      store,
-      categorySlug,
-      categoryName,
-      products,
-      retryLoading,
-    };
-  },
-};
+      const categoryImage = computed(() => {
+        const image = store.categoryProducts[categorySlug.value]?.category?.image || '';
+        console.log('Computed categoryImage:', image);
+        return image;
+      });
+
+      // Compute products for the current category
+      const products = computed(() => {
+        const products = store.categoryProducts[categorySlug.value]?.products || [];
+        console.log('Computed products:', products);
+        return products;
+      });
+
+      // Compute category-specific error
+      const categoryError = computed(() => {
+        const error = store.error.categoryProducts[categorySlug.value] || null;
+        console.log('Computed categoryError:', error);
+        return error;
+      });
+
+      // Retry loading products
+      const retryLoading = () => {
+        if (categorySlug.value) {
+          console.log('Retrying fetch for category:', categorySlug.value);
+          store.fetchCategoryProducts(categorySlug.value);
+        }
+      };
+
+      // Debug the store state
+      watch(() => store.categoryProducts, (newValue) => {
+        console.log('Store categoryProducts updated:', newValue);
+      }, { deep: true });
+
+      watch(() => store.error.categoryProducts, (newError) => {
+        console.log('Store error.categoryProducts updated:', newError);
+      }, { deep: true });
+
+      return {
+        store,
+        categorySlug,
+        categoryName,
+        categoryDescription,
+        categoryImage,
+        products,
+        categoryError,
+        retryLoading,
+      };
+    },
+  };
 </script>
 
 <style scoped>
@@ -132,25 +196,63 @@ export default {
 
 /* Breadcrumb styling */
 .breadcrumb {
-  font-size: 14px;
-  margin-bottom: 10px;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
 }
 
 .breadcrumb a {
-  color: #5E5500;
   text-decoration: none;
 }
 
-.breadcrumb a:hover,
-.breadcrumb a:visited,
-.breadcrumb a:active,
-.breadcrumb a:focus {
-  color: #5E5500;
-  text-decoration: none;
+.breadcrumb a:hover {
+  text-decoration: underline;
 }
 
-.breadcrumb span {
-  color: #5E5500;
+/* Category Header */
+.category-header {
+  width: 100%;
+  height: 300px; /* Adjust height as needed */
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.category-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3); /* Dark overlay for better text readability */
+}
+
+.category-header-content {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.category-title {
+  font-family: 'Roboto', sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.category-description {
+  font-family: 'Roboto', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  margin: 0 1rem;
 }
 
 /* Products grid container */
@@ -186,7 +288,7 @@ export default {
 }
 
 .product-image {
-  height: 120px; /* Adjusted to match the image */
+  height: 120px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -201,11 +303,11 @@ export default {
 }
 
 .product-info {
-  padding: 8px; /* Reduced padding to match the compact look */
+  padding: 8px;
 }
 
 .product-name {
-  font-size: 0.85rem; /* Smaller font to match the image */
+  font-size: 0.85rem;
   font-weight: 600;
   margin: 0.25rem 0;
   text-align: left;
@@ -224,7 +326,7 @@ export default {
 }
 
 .price-highlight {
-  font-size: 0.9rem; /* Slightly smaller to match the image */
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -233,7 +335,7 @@ export default {
 }
 
 .product-moq-info {
-  font-size: 0.7rem; /* Smaller font to match the image */
+  font-size: 0.7rem;
   margin: 0.25rem 0;
 }
 
@@ -248,8 +350,8 @@ export default {
 }
 
 .status-text {
-  font-size: 0.7rem; /* Smaller font to match the image */
-  color: #28a745; /* Green for active status */
+  font-size: 0.7rem;
+  color: #28a745;
   background-color: #e6f4ea;
   padding: 0.2rem 0.4rem;
   border-radius: 12px;
@@ -278,7 +380,7 @@ export default {
   top: 50%;
   transform: translateY(-50%);
   color: white;
-  font-size: 0.7rem; /* Smaller font to match the image */
+  font-size: 0.7rem;
   font-weight: 500;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
@@ -297,11 +399,35 @@ export default {
   .products {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
+
+  .category-header {
+    height: 250px;
+  }
+
+  .category-title {
+    font-size: 1.5rem;
+  }
+
+  .category-description {
+    font-size: 0.9rem;
+  }
 }
 
 @media (max-width: 768px) {
   .products {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .category-header {
+    height: 200px;
+  }
+
+  .category-title {
+    font-size: 1.25rem;
+  }
+
+  .category-description {
+    font-size: 0.8rem;
   }
 }
 
@@ -309,8 +435,21 @@ export default {
   .products {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
+
   .product-image {
     height: 100px;
+  }
+
+  .category-header {
+    height: 150px;
+  }
+
+  .category-title {
+    font-size: 1rem;
+  }
+
+  .category-description {
+    font-size: 0.7rem;
   }
 }
 </style>

@@ -2,36 +2,36 @@
   <MainLayout>
     <div class="cart-container">
       <h1 class="cart-title">Your Cart ({{ cartItemCount }} items)</h1>
-      
+
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
         <p>Loading your cart...</p>
       </div>
-      
+
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
         <button @click="retryFetch" class="retry-button">Try Again</button>
       </div>
-      
+
       <div v-else-if="!isAuthenticated" class="auth-prompt">
         <p>Please login to view and manage your cart</p>
         <button @click="goToLogin" class="login-button">Login</button>
       </div>
-      
+
       <div v-else-if="cartItems.length === 0" class="empty-cart">
         <p>Your cart is empty</p>
         <button @click="goToProducts" class="shop-button">Start Shopping</button>
       </div>
-      
+
       <div v-else class="cart-items">
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-image">
-            <img :src="item.variant?.image || item.product?.picture || '/default-product.jpg'" :alt="item.product_name">
+            <img :src="item.variant?.image || item.product?.picture || grey">
           </div>
           <div class="item-details">
-            <h3>PRODUCT: {{ item.product_name }}</h3>
-            <p v-if="item.variant">color: {{ item.variant_info.color }}</p>
-            <p v-if="item.variant">size: {{ item.variant_info.size }}</p>
+            <h3>{{ item.product_name }}</h3>
+            <p v-if="item.variant">Color: {{ item.variant_info.color }}</p>
+            <p v-if="item.variant">Size: {{ item.variant_info.size }}</p>
             <p>Quantity: {{ item.quantity }}</p>
             <p>Price: KES{{ formatPrice(item.price_per_piece || 0) }}</p>
             <p>Total: KES{{ formatPrice(item.line_total) }}</p>
@@ -59,6 +59,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '../components/navigation/MainLayout.vue';
+import grey from '@/assets/images/placeholder.png';
 
 export default {
   components: { MainLayout },
@@ -94,7 +95,7 @@ export default {
       }
       try {
         const response = await store.apiInstance.get(`/users/${store.userId}/cart/`);
-        console.log('Cart data:', response.data); 
+        console.log('Cart data:', response.data);
         return { data: response.data };
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -199,6 +200,11 @@ export default {
       removeItem,
       checkout
     };
+  },
+  data: function() {
+    return {
+      image: grey
+    }
   }
 };
 </script>
@@ -206,23 +212,31 @@ export default {
 
 <style scoped>
 .cart-container {
-  max-width: 1200px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 40px 20px;
 }
 
 .cart-title {
-  margin-bottom: 20px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 30px;
 }
 
 .loading-state, .error-state, .auth-prompt, .empty-cart {
   text-align: center;
   padding: 40px 0;
+  color: #666;
+}
+
+.empty-cart p {
+  margin-bottom: 1rem;
 }
 
 .spinner {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #3498db;
+  border-top: 4px solid #f28c38;
   border-radius: 50%;
   width: 30px;
   height: 30px;
@@ -241,48 +255,124 @@ export default {
 
 .cart-item {
   display: flex;
-  border-bottom: 1px solid #eee;
+  align-items: center;
   padding: 20px 0;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .item-image {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   margin-right: 20px;
+  background: rgb(196, 196, 196);
+  border-radius: 10px;
 }
 
 .item-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .item-details {
   flex: 1;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.item-details h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.item-details p {
+  margin: 3px 0;
+  color: #666;
 }
 
 .item-actions {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
+  gap: 10px;
 }
 
 .item-actions button {
-  margin: 5px;
-  padding: 5px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.item-actions .remove-button {
+  font-size: 1rem;
+  background-color: #e74c3c;
+  color: white;
+}
+
+.item-actions .remove-button:hover {
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.item-actions .quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.item-actions .quantity-controls button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1.2rem;
+}
+
+.item-actions .quantity-controls span {
+  font-size: 1rem;
+  color: #333;
 }
 
 .cart-summary {
-  margin-top: 20px;
+  margin-top: 1rem;
   padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 5px;
+  text-align: right;
 }
 
-.total {
-  font-size: 1.2em;
-  font-weight: bold;
+.cart-summary p {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #666;
+}
+
+.cart-summary .total {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.checkout-button {
+  background-color: #e74c3c;
+  color: white;
+  padding: 15px;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  width: 50%;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.checkout-button:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 button {
@@ -292,28 +382,13 @@ button {
   cursor: pointer;
 }
 
-.retry-button, .login-button, .shop-button {
-  background-color: #3498db;
-  color: white;
-}
-
-.guest-button {
-  background-color: #95a5a6;
-  color: white;
-  margin-left: 10px;
-}
-
-.remove-button {
+.retry-button, .login-button, .shop-button  {
   background-color: #e74c3c;
   color: white;
 }
 
-.checkout-button {
-  background-color: #2ecc71;
-  color: white;
-  padding: 15px 20px;
-  font-size: 1.1em;
-  width: 100%;
-  margin-top: 20px;
+.remove-button:hover {
+  color: #e74c3c;
 }
+
 </style>

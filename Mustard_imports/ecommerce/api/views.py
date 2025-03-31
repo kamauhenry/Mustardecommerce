@@ -27,7 +27,18 @@ from django.utils import timezone
 import logging
 from django.db import connection, transaction
 from django.db.models import Max
+import requests
+from django.http import JsonResponse
+from django.http import FileResponse
+from django.conf import settings
+import os
 
+def test_image(request):
+    image_path = os.path.join(settings.MEDIA_ROOT, 'category_images', 'agriculture.jpeg')
+    if os.path.exists(image_path):
+        return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
+    else:
+        return get_object_or_404("File not found", status=404)
 
 def reset_order_id_sequence():
     with connection.cursor() as cursor:
@@ -540,7 +551,8 @@ class CategoryProductsView(APIView):
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            category = get_object_or_404(Category, slug=category_slug)
+            # Fetch the category, ensuring it's active
+            category = get_object_or_404(Category, slug=category_slug, is_active=True)
             products = Product.objects.filter(category=category).order_by('-created_at')
 
             page = int(request.query_params.get('page', 1))
@@ -552,7 +564,12 @@ class CategoryProductsView(APIView):
 
             serializer = ProductSerializer(products, many=True, context={'request': request})
             response_data = {
-                'category': {'slug': category.slug, 'name': category.name},
+                'category': {
+                    'slug': category.slug,
+                    'name': category.name,
+                    'description': category.description,
+                    'image': request.build_absolute_uri(category.image.url) if category.image else None
+                },
                 'products': serializer.data,
                 'total': total,
             }
@@ -564,9 +581,9 @@ class CategoryProductsView(APIView):
 
             return Response(response_data)
         except Http404:
-            return Response({'error': 'Category not found'}, status=status.HTTP404_NOT_FOUND)
+            return Response({'error': 'Category not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CategoriesWithProductsViewSet(APIView):
     permission_classes = [permissions.AllowAny]
@@ -575,6 +592,16 @@ class CategoriesWithProductsViewSet(APIView):
         categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class CategoryListView(APIView):
+    def get(self, request):
+        try:
+            categories = Category.objects.all()
+            serializer = CategorySerializer(categories, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ProductsView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -858,28 +885,94 @@ class UserProfileView(APIView):
 class DeliveryLocationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
-        # Mocked for now; replace with actual model
-        locations = [
-            {'id': 1, 'name': 'Home', 'address': '123 Nairobi St, Nairobi', 'isDefault': True},
-            {'id': 2, 'name': 'Office', 'address': '456 Business Bay, Nairobi', 'isDefault': False},
-        ]
-        return Response(locations)
+    def get(self, request, location_id=None):
+        """Retrieve all delivery locations for the authenticated user."""
+        locations = DeliveryLocation.objects.filter(user=request.user)
+        serializer = DeliveryLocationSerializer(locations, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def post(self, request):
+    def post(self, request, location_id=None):
+        """Add a new delivery location for the authenticated user."""
         data = request.data
-        new_location = {
-            'id': 3,  # Generate a unique ID in a real app
+        serializer = DeliveryLocationSerializer(data={
             'name': data.get('name'),
             'address': data.get('address'),
-            'isDefault': data.get('isDefault', False),
-        }
-        return Response(new_location, status=status.HTTP_201_CREATED)
+            'latitude': data.get('latitude'),  # Include latitude
+            'longitude': data.get('longitude'),  # Include longitude
+            'is_default': data.get('is_default', False),  # Changed key to match API
+            'user': request.user.id
+        })
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, location_id):
-        # Mocked for now; update the default location in a real app
+    def put(self, request, location_id=None):
+        """Set a location as the default for the authenticated user."""
+        if not location_id:
+            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        location.is_default = True
+        location.save()  # This will trigger the save method to unset other defaults
         return Response({'message': 'Set as default'}, status=status.HTTP_200_OK)
 
-    def delete(self, request, location_id):
-        # Mocked for now; delete the location in a real app
+    def delete(self, request, location_id=None):
+        """Delete a delivery location for the authenticated user."""
+        if not location_id:
+            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        location.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+  
+def autocomplete(request):
+    query = request.GET.get('input', '')
+    if not query:
+        return JsonResponse({'status': 'error', 'message': 'No input provided'}, status=400)
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same as Vue frontend
+    # Alternatively, use settings.GOOGLE_MAPS_API_KEY if defined in settings.py
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/autocomplete/json?"
+        f"input={query}&key={api_key}&types=geocode"
+    )
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        data = response.json()
+        return JsonResponse(data)
+    except requests.RequestException as e:
+        print(f"Error fetching autocomplete data: {str(e)}")  # Log error for debugging
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+def place_details(request):
+    place_id = request.GET.get('place_id', '')
+    if not place_id:
+        return JsonResponse({'status': 'error', 'message': 'No place_id provided'}, status=400)
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same key as frontend
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/details/json?"
+        f"place_id={place_id}&key={api_key}"
+    )
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return JsonResponse(data)
+    except requests.RequestException as e:
+        print(f"Error fetching place details: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

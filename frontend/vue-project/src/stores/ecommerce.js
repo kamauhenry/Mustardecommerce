@@ -37,7 +37,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       },
       error: {
         categories: null,
-        categoryProducts: null,
+        categoryProducts: {},
         productDetails: null,
         allCategoriesWithProducts: null,
         cart: null,
@@ -199,11 +199,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
           this.showAuthModal = true;
           throw new Error('Please log in to add items to cart');
         }
-    
+
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }
-    
+
         // Fetch cart if it’s not already in state
         if (!this.cart) {
           try {
@@ -214,7 +214,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
             if (!this.cart) this.cart = { id: null, items: [] };
           }
         }
-    
+
         const response = await api.addToCart(
           this.apiInstance,
           this.cart.id,
@@ -222,7 +222,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
           variantId,
           quantity
         );
-    
+
         this.cart = response || { id: this.cart.id, items: [] };
         return response;
       } catch (error) {
@@ -267,17 +267,19 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    async fetchCategoryProducts(categorySlug, page = 1) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
+    async fetchCategoryProducts(categorySlug) {
       this.loading.categoryProducts = true;
+      this.error.categoryProducts[categorySlug] = null; // Clear error for this specific category
       try {
-        const data = await api.fetchCategoryProducts(this.apiInstance, categorySlug, page);
-        if (!this.categoryProducts[categorySlug]) this.categoryProducts[categorySlug] = { products: [], total: data.total };
-        this.categoryProducts[categorySlug].products.push(...data.products);
+        const response = await api.fetchCategoryProducts(this.apiInstance, categorySlug);
+        this.categoryProducts[categorySlug] = response;
       } catch (error) {
-        this.error.categoryProducts = error.message || `Failed to load products for ${categorySlug}`;
+        if (error.response?.status === 404) {
+          this.error.categoryProducts[categorySlug] = `Category "${categorySlug}" not found or inactive.`;
+        } else {
+          this.error.categoryProducts[categorySlug] = error.response?.data?.error || error.message || 'Failed to fetch category products';
+        }
+        console.error(`Error fetching category products for ${categorySlug}:`, error);
       } finally {
         this.loading.categoryProducts = false;
       }
@@ -466,9 +468,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     // Delivery Location Actions
     async fetchDeliveryLocations() {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       this.loading.deliveryLocations = true;
       this.error.deliveryLocations = null;
       try {
@@ -482,9 +481,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async addDeliveryLocation(location) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         const response = await api.addDeliveryLocation(this.apiInstance, location);
         this.deliveryLocations.push(response);
@@ -494,24 +490,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async setDefaultDeliveryLocation(locationId) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         await api.setDefaultDeliveryLocation(this.apiInstance, locationId);
-        this.deliveryLocations = this.deliveryLocations.map(loc => ({
-          ...loc,
-          isDefault: loc.id === locationId,
-        }));
+        await this.fetchDeliveryLocations();
+        console.log('Updated deliveryLocations:', this.deliveryLocations);
       } catch (error) {
         throw new Error(error.message || 'Failed to set default delivery location');
       }
     },
 
     async deleteDeliveryLocation(locationId) {
-      if (!this.apiInstance) {
-        this.initializeApiInstance();
-      }
       try {
         await api.deleteDeliveryLocation(this.apiInstance, locationId);
         this.deliveryLocations = this.deliveryLocations.filter(loc => loc.id !== locationId);

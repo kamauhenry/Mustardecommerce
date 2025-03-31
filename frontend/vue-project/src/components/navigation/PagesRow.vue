@@ -41,7 +41,7 @@ export default {
 <style scoped>
 .page-list {
   padding: 0 2%;
-  background-color: var(--background-color-two);
+  background-color: #f28c38;
 }
 
 .page-list ul {
@@ -61,5 +61,6 @@ export default {
   font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
+  color: #000;
 }
 </style>

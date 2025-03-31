@@ -37,6 +37,10 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
       },
+      '/media': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -60,6 +60,9 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --faq-question-bg: var(--vt-c-black);
   --faq-answer-bg: var(--vt-c-black-mute);
   --campaigns-bg: var(--vt-c-white-soft);
+  --tabs-bg: #3a3a3a;
+  --breadcrumb-bg: #bdbdbd;
+  --sidebar-hover: #363636;
 }
 
 [data-theme="light"] {
@@ -82,6 +85,9 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --faq-question-bg: var(--background-color-three);
   --faq-answer-bg: var(--vt-c-white-soft);
   --campaigns-bg: var(--vt-c-black-soft);
+  --tabs-bg: #e6e6e6;
+  --breadcrumb-bg: #414141;
+  --sidebar-hover: #dddddd;
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -99,19 +105,43 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   }
 }
 
-.category-card, .popup-content, .user-info-section, .locations-section {
+.category-card, .popup-content, .user-info-section {
   background-color: var(--categories-bg);
 }
 
-.product-card, .user-info, .delivery-locations {
+.product-card, .user-info, .delivery-locations, .product-right, .sidebar {
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label {
+.sidebar {
+  border-right: 1px solid var(--tabs-bg);
+}
+
+.sidebar-nav li:hover {
+  background: var(--sidebar-hover);
+}
+
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title {
   color: var(--text-color-thirteen);
 }
 
-.see-more-link {
+.tabs, .locations-list li {
+  border-bottom: 1px solid var(--tabs-bg);
+}
+
+.related-products {
+  border-top: 1px solid var(--tabs-bg);
+}
+
+.tabs button, .tabs button.active {
+  color: var(--campaigns-bg);
+}
+
+.tabs button.active::after {
+  background-color: var(--campaigns-bg);
+}
+
+.see-more-link, .show-more {
   background-color: #f28c38;
 }
 
@@ -119,6 +149,15 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   color: var(--text-color-eleven);
 
 }
+
+.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li {
+  color: var(--campaigns-bg);
+}
+
+.breadcrumb, .breadcrumb a, .breadcrumb span {
+  color: var(--breadcrumb-bg);
+}
+
 
 .category-link:hover {
   color: var(--text-color-twelve);

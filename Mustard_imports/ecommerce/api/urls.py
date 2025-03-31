@@ -31,9 +31,11 @@ urlpatterns = [
     path('products/search/', views.search, name='search'), 
     # Product and category-related URLs
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
+    path('api/categories/', CategoryListView.as_view(), name='category-list'),
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
+    path('test-image/', views.test_image, name='test-image'),
 
     # Custom cart and order actions
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
@@ -51,10 +53,11 @@ urlpatterns = [
     path('process-payment/', process_payment, name='process_payment'),
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
 
-    # Profile
-    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
-    path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery-locations'),
-    path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set-default-location'),
-    path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delete-location'),
-
+# Profile
+    path('user/profile/', views.UserProfileView.as_view(), name='user-profile'),
+    path('user/delivery-locations/', views.DeliveryLocationView.as_view(), name='delivery_locations'),
+    path('user/delivery-locations/<int:location_id>/', views.DeliveryLocationView.as_view(), name='delivery_location_detail'),
+    path('user/delivery-locations/<int:location_id>/set-default/', views.DeliveryLocationView.as_view(), name='set_default_location'),
+    path('autocomplete/', views.autocomplete, name='autocomplete'),
+    path('place-details/', views.place_details, name='place_details'),
 ]

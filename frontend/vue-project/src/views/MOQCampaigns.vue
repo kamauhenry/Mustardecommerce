@@ -1,6 +1,7 @@
 <template>
   <MainLayout>
     <div class="all-products">
+      <h1 class="page-title">MOQ Campaigns</h1>
       <!-- Filters row -->
       <div class="filters-row flex flex-wrap gap-2 mb-6">
         <div class="filter-group flex items-center">
@@ -67,8 +68,8 @@
                 <div class="product-status">
                   <span class="status-text">{{ product.moq_status || 'Active' }}</span>
                   <div class="progress-container">
-                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '40'}%` }"></div> <!-- Development-->
-                    <span class="progress-text">{{ product.moq_progress?.percentage || '40' }}% Orders</span>
+                    <div class="progress-bar" :style="{ width: `${product.moq_progress?.percentage || '60'}%` }"></div> <!-- Development-->
+                    <span class="progress-text">{{ product.moq_progress?.percentage || '60' }}% Orders</span>
                   </div>
                 </div>
               </div>
@@ -174,7 +175,6 @@ export default {
 <style scoped>
 .all-products {
   font-family: 'Roboto', sans-serif;
-  padding: 12px;
 }
 
 /* Filters row */

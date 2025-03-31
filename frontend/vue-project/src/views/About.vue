@@ -184,7 +184,7 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
+<style>
 .about-h2 {
   font-size: 1.2rem;
   text-transform: uppercase;

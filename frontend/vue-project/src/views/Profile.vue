@@ -1,111 +1,218 @@
 <template>
   <MainLayout>
-    <div class="profile-container">
-      <div class="profile-header">
-        <h1>Profile</h1>
-      </div>
+    <div class="profile-page">
+      <h1 class="page-title">Profile</h1>
+      <div v-if="isLoading" class="loading">Loading...</div>
+      <div v-else class="profile-container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
+          <nav class="sidebar-nav">
+            <ul>
+              <li
+                :class="{ active: activeTab === 'user-info' }"
+                @click="setActiveTab('user-info')"
+              >
+                User Information
+              </li>
+              <li
+                :class="{ active: activeTab === 'orders' }"
+                @click="setActiveTab('orders')"
+              >
+                Orders
+              </li>
+              <li
+                :class="{ active: activeTab === 'security' }"
+                @click="setActiveTab('security')"
+              >
+                Security
+              </li>
+              <li
+                :class="{ active: activeTab === 'locations' }"
+                @click="setActiveTab('locations')"
+              >
+                Location Information
+              </li>
+            </ul>
+            <!-- Single Tab Indicator -->
+            <span class="tab-indicator" :style="activeTabStyle"></span>
+          </nav>
+        </aside>
 
-      <!-- User Info Section -->
-      <div class="user-info-section">
-        <div class="profile-photo-container">
-          <div class="profile-photo" @click="triggerFileInput">
-            <span v-if="!user.profilePhoto">CLICK TO CHANGE PHOTO</span>
-            <img v-else :src="user.profilePhoto" alt="Profile Photo" />
-          </div>
-          <input type="file" ref="fileInput" style="display: none" @change="handleProfilePhotoChange" accept="image/*" />
-
-          <div class="profile-actions">
-            <button class="action-button primary-button" @click="editUser">Edit User</button>
-            <button class="action-button secondary-button" @click="changePassword">Change Password</button>
-          </div>
-        </div>
-
-        <div class="user-details">
-          <h2 class="user-name">User Information</h2>
-
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Username</span>
-              <span class="info-value">{{ user.username }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Affiliate Code</span>
-              <span class="info-value">{{ user.affiliate_code || 'Not available' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">{{ user.points ? 'Points' : 'Affiliate Points' }}</span>
-              <span class="info-value">{{ user.points || 0 }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Phone</span>
-              <span class="info-value">{{ user.phone || 'Not set' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Member Since</span>
-              <span class="info-value">{{ formatDate(user.date_joined) }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Email</span>
-              <span class="info-value">{{ user.email || 'Not set' }}</span>
-            </div>
-
-            <div class="info-item">
-              <span class="info-label">Items Ordered</span>
-              <span class="info-value">{{ user.orders_count || 0 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Delivery Locations Section -->
-      <div class="locations-section">
-        <div class="section-header">
-          <h2>DELIVERY LOCATIONS</h2>
-          <button class="add-button" @click="showAddLocationPopup">ADD +</button>
-        </div>
-
-        <div class="locations-container">
-          <div v-if="deliveryLocations.length === 0" class="no-locations">
-            No delivery locations added yet.
-          </div>
-
-          <div v-else class="location-map-grid">
-            <div v-for="location in deliveryLocations" :key="location.id" class="location-map-item">
-              <div class="map-container">
-                <!-- Map display would go here - using a placeholder for now -->
-                <div class="map-placeholder">
-                  <!-- You would integrate an actual map component here -->
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    frameborder="0"
-                    scrolling="no"
-                    marginheight="0"
-                    marginwidth="0"
-                    :src="`https://maps.google.com/maps?q=${encodeURIComponent(location.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`">
-                  </iframe>
+        <!-- Right Content Area -->
+        <div class="content-area">
+          <!-- User Information Tab -->
+          <div v-if="activeTab === 'user-info'" class="tab-content">
+            <div class="profile-section">
+              <div class="profile-section-top">
+                <h2 class="profile-tabs-title">User Information</h2>
+                <button @click="showEditProfileForm" class="edit-btn">Edit Profile</button>
+              </div>
+              <div class="profile-section-next">
+                <div class="profile-photo">
+                  <div class="profile-photo-img">
+                    <img
+                      v-if="user.profile_photo"
+                      :src="user.profile_photo"
+                      alt="Profile Photo"
+                      class="photo"
+                    />
+                    <div v-else class="photo-placeholder">No Photo</div>
+                  </div>
+                  <div class="change-photo">
+                    <button @click="triggerFileInput" class="change-photo-btn">
+                      Change Photo
+                    </button>
+                    <input
+                      type="file"
+                      ref="fileInput"
+                      @change="handleProfilePhotoChange"
+                      style="display: none"
+                      accept="image/*"
+                    />
+                  </div>
                 </div>
-
-                <div class="location-actions">
-                  <button class="location-edit-btn" @click="editLocation(location.id)">
-                    <span class="icon-edit">✏️</span>
-                  </button>
-                  <button class="location-delete-btn" @click="deleteLocation(location.id)">
-                    <span class="icon-delete">🗑️</span>
-                  </button>
+                <div class="profile-info">
+                  <p><span>Username:</span> {{ user.username || 'N/A' }}</p>
+                  <p><span>Email:</span> {{ user.email || 'N/A' }}</p>
+                  <p><span>User Type:</span> {{ user.user_type || 'N/A' }}</p>
+                  <p><span>Points:</span> {{ user.points || 0 }}</p>
+                  <p><span>Affiliate Code:</span> {{ user.affiliate_code || 'N/A' }}</p>
+                  <p><span>Join Date:</span> {{ formatDate(user.date_joined) }}</p>
                 </div>
               </div>
+            </div>
 
-              <div class="location-details">
-                <h3>{{ location.name }}</h3>
-                <p>{{ location.address }}</p>
-                <span v-if="location.isDefault" class="default-badge">Default</span>
+            <!-- Edit Profile Form -->
+            <div v-if="showEditProfile" class="edit-profile-form">
+              <h3>Edit Profile</h3>
+              <form @submit.prevent="updateProfile">
+                <div class="form-group">
+                  <label for="username">Username</label>
+                  <input
+                    type="text"
+                    id="username"
+                    v-model="editProfileForm.username"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="email">Email</label>
+                  <input
+                    type="email"
+                    id="email"
+                    v-model="editProfileForm.email"
+                    required
+                  />
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="save-btn">Save</button>
+                  <button type="button" @click="cancelEditProfile" class="cancel-btn">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Orders Tab -->
+          <div v-if="activeTab === 'orders'" class="tab-content">
+            <div class="orders-section">
+              <h2 class="profile-tabs-title">Orders</h2>
+              <div v-if="ordersLoading" class="loading">Loading orders...</div>
+              <div v-else-if="ordersError" class="error">{{ ordersError }}</div>
+              <div v-else>
+                <ul class="orders-list">
+                  <li v-for="order in orders" :key="order.id">
+                    <div class="order-details">
+                      <span class="order-number">Order #{{ order.id }}</span>
+                      <span class="order-date">{{ formatDate(order.created_at) }}</span>
+                      <span class="order-status">{{ order.delivery_status }}</span>
+                      <span class="order-total">${{ order.total_price }}</span>
+                    </div>
+                  </li>
+                </ul>
               </div>
+            </div>
+          </div>
+
+          <!-- Security Tab -->
+          <div v-if="activeTab === 'security'" class="tab-content">
+            <div class="security-section">
+              <h2 class="profile-tabs-title">Security</h2>
+              <button @click="showChangePasswordForm" class="change-password-btn">
+                Change Password
+              </button>
+              <div v-if="showChangePassword" class="change-password-form">
+                <h3>Change Password</h3>
+                <form @submit.prevent="updatePassword">
+                  <div class="form-group">
+                    <label for="current-password">Current Password</label>
+                    <input
+                      type="password"
+                      id="current-password"
+                      v-model="changePasswordForm.currentPassword"
+                      required
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input
+                      type="password"
+                      id="new-password"
+                      v-model="changePasswordForm.newPassword"
+                      required
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="confirm-password">Confirm New Password</label>
+                    <input
+                      type="password"
+                      id="confirm-password"
+                      v-model="changePasswordForm.confirmPassword"
+                      required
+                    />
+                  </div>
+                  <div class="form-actions">
+                    <button type="submit" class="save-btn">Save</button>
+                    <button type="button" @click="cancelChangePassword" class="cancel-btn">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Location Information Tab -->
+          <div v-if="activeTab === 'locations'" class="tab-content">
+            <div class="locations-section">
+              <div class="locations-section-top">
+                <h2 class="profile-tabs-title">Delivery Locations</h2>
+                <button @click="showAddLocationPopup" class="add-location-btn">
+                Add New Location
+              </button>
+              </div>
+              <ul class="locations-list">
+                <li v-for="location in deliveryLocations" :key="location.id">
+                  <div class="location-details">
+                    <span class="location-name">{{ location.name }}</span>
+                    <span class="location-address">{{ location.address }}</span>
+                    <span v-if="location.is_default" class="default-tag">[Default]</span>
+                  </div>
+                  <div class="location-actions">
+                    <button
+                      @click="setAsDefault(location.id)"
+                      :disabled="location.is_default"
+                      class="set-default-btn"
+                    >
+                      Set as Default
+                    </button>
+                    <button @click="confirmDeleteLocation(location.id)" class="delete-btn">
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -114,17 +221,18 @@
       <!-- Add Location Popup -->
       <AddDeliveryLocationPopup
         v-if="showPopup"
-        @close="closePopup"
         @add-location="addLocation"
+        @close="closePopup"
       />
 
+      <!-- Delete Confirmation Modal -->
       <div v-if="showDeleteModal" class="modal-overlay">
-        <div class="modal">
-          <h2>Confirm Delete</h2>
+        <div class="modal-content">
+          <h3 class="profile-tabs-title">Confirm Deletion</h3>
           <p>Are you sure you want to delete this location?</p>
           <div class="modal-actions">
-            <button class="cancel-button" @click="cancelDeleteLocation">Cancel</button>
-            <button class="delete-button" @click="deleteLocation">Delete</button>
+            <button @click="cancelDeleteLocation" class="cancel-btn">Cancel</button>
+            <button @click="deleteLocation" class="confirm-btn">Delete</button>
           </div>
         </div>
       </div>
@@ -137,7 +245,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import AddDeliveryLocationPopup from '@/components/auth/AddDeliveryLocationPopup.vue';
-import axios from 'axios';
 import { getCurrentInstance } from 'vue';
 
 export default {
@@ -151,11 +258,12 @@ export default {
     const showPopup = ref(false);
     const isLoading = ref(true);
     const fileInput = ref(null);
-    const showDeleteModal = ref(false); // Add this line
-    const locationToDeleteId = ref(null); // Add this line
-    const { proxy } = getCurrentInstance()
+    const showDeleteModal = ref(false);
+    const locationToDeleteId = ref(null);
+    const activeTab = ref('user-info'); // Default tab
+    const { proxy } = getCurrentInstance();
 
-    // Use the store to fetch user profile and delivery locations
+    // Fetch user profile and delivery locations on mount
     onMounted(async () => {
       try {
         isLoading.value = true;
@@ -195,7 +303,7 @@ export default {
         proxy.$toast.success('Profile photo updated successfully!');
       } catch (error) {
         console.error('Failed to update profile photo:', error);
-        proxy.$toast.error(`Failed to update profile photo`);
+        proxy.$toast.error('Failed to update profile photo');
       }
     };
 
@@ -213,14 +321,9 @@ export default {
         proxy.$toast.success('Location added successfully!');
         closePopup();
       } catch (error) {
-        proxy.$toast.error(`Failed to add location`);
+        proxy.$toast.error('Failed to add location');
         console.error('Failed to add location:', error);
       }
-    };
-
-    const editLocation = (locationId) => {
-      // Would need to implement a location editing component
-      proxy.$toast.error('Edit location functionality to be implemented.');
     };
 
     const setAsDefault = async (locationId) => {
@@ -228,14 +331,17 @@ export default {
         await store.setDefaultDeliveryLocation(locationId);
         proxy.$toast.success('Default delivery location changed successfully!');
       } catch (error) {
-        proxy.$toast.error(`Failed to set default location`);
+        proxy.$toast.error('Failed to set default location');
         console.error('Failed to set default location:', error);
       }
     };
 
-    const deleteLocation = async (locationId) => {
+    const confirmDeleteLocation = (locationId) => {
       locationToDeleteId.value = locationId;
       showDeleteModal.value = true;
+    };
+
+    const deleteLocation = async () => {
       try {
         await store.deleteDeliveryLocation(locationToDeleteId.value);
         proxy.$toast.success('Location deleted successfully!');
@@ -257,14 +363,33 @@ export default {
     };
 
     const editUser = () => {
-      // Would need to implement a profile editing component
-      proxy.$toast.error(`Edit profile functionality to be implemented.`);
+      proxy.$toast.error('Edit profile functionality to be implemented.');
     };
 
     const changePassword = () => {
-      // Would need to implement a profile editing component
-      proxy.$toast.error(`Edit profile functionality to be implemented.`);
+      proxy.$toast.error('Edit profile functionality to be implemented.');
     };
+
+    // Tab navigation
+    const setActiveTab = (tab) => {
+      activeTab.value = tab;
+    };
+
+    // Calculate the position of the tab indicator
+    const activeTabStyle = computed(() => {
+      const tabHeight = 50; // Height of each tab (adjust based on your design)
+      const tabIndex = {
+        'user-info': 0,
+        'orders': 1,
+        'security': 2,
+        'locations': 3,
+      }[activeTab.value];
+      const topPosition = tabIndex * tabHeight;
+      return {
+        top: `${topPosition}px`,
+        transition: 'top 0.3s ease', // Smooth transition
+      };
+    });
 
     return {
       user,
@@ -272,275 +397,362 @@ export default {
       showPopup,
       isLoading,
       fileInput,
+      showDeleteModal,
+      activeTab,
+      activeTabStyle,
       formatDate,
       triggerFileInput,
       handleProfilePhotoChange,
       showAddLocationPopup,
       closePopup,
       addLocation,
-      editLocation,
       setAsDefault,
+      confirmDeleteLocation,
       deleteLocation,
+      cancelDeleteLocation,
       editUser,
       changePassword,
+      setActiveTab,
     };
   },
 };
 </script>
 
 <style scoped>
-/* Main Container */
-.profile-container {
-  font-family: 'Roboto', sans-serif;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
 
-.profile-header h1 {
-  color: #ff5722;
-  font-size: 1.5rem;
-  font-weight: 600;
+.page-title {
   margin-bottom: 1.5rem;
 }
 
-/* User Info Section */
-.user-info-section {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 3rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 2rem;
+.loading {
+  text-align: center;
+  font-size: 1.2rem;
+  color: #666;
 }
 
-.profile-photo-container {
+.profile-container {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 250px;
+  gap: 2rem;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 20vw;
+  height: 50vh;
+  position: relative;
+  padding-top: 1rem;
+  border-radius: 10px;
+}
+
+.sidebar-nav {
+  position: relative;
+}
+
+.sidebar-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-nav li {
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  height: 50px; /* Fixed height for consistent indicator positioning */
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-nav li.active {
+  font-weight: 600;
+  color: #f28c38;
+}
+
+/* Tab Indicator */
+.tab-indicator {
+  position: absolute;
+  right: -2px; /* Align with the border-right of the sidebar */
+  width: 4px;
+  height: 50px; /* Match the height of each tab */
+  background: #f28c38;
+  display: block;
+}
+
+/* Content Area */
+.content-area {
+  flex: 1;
+  padding: 1rem;
+}
+
+.tab-content {
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.about-h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Profile Section */
+.profile-section {
+  margin-bottom: 2rem;
+}
+
+.profile-section-top, .locations-section-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.profile-section-next {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 2rem;
+}
+
+.profile-tabs-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f28c38;
+  text-transform: uppercase;
+  margin: 0.5rem 0;
 }
 
 .profile-photo {
-  width: 250px;
-  height: 250px;
-  background-color: #b0bec5;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: white;
-  font-size: 0.875rem;
-  text-align: center;
-  border-radius: 4px;
+  gap: 1rem;
+  margin: 0 1rem 1rem;
 }
 
-.profile-photo img {
-  width: 100%;
-  height: 100%;
+.profile-info p {
+  margin: 1rem 0;
+}
+
+.profile-info p span {
+  font-weight: 700;
+  color: #666;
+}
+
+.photo,
+.photo-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
   object-fit: cover;
 }
 
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.action-button {
-  padding: 0.75rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.primary-button {
-  background-color: #ff5722;
-  color: white;
-}
-
-.primary-button:hover {
-  background-color: #e64a19;
-}
-
-.secondary-button {
-  background-color: #f5f5f5;
-  color: #333;
-}
-
-.secondary-button:hover {
-  background-color: #e0e0e0;
-}
-
-.user-details {
-  flex: 1;
-}
-
-.user-name {
-  font-size: 1.75rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.25rem;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.info-label {
-  font-size: 0.875rem;
-  font-weight: 700;
-}
-
-.info-value {
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-/* Delivery Locations Section */
-.locations-section {
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 2rem;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
-  color: #ff5722;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.add-button {
-  background-color: #ff5722;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.add-button:hover {
-  background-color: #e64a19;
-}
-
-.no-locations {
-  text-align: center;
-  padding: 2rem;
-  font-style: italic;
-}
-
-.location-map-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.location-map-item {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-}
-
-.location-map-item:hover {
-  transform: translateY(-4px);
-}
-
-.map-container {
-  position: relative;
-  height: 200px;
-  width: 100%;
-}
-
-.map-placeholder {
-  height: 100%;
-  width: 100%;
-  background-color: #f5f5f5;
+.photo-placeholder {
+  background: #ddd;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #666;
+  font-size: 0.9rem;
+}
+
+.change-photo-btn,
+.change-password-btn,
+.set-default-btn,
+.delete-btn,
+.save-btn
+{
+  padding: 0.5rem .7rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.change-photo-btn:hover,
+.change-password-btn:hover,
+.set-default-btn:hover:not(:disabled),
+.delete-btn:hover,
+.save-btn:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.change-photo-btn {
+  background: #f28c38;
+  color: white;
+}
+.edit-btn, .add-location-btn {
+  color: rgb(206, 102, 61);
+  font-size: 1rem;
+  font-weight: 700;
+  background-color: inherit;
+  padding: 0 .7rem;
+  border: none;
+  cursor: pointer;
+}
+
+.edit-btn:hover, .add-location-btn:hover {
+  box-shadow: 0 1px rgba(242, 140, 56, 0.4);
+}
+
+.change-password-btn {
+  background: #f28c38dc;
+  color: white;
+}
+
+.change-password-btn:hover {
+  background: #f28c38;
+}
+
+/* Edit Profile Form */
+.edit-profile-form,
+.change-password-form {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  background: #4CAF50;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #45a049;
+}
+
+/* Orders Section */
+.orders-section {
+  margin-bottom: 2rem;
+}
+
+.orders-list {
+  list-style: none;
+  padding: 0;
+}
+
+.orders-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.order-details {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.order-number {
+  font-weight: 600;
+}
+
+.order-status {
+  color: #4CAF50;
+}
+
+.order-total {
+  font-weight: 600;
+}
+
+/* Security Section */
+.security-section {
+  margin-bottom: 2rem;
+}
+
+/* Locations Section */
+.locations-list {
+  list-style: none;
+  padding: 0;
+}
+
+.locations-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.location-details {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.location-name {
+  font-weight: 600;
+}
+
+.location-address {
+  color: #666;
+}
+
+.default-tag {
+  color: #4CAF50;
+  font-size: 0.85rem;
 }
 
 .location-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   display: flex;
   gap: 0.5rem;
 }
 
-.location-edit-btn, .location-delete-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.location-edit-btn {
-  background-color: #ff5722;
+.set-default-btn {
+  background: #f28c38dc;
   color: white;
 }
 
-.location-delete-btn {
-  background-color: #f44336;
+.set-default-btn:hover:not(:disabled) {
+  background: #f28c38;
+}
+
+.set-default-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.delete-btn {
+  background: #f44336;
   color: white;
 }
 
-.location-details {
-  padding: 1rem;
+.delete-btn:hover {
+  background: #da190b;
 }
 
-.location-details h3 {
-  margin: 0 0 0.5rem 0;
-  font-weight: 600;
-}
-
-.location-details p {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.875rem;
-}
-
-.default-badge {
-  display: inline-block;
-  background-color: #e8f5e9;
-  color: #2e7d32;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-/* Modal Styles */
+/* Modal */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
@@ -548,66 +760,73 @@ export default {
   z-index: 1000;
 }
 
-.modal {
+.modal-content {
   background: white;
-  padding: 20px;
+  padding: 1.5rem;
   border-radius: 8px;
   width: 90%;
-  max-width: 500px;
+  max-width: 400px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  text-align: center;
 }
 
-.modal h2 {
-  font-size: 1.5rem;
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.modal p {
-  font-size: 1.1rem;
-  color: #666;
-  margin-bottom: 20px;
+.modal-content h3 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .modal-actions {
   display: flex;
-  justify-content: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
-.cancel-button,
-.delete-button {
-  padding: 10px 20px;
+.cancel-btn,
+.confirm-btn {
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-weight: 700;
 }
 
-.cancel-button {
-  background-color: #ddd;
-  color: #333;
+.cancel-btn {
+  background: #3f3f3f;
+  color: #d3d3d3;
 }
 
-.delete-button {
-  background-color: #f44336;
+.cancel-btn:hover, .confirm-btn:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-btn {
+  background: #f44336;
   color: white;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .user-info-section {
+  .profile-container {
     flex-direction: column;
   }
 
-  .profile-photo-container {
-    align-items: center;
-    margin-bottom: 1.5rem;
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 2px solid #ddd;
   }
 
-  .info-grid {
-    grid-template-columns: 1fr;
+  .sidebar-nav li {
+    padding: 1rem;
+    height: auto;
+  }
+
+  .tab-indicator {
+    display: none; /* Hide indicator on mobile for simplicity */
+  }
+
+  .content-area {
+    padding: 1rem 0;
   }
 }
 </style>

@@ -109,18 +109,15 @@ export const getDeliveryLocations = async (api) => {
   }
 };
 
-// Update these functions in api.js to ensure they handle coordinates
 export const addDeliveryLocation = async (api, location) => {
   try {
-    // Make sure the location object includes all necessary fields for the backend
     const locationData = {
       name: location.name,
       address: location.address,
       latitude: location.latitude,
       longitude: location.longitude,
-      is_default: location.isDefault
+      is_default: location.isDefault,
     };
-
     const response = await api.post('user/delivery-locations/', locationData);
     return response.data;
   } catch (error) {
@@ -162,10 +159,11 @@ export const fetchCategories = async (api) => {
   }
 };
 
-export const fetchCategoryProducts = async (api, categorySlug, page = 1, perPage = 5) => {
+export const fetchCategoryProducts = async (api, categorySlug) => {
   try {
-    const response = await api.get(`/category/${categorySlug}/products`, {
-      params: { page, per_page: perPage },
+    console.log(`Fetching category products for slug: ${categorySlug}`);
+    console.log(`Request URL: category/${categorySlug}/products/`);
+    const response = await api.get(`category/${categorySlug}/products/`, {
       timeout: 60000,
     });
     return response.data;

@@ -42,12 +42,20 @@ const routes = [
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
 
-// Lazy initialization of router
-const createMyRouter = () => {
-  return createRouter({
-    history: createWebHistory(),
-    routes,
-  });
-};
+// Create the router instance
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+});
 
-export default createMyRouter;
+// Add navigation guard to exclude /api/* and /media/* from client-side routing
+router.beforeEach((to, from, next) => {
+  if (to.path.startsWith('/api/') || to.path.startsWith('/media/')) {
+    // Let the browser handle the request (i.e., pass it to the backend)
+    window.location.href = to.fullPath;
+    return;
+  }
+  next();
+});
+
+export default router;

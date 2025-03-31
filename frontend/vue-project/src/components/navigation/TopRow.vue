@@ -5,6 +5,7 @@ import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
 import IconLogin from '../icons/IconLogin.vue';
 import AuthModals from '../auth/AuthModals.vue';
+import CartAuth from '../auth/CartAuth.vue';
 
 </script>
 
@@ -25,7 +26,9 @@ import AuthModals from '../auth/AuthModals.vue';
         <IconLightMode></IconLightMode>
       </div>
       <div class="icon">
-        <IconCart></IconCart>
+        <CartAuth>
+          <IconCart/>
+        </CartAuth>
       </div>
       <div class="icon">
         <AuthModals>
