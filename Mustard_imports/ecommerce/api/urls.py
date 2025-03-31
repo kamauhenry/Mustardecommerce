@@ -1,20 +1,30 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import *
-from ecommerce.api import views
+from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet, 
+                   CompletedOrderViewSet, CustomerReviewViewSet, 
+                   MOQRequestViewSet, UserViewSet, RegisterView, 
+                   LoginView, get_current_user, ProductDetail, 
+                   CategoryListView, CategoriesWithProductsViewSet, 
+                   CategoryProductsView, AllCategoriesWithProductsView, 
+                   create_cart, get_user_cart, add_item_to_cart, 
+                   update_cart_item_quantity, remove_cart_item, 
+                   process_checkout, get_user_orders, test_image, 
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details)
+
+
 # Creating DRF router
 router = routers.DefaultRouter()
 
 # Register viewsets with the router
 router.register(r'categories', CategoryViewSet, basename='category')
 
-router.register(r'products', ProductViewSet, basename='product')  # Added basename for ProductViewSet
 
-router.register(r'orders', OrderViewSet, basename='order')
-router.register(r'completed-orders', CompletedOrderViewSet, basename='completed-order')
-router.register(r'reviews', CustomerReviewViewSet, basename='review')
-router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')
-router.register(r'users', views.UserViewSet, basename='user')
+
+
+#router.register(r'completed-orders', CompletedOrderViewSet, basename='completed-order')
+#router.register(r'reviews', CustomerReviewViewSet, basename='review')
+#router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')
+#router.register(r'users', UserViewSet, basename='user')
 
 # Define URL patterns
 urlpatterns = [
@@ -28,14 +38,14 @@ urlpatterns = [
 
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
-    path('products/search/', views.search, name='search'), 
+    path('products/search/', search, name='search'), 
     # Product and category-related URLs
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
-    path('api/categories/', CategoryListView.as_view(), name='category-list'),
+
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
-    path('test-image/', views.test_image, name='test-image'),
+    path('test-image/', test_image, name='test-image'),
 
     # Custom cart and order actions
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
@@ -54,10 +64,10 @@ urlpatterns = [
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
 
 # Profile
-    path('user/profile/', views.UserProfileView.as_view(), name='user-profile'),
-    path('user/delivery-locations/', views.DeliveryLocationView.as_view(), name='delivery_locations'),
-    path('user/delivery-locations/<int:location_id>/', views.DeliveryLocationView.as_view(), name='delivery_location_detail'),
-    path('user/delivery-locations/<int:location_id>/set-default/', views.DeliveryLocationView.as_view(), name='set_default_location'),
-    path('autocomplete/', views.autocomplete, name='autocomplete'),
-    path('place-details/', views.place_details, name='place_details'),
+    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
+    path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery_locations'),
+    path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delivery_location_detail'),
+    path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set_default_location'),
+    path('autocomplete/', autocomplete, name='autocomplete'),
+    path('place-details/', place_details, name='place_details'),
 ]

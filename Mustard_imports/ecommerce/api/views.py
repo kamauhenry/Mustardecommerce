@@ -32,6 +32,9 @@ from django.http import JsonResponse
 from django.http import FileResponse
 from django.conf import settings
 import os
+from django.views.decorators.csrf import csrf_protect
+@csrf_protect
+
 
 def test_image(request):
     image_path = os.path.join(settings.MEDIA_ROOT, 'category_images', 'agriculture.jpeg')
@@ -603,62 +606,6 @@ class CategoryListView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class ProductsView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def get(self, request, *args, **kwargs):
-        cache_key = f'products_{request.query_params.get("category", "")}_{request.query_params.get("sort", "name_asc")}_page_{request.query_params.get("page", 1)}'
-        try:
-            cached_data = cache.get(cache_key)
-            if cached_data:
-                return Response(cached_data)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Cache error: {e}. Falling back to direct query.")
-
-        try:
-            category_slug = request.query_params.get('category')
-            sort = request.query_params.get('sort', 'name_asc')
-            page = int(request.query_params.get('page', 1))
-            per_page = int(request.query_params.get('per_page', 5))
-
-            products = cache.get("products")
-            if not products:
-                products = list(Product.objects.select_related("category").all())
-                cache.set("products", products, timeout=300)
-            if category_slug:
-                products = products.filter(category__slug=category_slug)
-
-            if sort == 'name_asc':
-                products = products.order_by('name')
-            elif sort == 'name_desc':
-                products = products.order_by('-name')
-            elif sort == 'price_asc':
-                products = products.order_by('price')
-            elif sort == 'price_desc':
-                products = products.order_by('-price')
-            elif sort == 'newest':
-                products = products.order_by('-created_at')
-
-            total = products.count()
-            start = (page - 1) * per_page
-            end = start + per_page
-            products = products[start:end]
-
-            serializer = ProductSerializer(products, many=True, context={'request': request})
-            response_data = {
-                'products': serializer.data,
-                'total': total,
-            }
-
-            try:
-                cache.set(cache_key, response_data, timeout=60 * 15)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to cache response: {e}")
-
-            return Response(response_data)
-        except Exception as e:
-            return Response({'error': f'Failed to fetch products: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
-
 
 
 
@@ -701,54 +648,6 @@ class CategoryViewSet(viewsets.ModelViewSet):
         cache.set(cache_key, response_data, timeout=60 * 15)
         return Response(response_data)
 
-class ProductViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    queryset = Product.objects.all() 
-    serializer_class = ProductSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'moq_status']
-    search_fields = ['name', 'description']
-    ordering_fields = ['price', 'rating', 'created_at']
-    pagination_class = None  #
-
-    @action(detail=True, methods=['get'])
-    def variants(self, request, pk=None):
-        product = self.get_object()
-        variants = ProductVariant.objects.filter(product=product)
-        serializer = ProductVariantSerializer(variants, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['get'])
-    def reviews(self, request, pk=None):
-        product = self.get_object()
-        reviews = CustomerReview.objects.filter(product=product)
-        serializer = CustomerReviewSerializer(reviews, many=True, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'], url_path='category/(?P<category_name>[^/.]+)')
-    def products_by_category(self, request, category_name=None):
-        category = get_object_or_404(Category, name=category_name.replace("-", " "))
-        products = Product.objects.filter(category=category)
-        serializer = ProductSerializer(products, many=True, context={'request': request})
-        return Response(serializer.data)
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        page = self.request.query_params.get('page')
-        per_page = self.request.query_params.get('per_page')
-        
-        if page and per_page:
-            try:
-                page = int(page)
-                per_page = int(per_page)
-                start = (page - 1) * per_page
-                end = start + per_page
-                queryset = queryset[start:end]
-            except (ValueError, TypeError):
-                pass
-                
-        return queryset
 
 class ProductDetail(APIView):
     permission_classes = [permissions.AllowAny]

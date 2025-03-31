@@ -15,6 +15,7 @@ from pathlib import Path
 from corsheaders.defaults import default_headers
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -106,7 +107,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000"   # Added for flexibility
 ]
 
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = False
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',  # Lowercase for consistency
@@ -229,3 +230,8 @@ MEDIA_ROOT = BASE_DIR / 'ecommerce' / 'media'
 # Token-based authentication specific
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_REQUIRED = False
+
+
+
+import mimetypes
+mimetypes.add_type("image/jpeg", ".jpg")
