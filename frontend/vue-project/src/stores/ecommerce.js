@@ -490,10 +490,8 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async setDefaultDeliveryLocation(locationId) {
       try {
         await api.setDefaultDeliveryLocation(this.apiInstance, locationId);
-        this.deliveryLocations = this.deliveryfiLocations.map(loc => ({
-          ...loc,
-          is_default: loc.id === locationId,  // Update is_default field
-        }));
+        await this.fetchDeliveryLocations();
+        console.log('Updated deliveryLocations:', this.deliveryLocations);
       } catch (error) {
         throw new Error(error.message || 'Failed to set default delivery location');
       }
