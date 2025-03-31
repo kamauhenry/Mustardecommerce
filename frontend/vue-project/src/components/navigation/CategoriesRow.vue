@@ -63,6 +63,7 @@ const categoryGroupsComputed = computed(() => {
   /* font-size: 1.25rem; Matches the first code's category-title */
   text-transform: uppercase;
   margin: 0;
+  color: #f28c38;
 }
 
 .category-list-p {

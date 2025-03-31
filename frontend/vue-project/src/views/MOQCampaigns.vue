@@ -1,6 +1,7 @@
 <template>
   <MainLayout>
     <div class="all-products">
+      <h1 class="page-title">MOQ Campaigns</h1>
       <!-- Filters row -->
       <div class="filters-row flex flex-wrap gap-2 mb-6">
         <div class="filter-group flex items-center">
@@ -174,7 +175,6 @@ export default {
 <style scoped>
 .all-products {
   font-family: 'Roboto', sans-serif;
-  padding: 12px;
 }
 
 /* Filters row */

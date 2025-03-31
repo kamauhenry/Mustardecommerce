@@ -53,6 +53,8 @@ class DeliveryLocation(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
+    description = models.TextField(blank=True, null=True)  # Add description field
+    image = models.ImageField(upload_to='category_images/', blank=True, null=True)  # Add image field
     
     class Meta:
         ordering = ('name',)

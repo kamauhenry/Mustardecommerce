@@ -1,26 +1,26 @@
 <template>
   <MainLayout>
     <div class="orders-container">
-      <h1 class="page-title">Your Orders</h1>
-      
+      <h1 class="page-title">Orders</h1>
+
       <div v-if="!store.isAuthenticated" class="auth-message">
         Please login to view your orders
       </div>
-      
+
       <div v-else>
         <div v-if="store.loading.orders" class="loading-state">
           <div class="spinner"></div>
           <p>Loading orders...</p>
         </div>
-        
+
         <div v-else-if="store.error.orders" class="error-state">
           {{ store.error.orders }}
         </div>
-        
+
         <div v-else-if="store.orders.length" class="orders-grid">
-          <div 
-            v-for="order in store.orders" 
-            :key="order.id" 
+          <div
+            v-for="order in store.orders"
+            :key="order.id"
             class="order-card"
           >
             <div class="order-header">
@@ -29,28 +29,28 @@
                 {{ new Date(order.created_at).toLocaleDateString() }}
               </span>
             </div>
-            
+
             <div class="order-items">
-              <div 
-                v-for="item in order.items" 
-                :key="item.id" 
+              <div
+                v-for="item in order.items"
+                :key="item.id"
                 class="order-item"
               >
-                <img 
-                  :src="item.product.image" 
-                  :alt="item.product.name" 
+                <img
+                  :src="item.product.image"
+                  :alt="item.product.name"
                   class="product-image"
                 />
                 <div class="product-details">
                   <h3>{{ item.product.name }}</h3>
                   <p>
-                    Quantity: {{ item.quantity }} 
+                    Quantity: {{ item.quantity }}
                     | Price: KES {{ (item.price * item.quantity).toFixed(2) }}
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div class="order-status">
               <div class="status-badge payment-status">
                 Payment: {{ order.payment_status }}
@@ -59,11 +59,11 @@
                 Delivery: {{ order.delivery_status }}
               </div>
             </div>
-            
+
 
           </div>
         </div>
-        
+
         <div v-else class="no-orders">
           You have no orders yet.
         </div>
@@ -90,17 +90,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.orders-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.page-title {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
 .orders-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
