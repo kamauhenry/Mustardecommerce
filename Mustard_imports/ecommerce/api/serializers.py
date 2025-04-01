@@ -289,3 +289,10 @@ class MOQRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ['id', 'order', 'amount', 'method', 'status', 'created_at']
+        read_only_fields = ['status']

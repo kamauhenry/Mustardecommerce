@@ -50,6 +50,15 @@ class DeliveryLocation(models.Model):
         super().save(*args, **kwargs)
 
 
+class Supplier(models.Model):
+    name = models.CharField(max_length=255)
+    contact_email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+        
 class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
