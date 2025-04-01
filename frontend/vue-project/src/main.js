@@ -18,4 +18,22 @@ app.use(Toast, {
   maxToasts: 20,
   newestOnTop: true,
 });
+
+// Provide the $toast instance to all components
+app.provide('$toast', app.config.globalProperties.$toast);
+
+// Load Google Analytics based on cookie consent
+if (localStorage.getItem('cookieConsent') === 'accepted') {
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = 'https://www.googletagmanager.com/gtag/js?id=G-4HWLRPEN7Y';
+  document.head.appendChild(script);
+
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  gtag('js', new Date());
+  gtag('config', 'G-4HWLRPEN7Y');
+}
 app.mount('#app');

@@ -17,8 +17,8 @@
           <li><router-link to="/about" class="footer-router-link">About Us</router-link></li>
           <li><router-link to="/contact" class="footer-router-link">Contact Us</router-link></li>
           <li><router-link to="/terms" class="footer-router-link">Terms of Service</router-link></li>
-          <li><router-link to="/privacy" class="footer-router-link">Privacy Policy</router-link></li>
-          <li><router-link to="/cookies" class="footer-router-link">Cookie Policy</router-link></li>
+          <li><router-link to="/privacy-policy" class="footer-router-link">Privacy Policy</router-link></li>
+          <li><router-link to="/cookie-policy" class="footer-router-link">Cookie Policy</router-link></li>
         </ul>
       </div>
 
@@ -37,10 +37,67 @@
   </footer>
 </template>
 
-<script setup>
-import { ref } from 'vue';
+<script>
+import { toast } from 'vue3-toastify';
 
-const currentYear = ref(new Date().getFullYear());
+export default {
+  name: 'MainLayout',
+  data() {
+    return {
+      currentYear: new Date().getFullYear(), // Store the current year
+    };
+  },
+  methods: {
+    showCookieConsent() {
+      // Check if the user has already made a choice
+      const consent = localStorage.getItem('cookieConsent');
+      if (consent) return; // If consent exists, don't show the popup
+
+      // Show the cookie consent popup
+      toast(
+        `
+          <div class="cookie-consent">
+            <p>We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <a href="/cookie-policy" target="_blank">Cookie Policy</a>.</p>
+            <div class="cookie-buttons">
+              <button id="accept-cookies">Accept</button>
+              <button id="decline-cookies">Decline</button>
+            </div>
+          </div>
+        `,
+        {
+          dangerouslyHTMLString: true, // Allow HTML in the toast message
+          position: toast.POSITION.BOTTOM_CENTER,
+          autoClose: false, // Keep the popup open until the user makes a choice
+          closeButton: false, // Disable the default close button
+          onOpen: () => {
+            // Add event listeners to the buttons after the toast is rendered
+            document.getElementById('accept-cookies').addEventListener('click', () => {
+              localStorage.setItem('cookieConsent', 'accepted');
+              toast.dismiss(); // Close the popup
+              toast.success('Cookies accepted!', { autoClose: 3000 });
+              window.location.reload(); // Reload to apply changes (e.g., load GA)
+            });
+
+            document.getElementById('decline-cookies').addEventListener('click', () => {
+              localStorage.setItem('cookieConsent', 'declined');
+              toast.dismiss(); // Close the popup
+              toast.info('Cookies declined. Some features may be limited.', { autoClose: 3000 });
+              window.location.reload(); // Reload to apply changes
+            });
+          },
+        }
+      );
+    },
+    manageCookies() {
+      // Clear the existing consent and show the popup again
+      localStorage.removeItem('cookieConsent');
+      this.showCookieConsent();
+    },
+  },
+  mounted() {
+    this.showCookieConsent();
+  },
+};
 </script>
 
 <style scoped>
@@ -134,6 +191,59 @@ h3 {
 .copyright {
   margin-top: 1rem;
   font-size: 0.875rem;
+}
+
+/* Style the cookie consent popup */
+.cookie-consent {
+  text-align: center;
+  padding: 1rem;
+}
+
+.cookie-consent p {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cookie-consent a {
+  color: #007bff;
+  text-decoration: underline;
+}
+
+.cookie-consent a:hover {
+  color: #0056b3;
+}
+
+.cookie-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.cookie-buttons button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+#accept-cookies {
+  background-color: #28a745;
+  color: #fff;
+}
+
+#accept-cookies:hover {
+  background-color: #218838;
+}
+
+#decline-cookies {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+#decline-cookies:hover {
+  background-color: #c82333;
 }
 
 /* Responsive Design */

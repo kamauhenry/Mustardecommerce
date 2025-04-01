@@ -1,7 +1,7 @@
 <template>
   <MainLayout>
     <div class="cart-container">
-      <h1 class="cart-title">Your Cart ({{ cartItemCount }} items)</h1>
+      <h2 class="cart-title">Your Cart ({{ cartItemCount }} items)</h2>
 
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
@@ -53,7 +53,6 @@
   </MainLayout>
 </template>
 
-
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -71,10 +70,8 @@ export default {
 
     // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
-    const cartItems = ref([]);
-    const cartItemCount = computed(() =>
-      cartItems.value.reduce((total, item) => total + item.quantity, 0)
-    );
+    const cartItems = computed(() => store.cartItems); // Use store.cartItems
+    const cartItemCount = computed(() => store.cartItemCount); // Use store.cartItemCount
     const cartSubtotal = computed(() =>
       cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0)
     );
@@ -87,39 +84,13 @@ export default {
     const goToLogin = () => router.push('/login');
     const goToProducts = () => router.push('/products');
 
-    // Fetch cart using store.apiInstance
-    const fetchCart = async () => {
-      if (!store.userId) {
-        console.error('User ID is not set');
-        return { error: 'User ID is not set' };
-      }
-      try {
-        const response = await store.apiInstance.get(`/users/${store.userId}/cart/`);
-        console.log('Cart data:', response.data);
-        return { data: response.data };
-      } catch (err) {
-        if (err.response && err.response.status === 401) {
-          return { error: 'Authentication failed. Please log in again.' };
-        } else {
-          return { error: 'Failed to fetch cart' };
-        }
-      }
-    };
-
-    // Load cart data, ensuring user info is fetched first
+    // Load cart data
     const loadCart = async () => {
       loading.value = true;
       try {
-        // Fetch user info to ensure userId and apiInstance are set
         await store.fetchCurrentUserInfo();
-        const result = await fetchCart();
-        if (result.error) {
-          error.value = result.error;
-        } else {
-          store.cart = result.data;
-          cartItems.value = result.data.items || [];
-          error.value = null;
-        }
+        await store.fetchCart();
+        error.value = null;
       } catch (err) {
         error.value = 'Please login to view your cart';
         console.error(err);
@@ -128,7 +99,7 @@ export default {
       }
     };
 
-    // Retry fetch by reusing loadCart
+    // Retry fetch
     const retryFetch = () => loadCart();
 
     // Update item quantity
@@ -138,9 +109,9 @@ export default {
         if (!store.apiInstance) store.initializeApiInstance();
         await store.apiInstance.post(`/cart-items/${itemId}/update_cart_item_quantity/`, {
           quantity: newQuantity,
-          cart_id: store.cart.id
+          cart_id: store.cart.id,
         });
-        await fetchCart();
+        await store.fetchCart(); // Refresh cart
       } catch (err) {
         console.error('Failed to update quantity:', err);
       }
@@ -151,9 +122,9 @@ export default {
       try {
         if (!store.apiInstance) store.initializeApiInstance();
         await store.apiInstance.post(`/carts/${store.cart.id}/remove_item/`, {
-          item_id: itemId
+          item_id: itemId,
         });
-        await fetchCart();
+        await store.fetchCart(); // Refresh cart
       } catch (err) {
         console.error('Failed to remove item:', err);
       }
@@ -165,13 +136,13 @@ export default {
       try {
         const checkoutData = {
           shipping_method: 'standard',
-          shipping_address: store.user?.location || 'shop pick uo',
-          payment_method: 'mpesa'
+          shipping_address: store.currentUser?.location || 'shop pick up',
+          payment_method: 'mpesa',
         };
         const orderResponse = await store.checkout(checkoutData);
         router.push({
           name: 'Checkout',
-          query: { orderId: orderResponse.id }
+          query: { orderId: orderResponse.id },
         });
       } catch (err) {
         console.error('Checkout process failed:', err.message);
@@ -193,12 +164,11 @@ export default {
       formatPrice,
       goToLogin,
       goToProducts,
-      fetchCart,
-      loadCart,
       retryFetch,
       updateQuantity,
       removeItem,
-      checkout
+      checkout,
+      grey,
     };
   },
   data: function() {
@@ -208,7 +178,6 @@ export default {
   }
 };
 </script>
-
 
 <style scoped>
 .cart-container {
@@ -390,5 +359,4 @@ button {
 .remove-button:hover {
   color: #e74c3c;
 }
-
 </style>

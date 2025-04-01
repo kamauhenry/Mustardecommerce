@@ -13,6 +13,8 @@ import CompletedOrders from '@/views/CompletedOrders.vue';
 import SearchResults from '../views/SearchResults.vue';
 import Confirmation from '@/views/Confirmation.vue';
 import Checkout from '@/views/Checkout.vue';
+import PrivacyPolicy from '@/pages/PrivacyPolicy.vue';
+import CookiePolicy from '@/pages/CookiePolicy.vue';
 
 const routes = [
   { path: '/', component: Home },
@@ -39,6 +41,16 @@ const routes = [
   { path: '/category/:categorySlug', component: CategoryPage, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },
   { path: '/product/:categorySlug/:productSlug',name: 'product-detail', component: ProductDetails, props: true },
+  {
+    path: '/privacy-policy',
+    name: 'PrivacyPolicy',
+    component: PrivacyPolicy,
+  },
+  {
+    path: '/cookie-policy',
+    name: 'CookiePolicy',
+    component: CookiePolicy,
+  },
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
 

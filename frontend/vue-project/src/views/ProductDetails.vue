@@ -45,12 +45,10 @@
               <div class="product-images">
                 <div class="main-image-container">
                   <img
-                    v-if="product?.thumbnail"
-                    :src="product.thumbnail"
+                    :src="product?.thumbnail || placeholderImage"
                     class="main-image"
                     alt="Main Product Image"
                   />
-                  <div v-else class="no-image"></div>
                 </div>
                 <div class="thumbnails">
                   <img
@@ -76,7 +74,7 @@
               <div class="order-details">
                 <div class="quantity">
                   <label>Total Quantity</label>
-                  <input type="number" id="quantity" v-model="quantity" min="1" />
+                  <input type="number" v-model="quantity" min="1" />
                 </div>
 
                 <div class="attributes">
@@ -102,7 +100,7 @@
                     </div>
                     <div class="attribute">
                       <label>Quantity</label>
-                      <input type="number" id="attribute-quantity" v-model="quantity" min="1" />
+                      <input type="number" v-model="quantity" min="1" />
                     </div>
                   </div>
                 </div>
@@ -121,7 +119,7 @@
 
                 <div class="promo-code">
                   <label>Promo Code</label>
-                  <input type="text" id="promoCode" v-model="promoCode" placeholder="Enter promo code" />
+                  <input type="text" v-model="promoCode" placeholder="Enter promo code" />
                 </div>
               </div>
             </div>
@@ -138,35 +136,9 @@
               <p class="moq-info">MOQ Per Person: {{ product?.moq || 'N/A' }} items/bundle</p>
             </div>
 
-            <!-- Size and Color Selection -->
-            <!-- <div class="attributes">
-              <div class="attribute">
-                <label>Size</label>
-                <select v-model="selectedSize">
-                  <option disabled value="">Select Size</option>
-                  <option v-for="size in availableSizes" :key="size" :value="size">
-                    {{ size }}
-                  </option>
-                </select>
-              </div>
-              <div class="attribute">
-                <label>Color</label>
-                <div class="color-options">
-                  <span
-                    v-for="color in availableColors"
-                    :key="color"
-                    :style="{ backgroundColor: color.toLowerCase() }"
-                    :class="{ selected: selectedColor === color }"
-                    @click="selectedColor = color"
-                  ></span>
-                </div>
-              </div>
-            </div> -->
-
             <!-- Add to Cart Button -->
             <div class="control">
               <button class="add-to-cart" @click="handleAddToCart">Add to Cart</button>
-              <!-- <button class="guaranteed">100% Guaranteed Original</button> -->
             </div>
 
             <!-- Rating -->
@@ -188,24 +160,26 @@
   </MainLayout>
 </template>
 
-
 <script>
-import { onMounted, computed, ref } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '../components/navigation/MainLayout.vue';
 
 export default {
-  name: "productDetails",
-  props: { categorySlug: String, productSlug: String },
-  components: {
-    MainLayout,
+  name: 'ProductDetails',
+  components: { MainLayout },
+  props: {
+    categorySlug: { type: String, required: true },
+    productSlug: { type: String, required: true },
   },
   setup(props) {
     const store = useEcommerceStore();
+
+    // Product data
     const productKey = computed(() => `${props.categorySlug}:${props.productSlug}`);
     const product = computed(() => store.productDetails[productKey.value]);
 
-    // Reactive state for form inputs
+    // Form state
     const quantity = ref(1);
     const selectedSize = ref('');
     const selectedColor = ref('');
@@ -216,7 +190,10 @@ export default {
     const activeTab = ref('Description');
     const tabs = ['Description', 'Gallery', 'Review', 'Order'];
 
-    // Computed properties for sizes and colors from variants
+    // Placeholder image
+    const placeholderImage = 'data:image/jpeg;base64,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';
+
+    // Computed properties for sizes and colors
     const availableSizes = computed(() => {
       return [...new Set(product.value?.variants?.map(variant => variant.size) || [])];
     });
@@ -225,12 +202,7 @@ export default {
       return [...new Set(product.value?.variants?.map(variant => variant.color) || [])];
     });
 
-    onMounted(() => {
-      if (!store.productDetails[productKey.value]) {
-        store.fetchProductDetails(props.categorySlug, props.productSlug);
-      }
-    });
-
+    // Compute selected variant ID
     const selectedVariantId = computed(() => {
       if (!product.value?.variants) return null;
       const variant = product.value.variants.find(
@@ -239,15 +211,25 @@ export default {
       return variant ? variant.id : null;
     });
 
+    // Fetch product details and cart on mount
+    onMounted(async () => {
+      // Fetch product details if not already loaded
+      if (!store.productDetails[productKey.value]) {
+        await store.fetchProductDetails(props.categorySlug, props.productSlug);
+      }
+      // Fetch cart to initialize cartItemCount
+      await store.fetchCurrentUserInfo();
+      await store.fetchCart();
+    });
+
+    // Add to cart handler
     const handleAddToCart = async () => {
       try {
-        // Validate size and color selection
         if (!selectedSize.value || !selectedColor.value) {
           alert('Please select both size and color');
           return;
         }
 
-        // Add to cart will handle authentication checks
         await store.addToCart(
           product.value.id,
           selectedVariantId.value,
@@ -257,29 +239,26 @@ export default {
         alert('Product added to cart successfully!');
       } catch (error) {
         console.error('Add to cart error:', error);
-
-        // The store will handle showing the auth modal if needed
         if (error.message === 'Please log in to add items to cart') {
-          // Optional: you can add additional user feedback here
+          // The store will handle showing the auth modal
         }
       }
     };
 
     return {
-      store,
       product,
       quantity,
       selectedSize,
       selectedColor,
-      availableSizes,
-      availableColors,
-      selectedVariantId,
       shippingMethod,
       promoCode,
-      handleAddToCart,
+      availableSizes,
+      availableColors,
       activeTab,
       tabs,
-      showAuthModal: computed(() => store.isAuthModalVisible)
+      placeholderImage,
+      handleAddToCart,
+      showAuthModal: computed(() => store.isAuthModalVisible),
     };
   },
 };
@@ -384,7 +363,7 @@ export default {
 }
 
 .description ul li strong {
-  font-weight: 700;;
+  font-weight: 700;
 }
 
 /* Gallery */
@@ -402,19 +381,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0; /* Grey background if no image */
+  background-color: #f0f0f0;
 }
 
 .main-image {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-}
-
-.no-image {
-  width: 100%;
-  height: 100%;
-  background-color: #f0f0f0;
 }
 
 .thumbnails {
@@ -445,7 +418,6 @@ export default {
 }
 
 .add-review {
-  background-color: #333;
   color: #fff;
   padding: 8px 16px;
   border: none;
@@ -456,7 +428,8 @@ export default {
 }
 
 .add-review:hover {
-  background-color: #555;
+  box-shadow: 0 5px 5px rgba(46, 46, 46, 0.1);
+  transform: translateY(1px);
 }
 
 .reviews p {
@@ -593,42 +566,6 @@ export default {
   margin-top: 5px;
 }
 
-.attributes .attribute {
-  margin-bottom: 15px;
-}
-
-.attributes label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  margin-bottom: 5px;
-}
-
-.attributes select {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.color-options {
-  display: flex;
-  gap: 10px;
-}
-
-.color-options span {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid #ddd;
-  cursor: pointer;
-}
-
-.color-options span.selected {
-  border: 2px solid #333;
-}
-
 .control {
   display: flex;
   flex-direction: column;
@@ -636,7 +573,6 @@ export default {
 }
 
 .add-to-cart {
-  background-color: #333;
   color: #fff;
   padding: 12px;
   border: none;
@@ -648,28 +584,8 @@ export default {
 }
 
 .add-to-cart:hover {
-  background-color: #555;
-}
-
-.guaranteed {
-  /* background-color: #fff; */
-  color: #333;
-  padding: 12px;
-  /* border: 1px solid #333; */
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.guaranteed::before {
-  content: '✔';
-  font-size: 1rem;
+  box-shadow: 0 5px 5px rgba(46, 46, 46, 0.1);
+  transform: translateY(1px);
 }
 
 .rating {
@@ -702,7 +618,6 @@ export default {
 
 .related-products p {
   font-size: 0.9rem;
-  /* color: #666; */
   margin-bottom: 15px;
 }
 

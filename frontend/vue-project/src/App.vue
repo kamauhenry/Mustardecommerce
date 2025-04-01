@@ -105,7 +105,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   }
 }
 
-.category-card, .popup-content, .user-info-section {
+.category-card, .popup-content, .user-info-section, .skeleton-category {
   background-color: var(--categories-bg);
 }
 
@@ -121,7 +121,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background: var(--sidebar-hover);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title {
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title, .policy-section h2 {
   color: var(--text-color-thirteen);
 }
 
@@ -150,7 +150,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 }
 
-.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li {
+.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li, .policy-section p, .policy-section li {
   color: var(--campaigns-bg);
 }
 
@@ -214,6 +214,10 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 .faq-question:hover, .faq-question.active {
   background-color: var(--faq-question-bg);
+}
+
+.add-to-cart, .add-review {
+  background-color: #f28c38;
 }
 
 #app {

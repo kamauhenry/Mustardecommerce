@@ -129,6 +129,7 @@ const categories = computed(() => store.allCategoriesWithProducts);
   align-items: center;
   justify-content: space-between;
   padding: 0 1rem;
+  z-index: 99;
 }
 
 .nav-bar-one {

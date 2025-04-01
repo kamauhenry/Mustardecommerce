@@ -15,7 +15,7 @@ export default defineConfig({
   },
   base: '/static/', // Vite-generated assets use Django's static URL
   build: {
-    outDir: '../vue-project/dist', // The output goes into frontend/dist
+    outDir: 'dist', // The output goes into frontend/dist
     assetsDir: 'assets',
     manifest: true, // Generates manifest.json for Django
     rollupOptions: {

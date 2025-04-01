@@ -76,6 +76,7 @@ proj_struct.txt
 # Dist
 node_modules
 dist/
+staticfiles/
 
 # IDE
 .vscode/*
