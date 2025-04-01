@@ -73,6 +73,13 @@ class Category(models.Model):
 
     def get_absolute_url(self):
         return f'/{self.slug}'
+    
+class CategoryImage(models.Model):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='category_images/', null=True, blank=True)
+
+    def __str__(self):
+        return f"Image for {self.category.name}"
 
     def get_primary_image(self):
         """Get the first image as a fallback"""

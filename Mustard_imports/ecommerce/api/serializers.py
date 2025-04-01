@@ -195,29 +195,23 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class CategoryImageSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-    
-
     class Meta:
         model = CategoryImage
-        fields = ['id', 'image']
-
-    def get_image(self, obj):
-        return obj.get_image()
+        fields = ['image']
 
 class CategorySerializer(serializers.ModelSerializer):
-    images = CategoryImageSerializer(many=True, read_only=True)
-    # Optional: For compatibility with a single-image setup
     image = serializers.SerializerMethodField()
-   
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description',  'images', 'image']
+        fields = ['id', 'name', 'slug', 'description', 'is_active', 'image']
 
     def get_image(self, obj):
-        return obj.get_primary_image()
-
+        request = self.context.get('request')
+        image = obj.images.first()
+        if image and image.image:
+            return request.build_absolute_uri(image.image.url) if request else image.image.url
+        return None
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -242,17 +236,15 @@ class ProductSerializer(serializers.ModelSerializer):
     category_slug = serializers.SlugField(source='category.slug', read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
-    images = ProductImageSerializer(many=True, read_only=True)
-    picture = serializers.SerializerMethodField()
-    thumbnail = serializers.SerializerMethodField()
+    # thumbnail = serializers.SerializerMethodField()
     variants  = ProductVariantSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'description', 'price', 'below_moq_price', 'rating',
-            'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'thumbnail',
-            'category_slug', 'created_at', 'variants','images', 'picture', 'thumbnail'
+            'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
+            'moq', 'moq_per_person', 'moq_status', 'moq_progress',
+            'category_slug', 'created_at', 'variants'
         ]
 
     def get_moq_progress(self, obj):
@@ -264,11 +256,12 @@ class ProductSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_picture(self, obj):
-        return obj.get_primary_image()
-
-    def get_thumbnail(self, obj):
-        return obj.get_primary_thumbnail()
+    # def get_thumbnail(self, obj):
+    #     if obj.thumbnail and hasattr(obj.thumbnail, 'url'):
+    #         return settings.SITE_URL + obj.thumbnail.url.lstrip('/')
+    #     elif obj.picture and hasattr(obj.picture, 'url'):
+    #         return settings.SITE_URL + obj.picture.url.lstrip('/')
+    #     return ''
 
 
 class CategoriesProductsSerializer(serializers.ModelSerializer):

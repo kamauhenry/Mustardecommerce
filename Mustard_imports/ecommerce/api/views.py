@@ -545,41 +545,46 @@ class CategoryProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, category_slug, *args, **kwargs):
-        # Define a unique cache key based on the slug
-        cache_key = f'category_products_{category_slug}'
-        
-        # Try to get cached result
-        result = cache.get(cache_key)
-        
-        if not result:
+        cache_key = f'category_products_{category_slug}_page_{request.query_params.get("page", 1)}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        try:
+            # Fetch the category, ensuring it's active
+            category = get_object_or_404(Category, slug=category_slug, is_active=True)
+            products = Product.objects.filter(category=category).order_by('-created_at')
+
+            page = int(request.query_params.get('page', 1))
+            per_page = int(request.query_params.get('per_page', 5))
+            total = products.count()
+            start = (page - 1) * per_page
+            end = start + per_page
+            products = products[start:end]
+
+            # Serialize category with request context
+            category_serializer = CategorySerializer(category, context={'request': request})
+            product_serializer = ProductSerializer(products, many=True, context={'request': request})
+
+            response_data = {
+                'category': category_serializer.data,
+                'products': product_serializer.data,
+                'total': total,
+            }
+
             try:
-                # Fetch category and products
-                category = Category.objects.get(slug=category_slug, is_active=True)
-                products = Product.objects.filter(category=category)
-                total = products.count()
-                
-                # Serialize data
-                category_serializer = CategorySerializer(category)
-                product_serializer = ProductSerializer(products, many=True)
-                
-                # Build the response
-                result = {
-                    "category": category_serializer.data,
-                    "products": product_serializer.data,
-                    'total': total,
-                }
-                
-                # Cache the result for 15 minutes
-                cache.set(cache_key, result, 60 * 15)
-            
-            except Category.DoesNotExist:
-                return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
-            except Exception as e:
-                return Response({"error": f"Server error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response(result)
+                cache.set(cache_key, response_data, timeout=60 * 15)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
 
-
+            return Response(response_data)
+        except Http404:
+            return Response({'error': 'Category not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CategoriesWithProductsViewSet(APIView):
     permission_classes = [permissions.AllowAny]
@@ -598,9 +603,6 @@ class CategoryListView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
 
 
 class AllCategoriesWithProductsView(APIView):
