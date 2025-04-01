@@ -54,7 +54,6 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
     description = models.TextField(blank=True, null=True)  # Add description field
-    image = models.ImageField(upload_to='category_images/', blank=True, null=True)  # Add image field
     is_active = models.BooleanField(default=True)  # Added is_active field
     
     class Meta:
@@ -65,6 +64,22 @@ class Category(models.Model):
 
     def get_absolute_url(self):
         return f'/{self.slug}'
+
+    def get_primary_image(self):
+        """Get the first image as a fallback"""
+        first_image = self.images.first()
+        return first_image.get_image() if first_image else ''
+
+
+class CategoryImage(models.Model):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='category_images/', blank=True, null=True)
+    
+
+    def get_image(self):
+        if self.image:
+            return 'http://127.0.0.1:8000/' + self.image.url
+        return ''
 
 
 class Product(models.Model):
@@ -83,10 +98,9 @@ class Product(models.Model):
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='active')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
-    picture = models.ImageField(upload_to='product_images/', blank=True, null=True)
-    thumbnail = models.ImageField(upload_to='product_images/', blank=True, null=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class  Meta:
@@ -119,42 +133,51 @@ class Product(models.Model):
     def get_absolute_url(self):
         return f'/{self.category.slug}/{self.slug}/'
 
+    def get_primary_image(self):
+        """Get the first image as a fallback for compatibility"""
+        first_image = self.images.first()
+        return first_image.get_image() if first_image else ''
+
+    def get_primary_thumbnail(self):
+        """Get the first thumbnail as a fallback for compatibility"""
+        first_image = self.images.first()
+        return first_image.get_thumbnail() if first_image else ''
+
+
+    
+class ProductImage(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='product_images/', blank=True, null=True)
+    thumbnail = models.ImageField(upload_to='product_thumbnails/', blank=True, null=True)
+
     def get_image(self):
-        if self.picture:
-            return 'http://127.0.0.1:8000/' + self.picture.url
+        if self.image:
+            return 'http://127.0.0.1:8000/' + self.image.url
         return ''
 
     def get_thumbnail(self):
         if self.thumbnail:
-        # Use Django's built-in URL construction
             from django.conf import settings
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
-        else:
-            if self.picture:
-                self.thumbnail = self.make_thumbnail(self.picture)
-                self.save()
-                
-                from django.conf import settings
-                return settings.SITE_URL + self.thumbnail.url.lstrip('/')
-            else:
-                return ''
-    
-    def make_thumbnail(self, picture, size=(200, 100)):
-        img = Image.open(picture)
+        elif self.image:
+            self.thumbnail = self.make_thumbnail(self.image)
+            self.save()
+            from django.conf import settings
+            return settings.SITE_URL + self.thumbnail.url.lstrip('/')
+        return ''
+
+    def make_thumbnail(self, image, size=(200, 100)):
+        img = Image.open(image)
         img.convert('RGB')
         img.thumbnail(size)
 
         thumb_io = BytesIO()
         img.save(thumb_io, 'JPEG', quality=85)
         
-        # Use only the base filename, not the full path
-    
-        import os
-        filename = os.path.basename(picture.name)
+        filename = os.path.basename(image.name)
         thumbnail = File(thumb_io, name=filename)
-
         return thumbnail
-    
+
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
