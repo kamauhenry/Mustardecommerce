@@ -9,9 +9,9 @@
       class="search-input"
       @keyup.enter="search"
     />
-    <img 
-      src="../../assets/images/211817_search_strong_icon.png" 
-      alt="Search Icon" 
+    <img
+      src="../../assets/images/211817_search_strong_icon.png"
+      alt="Search Icon"
       class="search-icon"
       @click="search"
     />
@@ -39,12 +39,12 @@ export default {
         const response = await fetch(`http://localhost:8000/api/products/search/?search=${encodeURIComponent(query.value)}`)
         if (!response.ok) throw new Error('Failed to fetch products')
         const data = await response.json()
-        
+
         // Store results and total in Pinia store
         ecommerceStore.setSearchResults(data.results || [])
         ecommerceStore.setTotalResults(data.count || 0) // Assuming API returns a count
         ecommerceStore.addRecentSearch(query.value)
-        
+
         // Navigate to results page
         router.push({
           name: 'search-results',
@@ -73,14 +73,14 @@ export default {
   display: flex;
   align-items: center;
   min-width: 48vw;
-  background-color: var(--vt-c-white);
+  /* background-color: var(--vt-c-white); */
   border-radius: 100px;
   padding: .1rem 1.1rem;
-  border: 1px solid transparent;
+  /* border: 1px solid transparent; */
 }
 
 .search-input {
-  background-color: var(--vt-c-white);
+  /* background-color: var(--vt-c-white); */
   flex: 1;
   border: none;
   padding: .8rem;
@@ -101,9 +101,7 @@ export default {
 }
 
 .search-input {
-  background-color: var(--vt-c-white);
   flex: 1;
-  border: none;
   padding: .8rem 1rem;
   border-radius: 25px 0 0 25px;
   outline: none;
@@ -137,13 +135,13 @@ export default {
   }
 }
 
-.search-button:hover {
+/* .search-button:hover {
   background-color: #f0f0f0;
 }
 
 .search-button:active {
   background-color: #e0e0e0;
-}
+} */
 
 .search-icon {
   width: 24px;

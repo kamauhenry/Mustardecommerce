@@ -60,7 +60,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --faq-question-bg: var(--vt-c-black);
   --faq-answer-bg: var(--vt-c-black-mute);
   --campaigns-bg: var(--vt-c-white-soft);
-  --tabs-bg: #3a3a3a;
+  --tabs-bg: #303030;
   --breadcrumb-bg: #bdbdbd;
   --sidebar-hover: #363636;
 }
@@ -90,7 +90,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   --sidebar-hover: #dddddd;
 }
 
-.navbar, .categories, .product-campaigns, .product-searches {
+.categories, .product-campaigns, .product-searches {
   background-color: var(--categories-bg);
   transition: background-color 0.3s, color 0.3s;
 }
@@ -105,12 +105,20 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   }
 }
 
-.category-card, .popup-content, .user-info-section, .skeleton-category {
+.category-card, .popup-content, .user-info-section, .skeleton-category, .order-item {
   background-color: var(--categories-bg);
 }
 
-.product-card, .user-info, .delivery-locations, .product-right, .sidebar {
+.product-card, .user-info, .delivery-locations, .product-right, .sidebar, .navbar, .search-group, .search-input, .search-container {
   background-color: var(--bg-color-category-card);
+}
+
+.search-group, .search-container {
+  border: 1px solid var(--tabs-bg);
+}
+
+.search-input {
+  color: var(--campaigns-bg);
 }
 
 .sidebar {
@@ -125,7 +133,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   color: var(--text-color-thirteen);
 }
 
-.tabs, .locations-list li {
+.tabs, .locations-list li, .status-tabs {
   border-bottom: 1px solid var(--tabs-bg);
 }
 
@@ -154,7 +162,11 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   color: var(--campaigns-bg);
 }
 
-.breadcrumb, .breadcrumb a, .breadcrumb span {
+.search-input, .search-button {
+  border: 1px solid var(--campaigns-bg);
+}
+
+.breadcrumb, .breadcrumb a, .breadcrumb span, .order-count {
   color: var(--breadcrumb-bg);
 }
 
