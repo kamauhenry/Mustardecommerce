@@ -565,15 +565,13 @@ class CategoryProductsView(APIView):
             end = start + per_page
             products = products[start:end]
 
-            serializer = ProductSerializer(products, many=True, context={'request': request})
+            # Serialize category with request context
+            category_serializer = CategorySerializer(category, context={'request': request})
+            product_serializer = ProductSerializer(products, many=True, context={'request': request})
+
             response_data = {
-                'category': {
-                    'slug': category.slug,
-                    'name': category.name,
-                    'description': category.description,
-                    'image': request.build_absolute_uri(category.image.url) if category.image else None
-                },
-                'products': serializer.data,
+                'category': category_serializer.data,
+                'products': product_serializer.data,
                 'total': total,
             }
 
@@ -605,9 +603,6 @@ class CategoryListView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
 
 
 class AllCategoriesWithProductsView(APIView):

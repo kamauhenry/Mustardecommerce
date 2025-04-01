@@ -54,7 +54,6 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
     description = models.TextField(blank=True, null=True)  # Add description field
-    image = models.ImageField(upload_to='category_images/', blank=True, null=True)  # Add image field
     is_active = models.BooleanField(default=True)  # Added is_active field
     
     class Meta:
@@ -65,6 +64,13 @@ class Category(models.Model):
 
     def get_absolute_url(self):
         return f'/{self.slug}'
+    
+class CategoryImage(models.Model):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='category_images/', null=True, blank=True)
+
+    def __str__(self):
+        return f"Image for {self.category.name}"
 
 
 class Product(models.Model):
@@ -83,8 +89,6 @@ class Product(models.Model):
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='active')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
-    picture = models.ImageField(upload_to='product_images/', blank=True, null=True)
-    thumbnail = models.ImageField(upload_to='product_images/', blank=True, null=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
