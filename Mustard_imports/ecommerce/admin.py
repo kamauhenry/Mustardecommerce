@@ -11,7 +11,11 @@ admin.site.register(CustomerReview)
 admin.site.register(MOQRequest)
 admin.site.register(Cart)
 admin.site.register(CartItem)
+admin.site.register(DeliveryLocation)
+admin.site.register(Payment)
+admin.site.register(CategoryImage)
+admin.site.register(ProductImage)
+admin.site.register(OrderItem)
+admin.site.register(Supplier)
 
-
-
-# Register your models here.
+    # Register your models here.
