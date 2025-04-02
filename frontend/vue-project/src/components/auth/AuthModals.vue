@@ -1,12 +1,15 @@
 <template>
-  <div>
+  <div class="auth-buttons">
     <template v-if="store.isAuthenticated">
-      <span>Welcome, User {{ store.userId }}</span>
-      <button @click="store.logout">Logout</button>
+      <span class="welcome-text">Welcome, User {{ store.userId }}</span>
+      <button @click="store.logout" class="icon-button">
+        <LogoutIcon />
+      </button>
     </template>
     <template v-else>
-      <button @click="openLoginModal">Login</button>
-      <button @click="openRegisterModal">Register</button>
+      <button @click="openLoginModal" class="icon-button">
+        <LoginIcon />
+      </button>
     </template>
 
     <Modal :isOpen="showLoginModal" @close="closeModals">
@@ -66,9 +69,13 @@
 <script setup>
 import { ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
-import Modal from './Modal.vue';
-import LoginModal from './LoginModal.vue';
-import RegisterModal from './RegisterModal.vue';
+import Modal from '@/components/auth/Modal.vue';
+import LoginModal from '@/components/auth/LoginModal.vue';
+import RegisterModal from '@/components/auth/RegisterModal.vue';
+
+// Import the provided SVG icons as components
+import LoginIcon from '@/components/icons/IconLogin.vue';
+import LogoutIcon from '@/components/icons/IconLogout.vue';
 
 const store = useEcommerceStore();
 const showLoginModal = ref(false);
@@ -101,6 +108,17 @@ const closeModals = () => {
 </script>
 
 <style scoped>
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.welcome-text {
+  font-size: 0.9rem;
+  color: #333;
+}
+
 .modal-header {
   display: flex;
   flex-direction: column;
@@ -118,7 +136,7 @@ const closeModals = () => {
   display: flex;
   justify-content: center;
   gap: 0;
-  width: 100%;
+  width: 70%;
 }
 
 .tab {
@@ -127,19 +145,57 @@ const closeModals = () => {
   font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
-  background-color: #f28c38; /* Orange to match the screenshot */
+  color: #c9c9c9;
+  background-color: #ebebeb; /* Orange to match the screenshot */
   border: none;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
 
 .tab.active {
-  background-color: #fff;
-  color: #f28c38;
+  background-color: #e2cf1f;
+  color: #ffffff;
 }
 
 .tab:hover {
-  background-color: #e07b30; /* Slightly darker orange on hover */
+  background-color: #e2ce1f8f; /* Slightly darker orange on hover */
+}
+
+/* Style for the icon buttons */
+.icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.icon-button svg {
+  display: flex;
+  justify-content: center;
+  width: 1.5rem;
+  height: auto;
+  fill: #838636; /* Matches the fill color of the provided SVGs */
+  transition: fill 0.3s ease;
+}
+
+.icon-button:hover svg {
+  fill: #f28c38; /* Orange on hover to match the theme */
+}
+
+/* Style for the text button (Register) */
+.text-button {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #838636;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.text-button:hover {
+  color: #f28c38; /* Orange on hover to match the theme */
 }
 </style>

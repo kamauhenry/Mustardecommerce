@@ -6,7 +6,7 @@
       </button>
       <div class="logo">
         <img
-          src="../../assets/images/mustard-imports.png"
+          :src="logoImage"
           alt="Mustard Imports Logo"
           class="main-logo"
         />
@@ -30,7 +30,7 @@
   <div class="search-container">
     <input type="text" v-model="query" placeholder="Search..." class="search-input" />
     <img
-      src="../../assets/images/211817_search_strong_icon.png"
+      :src="searchIcon"
       alt="Search Icon"
       class="search-icon"
     />
@@ -42,7 +42,7 @@
     <nav>
       <div class="logo-image">
         <img
-          src="@/assets/images/mustard-imports.png"
+          :src="logoImage"
           alt="Mustard Imports Logo"
           class="main-logo"
         />
@@ -71,7 +71,11 @@
       </div>
       <ul v-else class="category-list">
         <li v-for="category in categories" :key="category.id">
-          <router-link :to="`/category/${category.slug}/products`" class="category-link">
+          <router-link
+            :to="`/category/${category.slug}/products`"
+            class="category-link"
+            @click="trackCategoryClick(category)"
+          >
             {{ category.name }}
           </router-link>
         </li>
@@ -90,6 +94,9 @@ import AuthModals from '../auth/AuthModals.vue';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { trackCategory } from '@/utils/tracking'; // Import the tracking utility
+import logoImage from '@/assets/images/mustard-imports.png'; // Static import for logo
+import searchIcon from '@/assets/images/211817_search_strong_icon.png'; // Static import for search icon
 
 const route = useRoute();
 const store = useEcommerceStore();
@@ -118,6 +125,11 @@ onUnmounted(() => {
 });
 
 const categories = computed(() => store.allCategoriesWithProducts);
+
+// Track category click
+const trackCategoryClick = (category) => {
+  trackCategory(category);
+};
 </script>
 
 <style scoped>

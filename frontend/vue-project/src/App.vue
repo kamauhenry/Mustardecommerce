@@ -27,6 +27,10 @@
   --bg-color-about-section: var(--bg-color-about-section-2);
   --bg-color-about-section-card: var(--vt-c-black-mute);
   --bg-color-category-card: var(--vt-c-black-soft);
+  --faq-bg: var(--vt-c-black-soft);
+  --faq-question-bg: var(--vt-c-black);
+  --faq-answer-bg: var(--vt-c-black-mute);
+  --campaigns-bg: var(--vt-c-white-soft);
 }
 
 [data-theme="light"] {
@@ -45,6 +49,10 @@
   --bg-color-about-section: var(--bg-color-about-section-1);
   --bg-color-about-section-card: var(--vt-c-white);
   --bg-color-category-card: var(); /* light grey */
+  --faq-bg: var(--vt-c-white);
+  --faq-question-bg: var(--background-color-three);
+  --faq-answer-bg: var(--vt-c-white-soft);
+  --campaigns-bg: var(--vt-c-black-soft);
 }
 
 .navbar, .categories, .product-campaigns, .product-searches {
@@ -70,7 +78,7 @@
   background-color: var(--bg-color-category-card);
 }
 
-.category-p, .about-h2 {
+.category-p, .about-h2, .category-title {
   color: var(--text-color-thirteen);
 }
 
@@ -88,7 +96,7 @@
 }
 
 .campaign-p, .search-p {
-  color: var(--text-color-fourteen);
+  color: var(--campaigns-bg);
   font-weight: 700;
 }
 
@@ -112,6 +120,28 @@
 
 .team-card, .testimonial-card {
   background-color: var(--bg-color-about-section-card);
+}
+
+.faq-section {
+  background-color: var(--faq-bg);
+}
+
+.faq-question {
+  background-color: var(--faq-question-bg);
+  color: var(--text-color-fourteen);
+}
+
+.faq-answer {
+  background-color: var(--faq-answer-bg);
+  color: var(--text-color-fourteen);
+}
+
+.faq-question:hover, .faq-question.active {
+  background-color: var(--faq-question-bg);
+}
+
+.share-product-p, .rating-p, .product-description-p, .reviews-p, .summary-details, .no-products, .order-form {
+  color: var(--campaigns-bg);
 }
 
 #app {

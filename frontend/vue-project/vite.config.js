@@ -3,39 +3,80 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 
-export default defineConfig({
-  plugins: [
-    vue(),
-    vueDevTools(),
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
-  base: '/static/', // Vite-generated assets use Django's static URL
-  build: {
-    outDir: '../vue-project/dist', // The output goes into frontend/dist
-    assetsDir: 'assets',
-    manifest: true, // Generates manifest.json for Django
-    rollupOptions: {
-      output: {
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+export default defineConfig(({ mode }) => {
+  return {
+    plugins: [
+      vue(),
+      vueDevTools(),
+    ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-  },
-  server: {
-    port: 5173, // Vite’s dev server port (avoid conflict with Django)
-    strictPort: true,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000', // Fixed to include 'http:'
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
+    base: mode === 'production' ? '/static/' : '/', // Use / in development, /static/ in production
+    build: {
+      outDir: 'dist', // Output directly to Django's static directory
+      assetsDir: 'assets',
+      manifest: true,
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/[name].js',
+          chunkFileNames: 'assets/[name].js',
+          assetFileNames: 'assets/[name].[ext]',
+        },
       },
     },
-  },
+    server: {
+      port: 5173,
+      historyApiFallback: true,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/static': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/login': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/register': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/logout': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/admin-page/login': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/admin-page/register': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/admin-page/dashboard': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/admin-page/profile': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+    },
+  };
 });

@@ -3,6 +3,10 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import login, logout
+from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Sum, Count, Q
+from datetime import datetime, timedelta
 from rest_framework.views import APIView
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
@@ -20,10 +24,142 @@ from .serializers import (
     UserSerializer, CategorySerializer, ProductSerializer,
     ProductVariantSerializer, OrderSerializer, CompletedOrderSerializer,
     CustomerReviewSerializer, MOQRequestSerializer, CartSerializer,
-    CartItemSerializer, RegisterSerializer, LoginSerializer
+    CartItemSerializer, RegisterSerializer, LoginSerializer, AdminRegisterSerializer, AdminLoginSerializer
 )
 
 User = get_user_model()
+
+class AdminRegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = AdminRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            login(request, user)
+            return Response({
+                'message': 'Admin registered successfully',
+                'user_id': user.id,
+                'username': user.username,
+                'country_code': user.country_code,
+                'email': user.email,
+                'user_type': user.user_type,
+                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AdminLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = AdminLoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            login(request, user)
+            return Response({
+                'message': 'Admin login successful',
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'user_type': user.user_type,
+                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({'message': 'Not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can use this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({
+            'message': 'Logged in as admin',
+            'user_id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'user_type': request.user.user_type,
+        }, status=status.HTTP_200_OK)
+
+class AdminLogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can use this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        logout(request)
+        return Response({'message': 'Admin logged out successfully'}, status=status.HTTP_200_OK)
+
+class AdminProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    def put(self, request):
+        if request.user.user_type != 'admin':
+            return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def admin_dashboard(request):
+    if request.user.user_type != 'admin':
+        return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Optimize queries with select_related and annotate
+    total_sales = Order.objects.count()
+    total_revenue = Order.objects.aggregate(Sum('price'))['price__sum'] or 0
+    total_customers = User.objects.filter(user_type='customer').count()
+    top_products = Product.objects.select_related('category').annotate(
+        moq_count=Count('order', filter=Q(order__status='active'))
+    ).order_by('-moq_count')[:5]
+    top_products_data = ProductSerializer(top_products, many=True, context={'request': request}).data
+
+    # Revenue trend over the last 6 months
+    today = datetime.today()
+    revenue_trend = {'current': [], 'previous': []}
+    for i in range(6):
+        month = today - timedelta(days=30 * i)
+        current_month_revenue = Order.objects.filter(
+            created_at__month=month.month, created_at__year=month.year
+        ).aggregate(Sum('price'))['price__sum'] or 0
+        previous_month = month - timedelta(days=30)
+        previous_month_revenue = Order.objects.filter(
+            created_at__month=previous_month.month, created_at__year=previous_month.year
+        ).aggregate(Sum('price'))['price__sum'] or 0
+        revenue_trend['current'].insert(0, float(current_month_revenue))
+        revenue_trend['previous'].insert(0, float(previous_month_revenue))
+
+    # Sales by location
+    sales_by_location = Order.objects.values('shipping_address').annotate(sales=Count('id')).order_by('-sales')[:3]
+    sales_by_location = [
+        {'location': item['shipping_address'] or 'Unknown', 'sales': item['sales']}
+        for item in sales_by_location
+    ]
+
+    # Total sales breakdown (mock data for now)
+    total_sales_breakdown = [
+        {'channel': 'Direct', 'sales': 38},
+        {'channel': 'Affiliate', 'sales': 15},
+        {'channel': 'Sponsored', 'sales': 14},
+        {'channel': 'E-mail', 'sales': 48},
+    ]
+
+    return Response({
+        'total_sales': total_sales,
+        'total_revenue': float(total_revenue),
+        'total_customers': total_customers,
+        'top_products': top_products_data,
+        'revenue_trend': revenue_trend,
+        'sales_by_location': sales_by_location,
+        'total_sales_breakdown': total_sales_breakdown,
+    })
 
 # Authentication Views
 class LoginView(APIView):
@@ -39,7 +175,7 @@ class LoginView(APIView):
                 'user_id': user.id,
                 'username': user.username
             }, status=status.HTTP200_OK)
-        return Response(serializer.errors, status=status.HTTP400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
         if isinstance(request.user, AnonymousUser):
@@ -63,7 +199,7 @@ class RegisterView(APIView):
                 'user_id': user.id,
                 'username': user.username
             }, status=status.HTTP201_CREATED)
-        return Response(serializer.errors, status=status.HTTP400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Custom API Views
 class CategoryProductsView(APIView):
@@ -102,7 +238,7 @@ class CategoryProductsView(APIView):
                 print(f"Failed to cache response: {e}")
 
             return Response(response_data)
-        except Http404:
+        except get_object_or_404:
             return Response({'error': 'Category not found'}, status=status.HTTP404_NOT_FOUND)
         except Exception as e:
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP500_INTERNAL_SERVER_ERROR)
@@ -176,6 +312,8 @@ class AllCategoriesWithProductsView(APIView):
         result = []
         for category in categories:
             products = Product.objects.filter(category=category).order_by('-created_at')
+            print(f"Category {category.slug}: {products.count()} products (AllCategoriesWithProductsView)")
+            print(f"Products for {category.slug}: {[p.name for p in products]}")
             product_serializer = ProductSerializer(products, many=True, context={'request': request})
             result.append({
                 'id': category.id,
@@ -185,6 +323,49 @@ class AllCategoriesWithProductsView(APIView):
             })
         return Response(result)
 
+# class CategoryProductsView(APIView):
+#     permission_classes = [permissions.AllowAny]
+
+#     def get(self, request, category_slug, *args, **kwargs):
+#         cache_key = f'category_products_{category_slug}_page_{request.query_params.get("page", 1)}'
+#         try:
+#             cached_data = cache.get(cache_key)
+#             if cached_data:
+#                 return Response(cached_data)
+#         except (InvalidCacheBackendError, Exception) as e:
+#             print(f"Cache error: {e}. Falling back to direct query.")
+
+#         try:
+#             category = get_object_or_404(Category, slug=category_slug)
+#             products = Product.objects.filter(category=category).order_by('-created_at')
+#             print(f"Category {category_slug}: {products.count()} products (CategoryProductsView)")
+#             print(f"Products for {category_slug}: {[p.name for p in products]}")
+
+#             page = int(request.query_params.get('page', 1))
+#             per_page = int(request.query_params.get('per_page', 5))
+#             total = products.count()
+#             start = (page - 1) * per_page
+#             end = start + per_page
+#             products_paginated = products[start:end]
+#             print(f"Paginated products for {category_slug} (page {page}, per_page {per_page}): {[p.name for p in products_paginated]}")
+
+#             serializer = ProductSerializer(products_paginated, many=True, context={'request': request})
+#             response_data = {
+#                 'category': {'slug': category.slug, 'name': category.name},
+#                 'products': serializer.data,
+#                 'total': total,
+#             }
+
+#             try:
+#                 cache.set(cache_key, response_data, timeout=60 * 15)
+#             except (InvalidCacheBackendError, Exception) as e:
+#                 print(f"Failed to cache response: {e}")
+
+#             return Response(response_data)
+#         except get_object_or_404:
+#             return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+#         except Exception as e:
+#             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ViewSets
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all().only('id', 'name', 'slug')
@@ -244,7 +425,7 @@ class ProductDetail(APIView):
         try:
             return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
         except Product.DoesNotExist:
-            raise Http404
+            raise get_object_or_404
 
     def get(self, request, category_slug, product_slug, format=None):
         product = self.get_object(category_slug, product_slug)
@@ -276,12 +457,12 @@ class CartViewSet(viewsets.ModelViewSet):
             product = Product.objects.get(pk=product_id)
             variant = ProductVariant.objects.get(pk=variant_id, product=product)
         except (Product.DoesNotExist, ProductVariant.DoesNotExist):
-            return Response({"error": "Product or variant not found"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Product or variant not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         if product.moq_status == 'active' and quantity > product.moq_per_person:
             return Response(
                 {"error": f"Maximum {product.moq_per_person} items allowed per person for this group buy"},
-                status=status.HTTP400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         cart_item, created = CartItem.objects.get_or_create(
@@ -352,7 +533,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         order = self.get_object()
         if order.delivery_status not in ['processing', 'shipped']:
-            return Response({"error": "Order cannot be cancelled in its current state"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Order cannot be cancelled in its current state"}, status=status.HTTP_400_BAD_REQUEST)
         order.is_cancelled = True
         order.delivery_status = 'cancelled'
         order.save()
@@ -404,7 +585,7 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
         moq_request = self.get_object()
         status = request.data.get('status')
         if status not in [choice[0] for choice in MOQRequest.STATUS_CHOICES]:
-            return Response({"error": "Invalid status value"}, status=status.HTTP400_BAD_REQUEST)
+            return Response({"error": "Invalid status value"}, status=status.HTTP_400_BAD_REQUEST)
         moq_request.status = status
         moq_request.save()
         serializer = MOQRequestSerializer(moq_request)

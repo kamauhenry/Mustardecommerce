@@ -186,7 +186,8 @@ export default {
 
 @media (max-width: 768px) {
   .carousel {
-    width: 70%;
+    margin-top: 2rem;
+    width: 100%;
   }
 }
 </style>

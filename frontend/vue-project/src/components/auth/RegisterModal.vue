@@ -80,8 +80,10 @@ const switchToLogin = () => {
 .auth-modal {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 1rem;
+  /* align-items: center; */
+  padding: 2rem;
+  background-color: #e2cf1f;
+  border-radius: 20px;
 }
 
 .input-group {
@@ -141,7 +143,7 @@ const switchToLogin = () => {
 
 .terms a,
 .switch-link a {
-  color: #f28c38;
+  color: #ffffff;
   text-decoration: none;
   font-weight: 600;
 }
