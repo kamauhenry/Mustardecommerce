@@ -1,7 +1,7 @@
 <template>
   <div class="main-layout">
     <!-- Header/Nav -->
-    <template v-if="!eisMobile">
+    <template v-if="!isMobile">
       <TopRow @toggle-menu="isSidebarOpen = !isSidebarOpen" />
       <PagesRow />
       <CategoriesRow />
@@ -66,9 +66,8 @@
     </Modal>
   </div>
 </template>
-
 <script>
-import { ref, onMounted, onUnmounted, inject, provide } from 'vue'; // Added 'provide' import
+import { ref, onMounted, onUnmounted, inject, provide } from 'vue';
 import TopRow from '@/components/navigation/TopRow.vue';
 import PagesRow from '@/components/navigation/PagesRow.vue';
 import CategoriesRow from '@/components/navigation/CategoriesRow.vue';
@@ -96,9 +95,8 @@ export default {
     const showTrackOrder = ref(false);
     const showRequestMOQ = ref(false);
     const showLoginModal = ref(false);
-    const showRegisterModal = ref(false);
     const currentYear = ref(new Date().getFullYear());
-    const toastId = ref(null);
+    const toastInstance = ref(null); // Store the toast instance instead of just ID
 
     const $toast = inject('$toast');
     if (!$toast) {
@@ -125,7 +123,22 @@ export default {
       showTrackOrder.value = false;
       showRequestMOQ.value = false;
       showLoginModal.value = false;
-      showRegisterModal.value = false;
+    };
+
+    const acceptCookies = () => {
+      console.log('Accept button clicked');
+      localStorage.setItem('cookieConsent', 'accepted');
+      toastInstance.value.close(); // Use close() instead of dismiss()
+      $toast.success('Cookies accepted!', { duration: 3000 });
+      window.location.reload();
+    };
+
+    const declineCookies = () => {
+      console.log('Decline button clicked');
+      localStorage.setItem('cookieConsent', 'declined');
+      toastInstance.value.close(); // Use close() instead of dismiss()
+      $toast.info('Cookies declined.', { duration: 3000 });
+      window.location.reload();
     };
 
     const showCookieConsent = () => {
@@ -136,13 +149,13 @@ export default {
       }
 
       console.log('Showing cookie consent popup...');
-      toastId.value = $toast?.open({
+      toastInstance.value = $toast.open({
         message: `
           <div class="cookie-consent">
             <p>We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <a href="/cookie-policy" target="_blank">Cookie Policy</a>.</p>
             <div class="cookie-buttons">
-              <button id="accept-cookies" tabindex="0" aria-label="Accept cookies">Accept</button>
-              <button id="decline-cookies" tabindex="0" aria-label="Decline cookies">Decline</button>
+              <button onclick="window.vueApp.acceptCookies()" id="accept-cookies" tabindex="0" aria-label="Accept cookies">Accept</button>
+              <button onclick="window.vueApp.declineCookies()" id="decline-cookies" tabindex="0" aria-label="Decline cookies">Decline</button>
             </div>
           </div>
         `,
@@ -150,35 +163,6 @@ export default {
         position: 'bottom-right',
         duration: 0,
         dismissible: false,
-        onOpen: () => {
-          console.log('Toast opened, adding event listeners...');
-          const addListeners = () => {
-            const acceptButton = document.getElementById('accept-cookies');
-            const declineButton = document.getElementById('decline-cookies');
-
-            if (acceptButton && declineButton) {
-              acceptButton.addEventListener('click', () => {
-                console.log('Accept button clicked');
-                localStorage.setItem('cookieConsent', 'accepted');
-                $toast.dismiss(toastId.value);
-                $toast.success('Cookies accepted!', { duration: 3000 });
-                window.location.reload();
-              });
-
-              declineButton.addEventListener('click', () => {
-                console.log('Decline button clicked');
-                localStorage.setItem('cookieConsent', 'declined');
-                $toast.dismiss(toastId.value);
-                $toast.info('Cookies declined.', { duration: 3000 });
-                window.location.reload();
-              });
-            } else {
-              console.error('Buttons not found, retrying...');
-              setTimeout(addListeners, 100);
-            }
-          };
-          setTimeout(addListeners, 100);
-        },
       });
     };
 
@@ -191,15 +175,16 @@ export default {
     onMounted(() => {
       console.log('MainLayout mounted, setting up resize listener and showing cookie consent...');
       window.addEventListener('resize', updateScreenSize);
+      window.vueApp = { acceptCookies, declineCookies };
       showCookieConsent();
     });
 
     onUnmounted(() => {
       console.log('MainLayout unmounted, removing resize listener...');
       window.removeEventListener('resize', updateScreenSize);
+      delete window.vueApp;
     });
 
-    // Provide modal control functions to child components
     provide('openTrackOrder', openTrackOrder);
     provide('openRequestMOQ', openRequestMOQ);
     provide('openLoginModal', openLoginModal);
@@ -211,14 +196,12 @@ export default {
       showTrackOrder,
       showRequestMOQ,
       showLoginModal,
-      showRegisterModal,
       currentYear,
       manageCookies,
     };
   },
 };
 </script>
-
 
 <style scoped>
 @import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";
@@ -331,32 +314,22 @@ h3 {
 }
 
 .cookie-consent p {
-  font-size: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 10px;
 }
-
-.cookie-consent a {
-  color: #007bff;
-  text-decoration: underline;
-}
-
-.cookie-consent a:hover {
-  color: #0056b3;
-}
-
 .cookie-buttons {
   display: flex;
-  justify-content: center;
-  gap: 1rem;
+  gap: 10px;
 }
-
 .cookie-buttons button {
-  padding: 0.5rem 1rem;
+  padding: 5px 10px;
+  cursor: pointer; /* Ensure buttons show pointer cursor */
+  background-color: #007bff; /* Example: blue background */
+  color: white;
   border: none;
   border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background-color 0.3s;
+}
+.cookie-buttons button:hover {
+  background-color: #0056b3; /* Darker blue on hover */
 }
 
 #accept-cookies {

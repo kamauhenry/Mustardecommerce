@@ -435,7 +435,7 @@ export default {
   }
 }
 
-@media (min-width: 768px) and (max-width: 991px) {
+@media (min-width: 450px) and (max-width: 600px) {
   .top-row-home {
     flex-direction: column;
     gap: 1.5rem;
@@ -456,7 +456,7 @@ export default {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 500px) {
   .top-row-home {
     flex-direction: column;
     gap: 1rem;
