@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view)
 
 
 # Creating DRF router
@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     
     # Custom authentication views
+    path('auth/logout/', logout_view, name='logout'),
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/user/', get_current_user, name='get_current_user'),

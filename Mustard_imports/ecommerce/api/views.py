@@ -41,7 +41,7 @@ def test_image(request):
     if os.path.exists(image_path):
         return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
     else:
-        return get_object_or_404("File not found", status=404)
+        return JsonResponse({"error": "File not found"}, status=404)
 
 def reset_order_id_sequence():
     with connection.cursor() as cursor:
@@ -94,6 +94,22 @@ class LoginView(APIView):
                 'username': request.user.username
             }, status=status.HTTP_200_OK)
         return Response({'message': 'Not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['POST'])
+def logout_view(request):
+    try:
+        # Log out the user
+        logout(request)
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Successfully logged out'
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An error occurred during logout'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -314,40 +330,16 @@ def process_checkout(request, cart_id):
                 shipping_method=shipping_method,
                 shipping_address=shipping_address,
             )
-            
-            # Prepare order items
-            order_items = []
-            total_price = Decimal('0.00')
-
             for cart_item in cart.items.all():
-                # Calculate price per unit (check for division by zero)
-                if cart_item.quantity > 0:
-                    price_per_unit = cart_item.line_total / cart_item.quantity
-                else:
-                    price_per_unit = Decimal('0.00')
-                    logger.warning(f"Cart item {cart_item.id} has quantity 0")
-
-                # Log values before creating order item
-                logger.info(f"Creating order item: product={cart_item.product.id}, " 
-                           f"quantity={cart_item.quantity}, price={price_per_unit}")
-
-                # Create order item
-                order_item = OrderItem.objects.create(
+                price_per_unit = cart_item.line_total / cart_item.quantity if cart_item.quantity > 0 else Decimal('0.00')
+                OrderItem.objects.create(
                     order=order,
                     product=cart_item.product,
                     variant=cart_item.variant,
                     quantity=cart_item.quantity,
                     price=price_per_unit
                 )
-                
-                # Calculate total price
-                total_price += cart_item.line_total
-                order_items.append(order_item)
-
-            # Update order with total price
-            logger.info(f"Total price calculated: {total_price}")
-            order.total_price = total_price
-            order.save()
+            order.save()  # Let the model calculate total_price
 
             # Clear the cart after checkout
             cart.items.all().delete()

@@ -1,7 +1,7 @@
 <template>
   <div class="main-layout">
     <!-- Header/Nav -->
-    <template v-if="!isMobile">
+    <template v-if="!eisMobile">
       <TopRow @toggle-menu="isSidebarOpen = !isSidebarOpen" />
       <PagesRow />
       <CategoriesRow />
@@ -53,12 +53,12 @@
     </footer>
 
     <!-- Modals -->
-    <Modal :isOpen="showTrackOrderModal" @close="showTrackOrderModal = false">
-      <TrackOrderModal @close="showTrackOrderModal = false" />
+    <Modal :isOpen="showTrackOrder" @close="showTrackOrder = false">
+      <TrackOrder @close="showTrackOrder = false" />
     </Modal>
 
-    <Modal :isOpen="showRequestMOQModal" @close="showRequestMOQModal = false">
-      <RequestMOQModal @close="showRequestMOQModal = false" />
+    <Modal :isOpen="showRequestMOQ" @close="showRequestMOQ = false">
+      <RequestMOQ @close="showRequestMOQ = false" />
     </Modal>
 
     <Modal :isOpen="showLoginModal" @close="showLoginModal = false">
@@ -68,53 +68,53 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, provide, inject } from 'vue';
+import { ref, onMounted, onUnmounted, inject, provide } from 'vue'; // Added 'provide' import
 import TopRow from '@/components/navigation/TopRow.vue';
 import PagesRow from '@/components/navigation/PagesRow.vue';
 import CategoriesRow from '@/components/navigation/CategoriesRow.vue';
 import HamburgerMenu from '@/components/navigation/HamburgerMenu.vue';
-import TrackOrderModal from '@/components/auth/TrackOrder.vue';
-import RequestMOQModal from '@/components/auth/RequestMOQ.vue';
-import LoginModal from '@/components/auth/LoginModal.vue';
 import Modal from '@/components/auth/Modal.vue';
+import TrackOrder from '@/components/auth/TrackOrder.vue';
+import RequestMOQ from '@/components/auth/RequestMOQ.vue';
+import LoginModal from '@/components/auth/LoginModal.vue';
 
 export default {
+  name: 'MainLayout',
   components: {
     TopRow,
     PagesRow,
     CategoriesRow,
     HamburgerMenu,
-    TrackOrderModal,
-    RequestMOQModal,
-    LoginModal,
     Modal,
+    TrackOrder,
+    RequestMOQ,
+    LoginModal,
   },
   setup() {
-    const isMobile = ref(window.innerWidth <= 768);
+    const isMobile = ref(window.innerWidth <= 500);
     const isSidebarOpen = ref(false);
-    const showTrackOrderModal = ref(false);
-    const showRequestMOQModal = ref(false);
+    const showTrackOrder = ref(false);
+    const showRequestMOQ = ref(false);
     const showLoginModal = ref(false);
     const showRegisterModal = ref(false);
     const currentYear = ref(new Date().getFullYear());
-    let toastId = null; // Store the toast ID to dismiss it later
+    const toastId = ref(null);
 
-    // Inject the $toast instance
     const $toast = inject('$toast');
     if (!$toast) {
       console.error('Toast instance not found! Ensure vue-toast-notification is properly set up in main.js.');
     }
 
     const updateScreenSize = () => {
-      isMobile.value = window.innerWidth <= 768;
+      isMobile.value = window.innerWidth <= 500;
     };
 
-    const openTrackOrderModal = () => {
-      showTrackOrderModal.value = true;
+    const openTrackOrder = () => {
+      showTrackOrder.value = true;
     };
 
-    const openRequestMOQModal = () => {
-      showRequestMOQModal.value = true;
+    const openRequestMOQ = () => {
+      showRequestMOQ.value = true;
     };
 
     const openLoginModal = () => {
@@ -122,24 +122,21 @@ export default {
     };
 
     const closeModals = () => {
-      showTrackOrderModal.value = false;
-      showRequestMOQModal.value = false;
+      showTrackOrder.value = false;
+      showRequestMOQ.value = false;
       showLoginModal.value = false;
       showRegisterModal.value = false;
     };
 
     const showCookieConsent = () => {
-      // Check if the user has already made a choice
       const consent = localStorage.getItem('cookieConsent');
       if (consent) {
         console.log('Cookie consent already given:', consent);
-        return; // If consent exists, don't show the popup
+        return;
       }
 
       console.log('Showing cookie consent popup...');
-
-      // Show the cookie consent popup using vue-toast-notification
-      toastId = $toast.open({
+      toastId.value = $toast?.open({
         message: `
           <div class="cookie-consent">
             <p>We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <a href="/cookie-policy" target="_blank">Cookie Policy</a>.</p>
@@ -149,55 +146,47 @@ export default {
             </div>
           </div>
         `,
-        type: 'info', // Use 'info' type for a neutral style
-        position: 'bottom-center', // Position at the bottom center
-        duration: 0, // Keep the popup open until the user makes a choice (0 = infinite)
-        dismissible: false, // Prevent closing by clicking outside
+        type: 'info',
+        position: 'bottom-right',
+        duration: 0,
+        dismissible: false,
         onOpen: () => {
           console.log('Toast opened, adding event listeners...');
-          // Add event listeners to the buttons after the toast is rendered
-          const acceptButton = document.getElementById('accept-cookies');
-          const declineButton = document.getElementById('decline-cookies');
+          const addListeners = () => {
+            const acceptButton = document.getElementById('accept-cookies');
+            const declineButton = document.getElementById('decline-cookies');
 
-          if (acceptButton) {
-            acceptButton.addEventListener('click', () => {
-              console.log('Accept button clicked');
-              localStorage.setItem('cookieConsent', 'accepted');
-              $toast.dismiss(toastId); // Close the popup
-              $toast.success('Cookies accepted!', { duration: 3000 });
-              window.location.reload(); // Reload to apply changes (e.g., load GA)
-            });
-          } else {
-            console.error('Accept button not found in toast');
-          }
+            if (acceptButton && declineButton) {
+              acceptButton.addEventListener('click', () => {
+                console.log('Accept button clicked');
+                localStorage.setItem('cookieConsent', 'accepted');
+                $toast.dismiss(toastId.value);
+                $toast.success('Cookies accepted!', { duration: 3000 });
+                window.location.reload();
+              });
 
-          if (declineButton) {
-            declineButton.addEventListener('click', () => {
-              console.log('Decline button clicked');
-              localStorage.setItem('cookieConsent', 'declined');
-              $toast.dismiss(toastId); // Close the popup
-              $toast.info('Cookies declined. Some features may be limited.', { duration: 3000 });
-              window.location.reload(); // Reload to apply changes
-            });
-          } else {
-            console.error('Decline button not found in toast');
-          }
+              declineButton.addEventListener('click', () => {
+                console.log('Decline button clicked');
+                localStorage.setItem('cookieConsent', 'declined');
+                $toast.dismiss(toastId.value);
+                $toast.info('Cookies declined.', { duration: 3000 });
+                window.location.reload();
+              });
+            } else {
+              console.error('Buttons not found, retrying...');
+              setTimeout(addListeners, 100);
+            }
+          };
+          setTimeout(addListeners, 100);
         },
       });
     };
 
     const manageCookies = () => {
       console.log('Managing cookies...');
-      // Clear the existing consent and show the popup again
       localStorage.removeItem('cookieConsent');
       showCookieConsent();
     };
-
-    // Provide the modal control functions to child components
-    provide('openTrackOrderModal', openTrackOrderModal);
-    provide('openRequestMOQModal', openRequestMOQModal);
-    provide('openLoginModal', openLoginModal);
-    provide('closeModals', closeModals);
 
     onMounted(() => {
       console.log('MainLayout mounted, setting up resize listener and showing cookie consent...');
@@ -210,11 +199,17 @@ export default {
       window.removeEventListener('resize', updateScreenSize);
     });
 
+    // Provide modal control functions to child components
+    provide('openTrackOrder', openTrackOrder);
+    provide('openRequestMOQ', openRequestMOQ);
+    provide('openLoginModal', openLoginModal);
+    provide('closeModals', closeModals);
+
     return {
       isMobile,
       isSidebarOpen,
-      showTrackOrderModal,
-      showRequestMOQModal,
+      showTrackOrder,
+      showRequestMOQ,
       showLoginModal,
       showRegisterModal,
       currentYear,
@@ -223,6 +218,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 @import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";

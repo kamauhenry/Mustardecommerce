@@ -71,6 +71,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
     initializeApiInstance() {
       this.apiInstance = api.createApiInstance(this);
     },
+    setUserId(userId) {
+      this.userId = userId;
+      localStorage.setItem('userId', userId);
+      this.apiInstance = api.createApiInstance(this);
+    },
 
     async login(username, password) {
       try {
@@ -489,11 +494,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    setUserId(userId) {
-      this.userId = userId;
-      localStorage.setItem('userId', userId);
-      this.apiInstance = api.createApiInstance(this);
-    },
+
 
     async fetchUserProfile() {
       if (!this.apiInstance) {

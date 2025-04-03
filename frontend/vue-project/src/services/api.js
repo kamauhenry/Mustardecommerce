@@ -45,6 +45,19 @@ export const createApiInstance = (store) => {
 };
 
 // Authentication APIs
+export const register = async (apiInstance, userData) => {
+  try {
+    const response = await apiInstance.post('auth/register/', userData);
+    const token = response.data.token;
+    localStorage.setItem('authToken', token);
+    return response.data;
+  } catch (error) {
+    console.error('Registration error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
 export const login = async (apiInstance, username, password) => {
   try {
     const response = await apiInstance.post('auth/login/', { username, password });
@@ -53,6 +66,21 @@ export const login = async (apiInstance, username, password) => {
     return response.data;
   } catch (error) {
     console.error('Login error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Google Authentication APIs
+export const googleAuth = async (apiInstance, googleToken) => {
+  try {
+    const response = await apiInstance.post('auth/google/', {
+      access_token: googleToken
+    });
+    const token = response.data.token;
+    localStorage.setItem('authToken', token);
+    return response.data;
+  } catch (error) {
+    console.error('Google auth error:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -301,7 +329,9 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
 
 export default {
   createApiInstance,
-  login,
+  register, 
+  login, 
+  googleAuth,
   logout,
   fetchCurrentUserInfo,
   getUserProfile,

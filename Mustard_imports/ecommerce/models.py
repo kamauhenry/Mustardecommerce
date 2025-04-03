@@ -5,6 +5,7 @@ from django.core.files import File
 from PIL import Image
 from io import BytesIO
 from django.db.models import Sum 
+from django.conf import settings
 
 
 class User(AbstractUser):
@@ -16,11 +17,9 @@ class User(AbstractUser):
 
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='customer')
     email = models.EmailField(unique=True)
-    #phone_number = models.CharField(max_length=20, unique=True, null=False)
+    phone_number = models.CharField(max_length=20, unique=True, null=True)
     points = models.IntegerField(default=0)
     affiliate_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
-
-    # location = models.CharField(max_length=255, blank=True)
 
 
        
@@ -58,7 +57,7 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.name
-        
+
 class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
@@ -80,22 +79,17 @@ class CategoryImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.category.name}"
-
-    def get_primary_image(self):
-        """Get the first image as a fallback"""
-        first_image = self.images.first()
-        return first_image.get_image() if first_image else ''
-
-
-class CategoryImage(models.Model):
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='category_images/', blank=True, null=True)
-    
-
+  
     def get_image(self):
         if self.image:
             return 'http://127.0.0.1:8000/' + self.image.url
         return ''
+
+    def get_primary_image(self):
+        """Get the first image as a fallback"""
+        first_image = self.category.images.first()
+        return first_image.get_image() if first_image else ''
+
 
 
 class Product(models.Model):
@@ -173,12 +167,12 @@ class ProductImage(models.Model):
 
     def get_thumbnail(self):
         if self.thumbnail:
-            from django.conf import settings
+            
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         elif self.image:
             self.thumbnail = self.make_thumbnail(self.image)
             self.save()
-            from django.conf import settings
+            
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         return ''
 
@@ -300,14 +294,8 @@ class Order(models.Model):
  
 
     def save(self, *args, **kwargs):
-        """
-        Override save method to calculate total price before saving
-        """
-        # Calculate total price from order items
         if not self.pk:  # Only calculate on first save
             super().save(*args, **kwargs)
-        
-        # Calculate total price
         self.total_price = self.calculate_total_price()
         super().save(*args, **kwargs)
 

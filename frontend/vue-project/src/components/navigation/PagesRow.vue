@@ -5,9 +5,9 @@
       <li><router-link class="nav-link" to="/moq-campaigns">MOQ Campaigns</router-link></li>
       <li v-if="store.isAuthenticated"><router-link class="nav-link" to="/profile">My Profile</router-link></li>
       <li v-if="store.isAuthenticated"><router-link class="nav-link" to="/orders">My Orders</router-link></li>
-      <li v-if="store.isAuthenticated"><a class="nav-link" @click="openRequestMOQModal">Request MOQ Campaign</a></li>
+      <li v-if="store.isAuthenticated"><a class="nav-link" @click="openRequestMOQ">Request MOQ Campaign</a></li>
       <li v-else><a class="nav-link" @click="openLoginModal">Request MOQ Campaign</a></li>
-      <li v-if="store.isAuthenticated"><a class="nav-link" @click="openTrackOrderModal">Track Order</a></li>
+      <li v-if="store.isAuthenticated"><a class="nav-link" @click="openTrackOrder">Track Order</a></li>
       <li v-else><a class="nav-link" @click="openLoginModal">Track Order</a></li>
       <li><router-link class="nav-link" to="/about">About Us</router-link></li>
       <li><router-link class="nav-link" to="/contact">Contact Us</router-link></li>
@@ -24,15 +24,15 @@ export default {
     const store = useEcommerceStore();
 
     // Inject modal functions from the main layout
-    const openTrackOrderModal = inject('openTrackOrderModal');
-    const openRequestMOQModal = inject('openRequestMOQModal');
+    const openTrackOrder = inject('openTrackOrder');
+    const openRequestMOQ = inject('openRequestMOQ');
     const openLoginModal = inject('openLoginModal');
 
     return {
       store,
       openLoginModal,
-      openTrackOrderModal,
-      openRequestMOQModal
+      openTrackOrder,
+      openRequestMOQ
     };
   },
 };
