@@ -1,6 +1,7 @@
 <template>
   <div class="auth-modal">
     <form @submit.prevent="login">
+
       <div class="input-group">
         <input
           v-model="username"

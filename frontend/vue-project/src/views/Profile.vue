@@ -104,6 +104,33 @@
                     required
                   />
                 </div>
+                <div class="form-group">
+                  <label for="email">First Name</label>
+                  <input
+                    type="text"
+                    id="first_name"
+                    v-model="editProfileForm.first_name"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="email">Last Name</label>
+                  <input
+                    type="text"
+                    id="last_name"
+                    v-model="editProfileForm.last_name"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="email">Last Name</label>
+                  <input
+                    type="tel"
+                    id="phone_number"
+                    v-model="editProfileForm.phone_number"
+                    required
+                  />
+                </div>
                 <div class="form-actions">
                   <button type="submit" class="save-btn">Save</button>
                   <button type="button" @click="cancelEditProfile" class="cancel-btn">

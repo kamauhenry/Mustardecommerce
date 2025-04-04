@@ -62,7 +62,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         if self.action == 'create':
-            return UserCreateSerializer
+            return RegisterSerializer
         elif self.action == 'update' or self.action == 'partial_update':
             return UserUpdateSerializer
         return super().get_serializer_class()
@@ -99,13 +99,21 @@ class LoginView(APIView):
 @api_view(['POST'])
 def logout_view(request):
     try:
-        # Log out the user
-        logout(request)
+        # Check if the user is authenticated via token
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Delete the user's token
+        Token.objects.filter(user=request.user).delete()
         return JsonResponse({
             'status': 'success',
             'message': 'Successfully logged out'
         }, status=status.HTTP_200_OK)
     except Exception as e:
+        print(f"Logout error: {str(e)}")
         return JsonResponse({
             'status': 'error',
             'message': 'An error occurred during logout'
@@ -115,7 +123,7 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+        serializer =RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
             # Create a token for the new user
@@ -737,9 +745,10 @@ class UserProfileView(APIView):
             'username': user.username,
             'email': user.email,
             'name': user.first_name,
-            'phone': getattr(user, 'phone', ''),
-            'gender': getattr(user, 'gender', ''),
-            'dob': getattr(user, 'dob', ''),
+            'phone': user.phone_number,
+            'first_name':user.first_name,
+            'last_name':user.last_name,
+            'date_joined': user.date_joined,
             'avatar': getattr(user, 'avatar', ''),
         }
         return Response(data)

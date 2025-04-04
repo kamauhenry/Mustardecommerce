@@ -2,6 +2,12 @@
   <div class="auth-modal">
     <form @submit.prevent="register">
       <div class="input-group">
+        <input v-model="first_name" type="text" placeholder="First Name" required />
+      </div>
+      <div class="input-group">
+        <input v-model="last_name" type="text" placeholder="Last Name" required />
+      </div>
+      <div class="input-group">
         <input
           v-model="username"
           type="text"
@@ -19,12 +25,21 @@
       </div>
       <div class="input-group">
         <input
+          v-model="phone_number"
+          type="tell"
+          placeholder="+254"
+          required
+        />
+      </div>
+      <div class="input-group">
+        <input
           v-model="password"
           type="password"
           placeholder="Password"
           required
         />
       </div>
+
       <button type="submit" class="auth-button">REGISTER</button>
     </form>
     <p v-if="error" class="error">{{ error }}</p>
@@ -45,6 +60,10 @@ import api from '@/services/api';
 
 const username = ref('');
 const email = ref('');
+const phone_number = ref(''); 
+const first_name = ref('');
+const last_name = ref('');
+
 const password = ref('');
 const error = ref(null);
 const store = useEcommerceStore();
@@ -57,9 +76,11 @@ const register = async () => {
     const response = await api.createApiInstance(store).post('auth/register/', {
       username: username.value,
       email: email.value,
-      password: password.value,
+      first_name: first_name.value,
+      last_name: last_name.value,
+      phone_number:phone_number.value,
       user_type: 'customer',
-      location: '',
+      password: password.value,
     });
     const { user_id, username: userName } = response.data;
     store.setUserId(user_id);

@@ -35,7 +35,7 @@ urlpatterns = [
     path('auth/logout/', logout_view, name='logout'),
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
-    path('auth/user/', get_current_user, name='get_current_user'),
+    path('auth/user/me', get_current_user, name='get_current_user'),
 
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
@@ -65,7 +65,8 @@ urlpatterns = [
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
 
 # Profile
-    path('user/profile/', UserProfileView.as_view(), name='user-profile'),
+    path('user/profile/me', UserProfileView.as_view(), name='user-profile'),
+    path('user/update-user/<int:pk>/', UserViewSet.as_view({'put': 'update'}), name='user-update'),
     path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery_locations'),
     path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delivery_location_detail'),
     path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set_default_location'),

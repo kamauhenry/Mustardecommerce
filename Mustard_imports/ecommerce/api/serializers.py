@@ -11,31 +11,21 @@ class DeliveryLocationSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'address', 'latitude', 'longitude', 'is_default', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
-class UserSerializer(serializers.ModelSerializer):
-    delivery_locations = DeliveryLocationSerializer(many=True, read_only=True)
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'user_type', 'points', 'affiliate_code', 'delivery_locations')
-        read_only_fields = ('id', 'points', 'affiliate_code') # These fields might be auto-generated or managed server-side
 
-class UserCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('username', 'email', 'password', 'user_type', 'location')
-        extra_kwargs = {'password': {'write_only': True}}
 
-    def create(self, validated_data):
-        password = validated_data.pop('password')
-        user = User(**validated_data)
-        user.set_password(password)
-        user.save()
-        return user
 
-class UserUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('email', 'user_type') # Include fields you want to allow updating
-        read_only_fields = ('id', 'username', 'points', 'affiliate_code')
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(username=data.get('username'), password=data.get('password'))
+        if user is None:
+            raise serializers.ValidationError('Invalid credentials')
+        return {'user': user}
+
+
+
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
@@ -135,64 +125,8 @@ class CustomerReviewSerializer(serializers.ModelSerializer):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
 
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'user_type', 'phone_number', 'points', 'affiliate_code', 'location', 'password']
-        read_only_fields = ['id', 'points', 'affiliate_code']
-        extra_kwargs = {'password': {'write_only': True}}
 
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user_type = validated_data.pop('user_type', 'customer')
-        location = validated_data.pop('location', '')
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=password,
-            user_type=user_type,
-            location=location,
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            # phone_number=validated_data.get('phone_number', ''), # Uncomment if phone_number is required
-        )
-        return user
-
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, data):
-        user = authenticate(username=data.get('username'), password=data.get('password'))
-        if user is None:
-            raise serializers.ValidationError('Invalid credentials')
-        return {'user': user}
-
-class UserSerializer(serializers.ModelSerializer):
-    cart = CartSerializer(read_only=True)
-    orders = OrderSerializer(many=True, read_only=True, source='order_set')
-    completed_orders = CompletedOrderSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = User
-        fields = [
-            'id', 'username', 'email', 'first_name', 'last_name', 
-            'user_type', 'phone_number', 'points', 'affiliate_code', 
-            'location', 'cart', 'orders', 'completed_orders'
-        ]
-        read_only_fields = ['points', 'affiliate_code', 'cart', 'orders', 'completed_orders']
-        extra_kwargs = {'password': {'write_only': True}}
-
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user = User.objects.create(**validated_data)
-        if password:
-            user.set_password(password)
-            user.save()
-        return user
 
 class CategoryImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -289,3 +223,56 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ['id', 'order', 'amount', 'method', 'status', 'created_at']
         read_only_fields = ['status']
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ( 'username', 'email', 'first_name', 'last_name', 
+            'phone_number',) # Include fields you want to allow updating
+        read_only_fields = ('id', 'user_type','points', 'affiliate_code')
+
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+                  'user_type', 'phone_number', 'points', 'affiliate_code', 'password']
+        read_only_fields = ['id', 'points', 'affiliate_code']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user_type = validated_data.pop('user_type', 'customer')
+        
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=password,
+            user_type=user_type,
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            phone_number=validated_data['phone_number'],
+        )
+        return user
+
+
+
+class UserSerializer(serializers.ModelSerializer):
+    delivery_locations = DeliveryLocationSerializer(many=True, read_only=True)
+    cart = CartSerializer(read_only=True)
+    orders = OrderSerializer(many=True, read_only=True, source='order_set')
+    completed_orders = CompletedOrderSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 
+            'user_type', 'phone_number', 'points', 'affiliate_code', 
+            'cart', 'orders', 'completed_orders','date_joined'  ,'delivery_locations'
+        ]
+        read_only_fields = ['points', 'affiliate_code', 'cart', 'orders', 'completed_orders','date_joined']
+        extra_kwargs = {'password': {'write_only': True}}
+

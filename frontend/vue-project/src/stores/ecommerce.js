@@ -8,6 +8,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       userId: null,
       apiInstance: null,
       cart: null,
+      isLoggingOut: false,
       cartItems: [], // Add cartItems to store
       userLoading: false,
       userError: null,
@@ -105,7 +106,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
           this.cartItems = this.loadCartFromLocalStorage(); // Load from localStorage if not authenticated
           return null;
         }
-
+        if (this.currentUser) return this.currentUser;
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }
@@ -117,32 +118,42 @@ export const useEcommerceStore = defineStore('ecommerce', {
           id: userData.id,
           username: userData.username,
           email: userData.email,
+          first_name:userData.first_name,
+          last_name:userData.last_name,
+          phone_number: userData.phone_number || '',
         };
 
-        await this.fetchCart(); // Fetch cart after user info
+        await this.fetchCart(); 
         return userData;
       } catch (error) {
         console.error('Authentication check failed:', error);
         this.showAuthModal = true;
-        this.logout();
+        
         throw error;
       }
     },
 
     async logout() {
-      if (this.apiInstance) {
-        await api.logout(this.apiInstance);
+      if (this.isLoggingOut) return;
+      this.isLoggingOut = true;
+      try {
+        if (this.apiInstance && this.isAuthenticated) {
+          await api.logout(this.apiInstance);
+        }
+      } catch (error) {
+        console.error('Logout error:', error.response?.data || error.message);
+      } finally {
+        this.userId = null;
+        this.currentUser = null;
+        this.cart = null;
+        this.orders = [];
+        this.completedOrders = [];
+        this.deliveryLocations = [];
+        localStorage.removeItem('authToken');
+        this.cartItems = this.loadCartFromLocalStorage();
+        this.initializeApiInstance();
+        this.isLoggingOut = false;
       }
-
-      this.userId = null;
-      this.currentUser = null;
-      this.cart = null;
-      this.orders = [];
-      this.completedOrders = [];
-      this.deliveryLocations = [];
-      localStorage.removeItem('authToken');
-      this.cartItems = this.loadCartFromLocalStorage(); // Persist cart in localStorage
-      this.initializeApiInstance();
     },
 
     async createCart() {
@@ -225,7 +236,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         const defaultCheckoutData = {
           cart_id: this.cart.id,
           shipping_method: 'standard',
-          shipping_address: this.currentUser?.location || 'shop pick up',
+          shipping_address: this.currentUser?.deliveryLocation || 'shop pick up',
           payment_method: 'default',
         };
 
@@ -298,9 +309,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchAllCategoriesWithProducts() {
+      
       this.loading.allCategoriesWithProducts = true;
       this.error.allCategoriesWithProducts = null;
       try {
+        
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }

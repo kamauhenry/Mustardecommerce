@@ -1,4 +1,3 @@
-// services/api.js
 import axios from 'axios';
 
 function getAuthToken() {
@@ -29,7 +28,11 @@ export const createApiInstance = (store) => {
   api.interceptors.response.use(
     (response) => response,
     (error) => {
-      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      if (
+        error.response &&
+        (error.response.status === 401 || error.response.status === 403) &&
+        error.config.url !== 'auth/logout/'
+      ) {
         console.log('Response interceptor - unauthorized, logging out');
         localStorage.removeItem('authToken');
         if (store && typeof store.logout === 'function') {
@@ -57,15 +60,19 @@ export const register = async (apiInstance, userData) => {
   }
 };
 
-
 export const login = async (apiInstance, username, password) => {
+  if (!username || !password) {
+    throw new Error('Username and password are required');
+  }
+  console.log('Sending login request with:', { username, password });
   try {
     const response = await apiInstance.post('auth/login/', { username, password });
     const token = response.data.token;
     localStorage.setItem('authToken', token);
+    console.log('Login response:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Login error:', error.response?.data || error.message);
+    console.error('Login error details:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -74,7 +81,7 @@ export const login = async (apiInstance, username, password) => {
 export const googleAuth = async (apiInstance, googleToken) => {
   try {
     const response = await apiInstance.post('auth/google/', {
-      access_token: googleToken
+      access_token: googleToken,
     });
     const token = response.data.token;
     localStorage.setItem('authToken', token);
@@ -87,7 +94,9 @@ export const googleAuth = async (apiInstance, googleToken) => {
 
 export const logout = async (api) => {
   try {
+    console.log('Sending logout request with token:', localStorage.getItem('authToken'));
     await api.post('auth/logout/');
+    console.log('Logout successful');
   } catch (error) {
     console.error('Logout error:', error.response?.data || error.message);
   } finally {
@@ -97,7 +106,7 @@ export const logout = async (api) => {
 
 export const fetchCurrentUserInfo = async (apiInstance) => {
   try {
-    const response = await apiInstance.get('auth/user/');
+    const response = await apiInstance.get('auth/user/me');
     return response.data;
   } catch (error) {
     console.error('Error fetching current user info:', error.response?.data || error.message);
@@ -108,7 +117,7 @@ export const fetchCurrentUserInfo = async (apiInstance) => {
 // User Profile APIs
 export const getUserProfile = async (api) => {
   try {
-    const response = await api.get('user/profile/');
+    const response = await api.get('user/profile/me');
     return response.data;
   } catch (error) {
     console.error('Error fetching user profile:', error.response?.data || error.message);
@@ -118,7 +127,7 @@ export const getUserProfile = async (api) => {
 
 export const updateUserProfile = async (api, profileData) => {
   try {
-    const response = await api.put('user/profile/', profileData);
+    const response = await api.put(`user/update-user/${profileData.id}`, profileData); // Fixed template literal syntax
     return response.data;
   } catch (error) {
     console.error('Error updating user profile:', error.response?.data || error.message);
@@ -329,8 +338,8 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
 
 export default {
   createApiInstance,
-  register, 
-  login, 
+  register,
+  login,
   googleAuth,
   logout,
   fetchCurrentUserInfo,

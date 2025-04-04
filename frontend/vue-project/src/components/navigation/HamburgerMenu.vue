@@ -37,7 +37,7 @@
   </div>
 
   <aside :class="['sidebar', { open: isSidebarOpen }]">
-    <button class="close-btn" @click="isSidebarOpen = false">×</button>
+    <button class="close-btn" @click="closeSidebar">×</button>
 
     <nav>
       <div class="logo-image">
@@ -78,7 +78,7 @@
       </ul>
     </nav>
   </aside>
-  <div v-if="isSidebarOpen" class="overlay" @click="isSidebarOpen = false"></div>
+  <div v-if="isSidebarOpen" class="overlay" @click="closeSidebar"></div>
 </template>
 
 <script setup>
@@ -91,6 +91,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 
+// Define props
+defineProps({
+  isOpen: Boolean,
+});
+
+// Define emits
+const emit = defineEmits(['closeMenu']);
+
 const route = useRoute();
 const store = useEcommerceStore();
 
@@ -102,9 +110,13 @@ const isSidebarOpen = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const query = ref('');
 
-
 const updateScreenSize = () => {
   isMobile.value = window.innerWidth <= 768;
+};
+
+const closeSidebar = () => {
+  isSidebarOpen.value = false;
+  emit('closeMenu');
 };
 
 onMounted(() => {
@@ -119,11 +131,10 @@ onUnmounted(() => {
 });
 
 const categories = computed(() => store.allCategoriesWithProducts);
-
 </script>
 
 <style scoped>
-/* Navigation Bar */
+/* Your existing styles remain unchanged */
 .navbar {
   display: flex;
   align-items: center;

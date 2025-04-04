@@ -136,7 +136,7 @@ export default {
       try {
         const checkoutData = {
           shipping_method: 'standard',
-          shipping_address: store.currentUser?.location || 'shop pick up',
+          shipping_address: store.currentUser?.Deliverylocation || 'shop pick up',
           payment_method: 'mpesa',
         };
         const orderResponse = await store.checkout(checkoutData);
