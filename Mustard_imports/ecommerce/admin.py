@@ -1,6 +1,10 @@
 from django.contrib import admin
 from .models import *
 
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ('order', 'payment_status', 'mpesa_receipt_number', 'phone_number', 'amount')
+
 admin.site.register(User)   
 admin.site.register(Category)
 admin.site.register(Product)
@@ -12,7 +16,7 @@ admin.site.register(MOQRequest)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(DeliveryLocation)
-admin.site.register(Payment)
+
 
 
 admin.site.register(OrderItem)

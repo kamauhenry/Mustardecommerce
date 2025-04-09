@@ -4,7 +4,7 @@
     <template v-if="!isMobile">
       <TopRow @toggle-menu="isSidebarOpen = !isSidebarOpen" />
       <PagesRow />
-      <CategoriesRow />
+      <CategoriesRow v-if="!isExcludedRoute" />
     </template>
     <HamburgerMenu v-if="isMobile" :isOpen="isSidebarOpen" @close-menu="isSidebarOpen = false" />
 
@@ -66,8 +66,10 @@
     </Modal>
   </div>
 </template>
+
 <script>
-import { ref, onMounted, onUnmounted, inject, provide } from 'vue';
+import { ref, onMounted, onUnmounted, inject, provide, computed } from 'vue'; // Added computed
+import { useRoute } from 'vue-router';
 import TopRow from '@/components/navigation/TopRow.vue';
 import PagesRow from '@/components/navigation/PagesRow.vue';
 import CategoriesRow from '@/components/navigation/CategoriesRow.vue';
@@ -96,7 +98,19 @@ export default {
     const showRequestMOQ = ref(false);
     const showLoginModal = ref(false);
     const currentYear = ref(new Date().getFullYear());
-    const toastInstance = ref(null); // Store the toast instance instead of just ID
+    const toastInstance = ref(null);
+
+    const route = useRoute();
+    const excludedRoutes = ['/checkout', '/checkout/confirmation'];
+
+    // Use computed for reactive route checking
+    const isExcludedRoute = computed(() => {
+      const currentPath = route.path;
+      console.log('Current route.path:', currentPath); // Debug log
+      const isExcluded = excludedRoutes.some((excludedPath) => currentPath.startsWith(excludedPath));
+      console.log('isExcludedRoute result:', isExcluded); // Debug log
+      return isExcluded;
+    });
 
     const $toast = inject('$toast');
     if (!$toast) {
@@ -128,7 +142,11 @@ export default {
     const acceptCookies = () => {
       console.log('Accept button clicked');
       localStorage.setItem('cookieConsent', 'accepted');
-      toastInstance.value.close(); // Use close() instead of dismiss()
+      if (toastInstance.value && typeof toastInstance.value.close === 'function') {
+        toastInstance.value.close();
+      } else {
+        console.error('Toast instance is not valid:', toastInstance.value);
+      }
       $toast.success('Cookies accepted!', { duration: 3000 });
       window.location.reload();
     };
@@ -136,7 +154,11 @@ export default {
     const declineCookies = () => {
       console.log('Decline button clicked');
       localStorage.setItem('cookieConsent', 'declined');
-      toastInstance.value.close(); // Use close() instead of dismiss()
+      if (toastInstance.value && typeof toastInstance.value.close === 'function') {
+        toastInstance.value.close();
+      } else {
+        console.error('Toast instance is not valid:', toastInstance.value);
+      }
       $toast.info('Cookies declined.', { duration: 3000 });
       window.location.reload();
     };
@@ -164,6 +186,7 @@ export default {
         duration: 0,
         dismissible: false,
       });
+      console.log('Toast instance created:', toastInstance.value);
     };
 
     const manageCookies = () => {
@@ -198,11 +221,11 @@ export default {
       showLoginModal,
       currentYear,
       manageCookies,
+      isExcludedRoute,
     };
   },
 };
 </script>
-
 <style scoped>
 @import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";
 

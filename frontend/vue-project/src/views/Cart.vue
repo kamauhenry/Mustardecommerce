@@ -26,15 +26,15 @@
       <div v-else class="cart-items">
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-image">
-            <img :src="item.variant?.image || item.product?.picture || grey">
+            <img :src="item.variant?.image || item.product?.picture || grey" alt="Item image" />
           </div>
           <div class="item-details">
             <h3>{{ item.product_name }}</h3>
             <p v-if="item.variant">Color: {{ item.variant_info.color }}</p>
             <p v-if="item.variant">Size: {{ item.variant_info.size }}</p>
             <p>Quantity: {{ item.quantity }}</p>
-            <p>Price: KES{{ formatPrice(item.price_per_piece || 0) }}</p>
-            <p>Total: KES{{ formatPrice(item.line_total) }}</p>
+            <p>Price: KES {{ formatPrice(item.price_per_piece || 0) }}</p>
+            <p>Total: KES {{ formatPrice(item.line_total) }}</p>
           </div>
           <div class="item-actions">
             <button @click="updateQuantity(item.id, item.quantity - 1)" :disabled="item.quantity <= 1">-</button>
@@ -44,9 +44,10 @@
           </div>
         </div>
         <div class="cart-summary">
-          <p>Subtotal: KES{{ formatPrice(cartSubtotal) }}</p>
-          <p class="total">Total: KES{{ formatPrice(cartTotal) }}</p>
-          <button @click="checkout" class="checkout-button">Proceed to Checkout</button>
+          <p>Subtotal: KES {{ formatPrice(cartSubtotal) }}</p>
+          <p class="total">Total: KES {{ formatPrice(cartTotal) }}</p>
+          <!-- Updated 'Proceed to Checkout' button -->
+          <button @click="proceedToCheckout" class="checkout-button">Proceed to Checkout</button>
         </div>
       </div>
     </div>
@@ -70,8 +71,8 @@ export default {
 
     // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
-    const cartItems = computed(() => store.cartItems); // Use store.cartItems
-    const cartItemCount = computed(() => store.cartItemCount); // Use store.cartItemCount
+    const cartItems = computed(() => store.cartItems);
+    const cartItemCount = computed(() => store.cartItemCount);
     const cartSubtotal = computed(() =>
       cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0)
     );
@@ -80,11 +81,11 @@ export default {
     // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
 
-    // Navigation
+    // Navigation functions
     const goToLogin = () => router.push('/login');
     const goToProducts = () => router.push('/products');
 
-    // Load cart data
+    // Load cart data on mount
     const loadCart = async () => {
       loading.value = true;
       try {
@@ -99,7 +100,7 @@ export default {
       }
     };
 
-    // Retry fetch
+    // Retry fetching cart
     const retryFetch = () => loadCart();
 
     // Update item quantity
@@ -111,46 +112,38 @@ export default {
           quantity: newQuantity,
           cart_id: store.cart.id,
         });
-        await store.fetchCart(); // Refresh cart
+        await store.fetchCart();
       } catch (err) {
         console.error('Failed to update quantity:', err);
       }
     };
 
-    // Remove item
+    // Remove item from cart
     const removeItem = async (itemId) => {
       try {
         if (!store.apiInstance) store.initializeApiInstance();
         await store.apiInstance.post(`/carts/${store.cart.id}/remove_item/`, {
           item_id: itemId,
         });
-        await store.fetchCart(); // Refresh cart
+        await store.fetchCart();
       } catch (err) {
         console.error('Failed to remove item:', err);
       }
     };
 
-    // Checkout
-    const checkout = async () => {
+    // Proceed to Checkout: Creates an order and redirects
+    const proceedToCheckout = async () => {
       if (!cartItems.value.length) return;
       try {
-        const checkoutData = {
-          shipping_method: 'standard',
-          shipping_address: store.currentUser?.Deliverylocation || 'shop pick up',
-          payment_method: 'mpesa',
-        };
-        const orderResponse = await store.checkout(checkoutData);
-        router.push({
-          name: 'Checkout',
-          query: { orderId: orderResponse.id },
-        });
+        const order = await store.createOrderFromCart(); // New store method
+        router.push({ path: '/checkout', query: { orderId: order.id } });
       } catch (err) {
-        console.error('Checkout process failed:', err.message);
-        alert(err.message);
+        console.error('Failed to proceed to checkout:', err);
+        console.log('Server response:', err.response?.data); // Log the exact error
+        alert('Failed to create order. Please try again.');
       }
     };
 
-    // Load cart when component mounts
     onMounted(loadCart);
 
     return {
@@ -167,18 +160,12 @@ export default {
       retryFetch,
       updateQuantity,
       removeItem,
-      checkout,
+      proceedToCheckout,
       grey,
     };
   },
-  data: function() {
-    return {
-      image: grey
-    }
-  }
 };
 </script>
-
 <style scoped>
 .cart-container {
   max-width: 800px;

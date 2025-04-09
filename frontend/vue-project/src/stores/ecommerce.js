@@ -9,7 +9,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       apiInstance: null,
       cart: null,
       isLoggingOut: false,
-      cartItems: [], // Add cartItems to store
+      cartItems: [], 
       userLoading: false,
       userError: null,
       showAuthModal: false,
@@ -223,46 +223,124 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    async checkout(checkoutData) {
+    async createOrderFromCart() {
       try {
         if (!this.cart || !this.cart.id) {
           throw new Error('No active cart found');
         }
-
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
-
-        const defaultCheckoutData = {
-          cart_id: this.cart.id,
-          shipping_method: 'standard',
-          shipping_address: this.currentUser?.deliveryLocation || 'shop pick up',
-          payment_method: 'default',
-        };
-
-        const finalCheckoutData = {
-          ...defaultCheckoutData,
-          ...checkoutData,
-        };
-
-        const response = await this.apiInstance.post(
-          `/carts/${this.cart.id}/checkout/`,
-          finalCheckoutData,
-          { timeout: 15000 }
-        );
-
+        const response = await this.apiInstance.post(`/carts/${this.cart.id}/create-order/`);
+        const order = response.data;
         this.cart = null;
         this.cartItems = [];
-        localStorage.setItem('cartItems', JSON.stringify(this.cartItems));
-        localStorage.removeItem('cartId');
+        localStorage.removeItem('cartItems');
+        return order;
+      } catch (error) {
+        console.error('Create order error:', error);
+        throw error;
+      }
+    },
+
+    // New method: Fetch order details
+    async fetchOrder(orderId) {
+      try {
+        const response = await this.apiInstance.get(`/orders/${orderId}/`);
+        return response.data;
+      } catch (error) {
+        console.error('Fetch order error:', error);
+        throw error;
+      }
+    },
+
+    // New method: Update order shipping details
+    async updateOrderShipping(orderId, shippingMethod, deliveryLocationId) {
+      try {
+        const response = await this.apiInstance.put(`/orders/${orderId}/update-shipping/`, {
+          shipping_method: shippingMethod,
+          delivery_location_id: deliveryLocationId,
+        });
+        return response.data;
+      } catch (error) {
+        console.error('Update order shipping error:', error);
+        throw error;
+      }
+    },
+
+    // New method: Initiate M-Pesa payment
+    async initiatePayment(orderId, phoneNumber) {
+      try {
+        const response = await this.apiInstance.post(`/process-payment/`, {
+          order_id: orderId,
+          phone_number: phoneNumber,
+        });
+        return response.data;
+      } catch (error) {
+        console.error('Initiate payment error:', error);
+        throw error;
+      }
+    },
+
+    // New method: Verify payment status
+    async verifyPayment(orderId) {
+      try {
+        const response = await this.apiInstance.get(`/payment-details/${orderId}/`);
+        return response.data;
+      } catch (error) {
+        console.error('Verify payment error:', error);
+        throw error;
+      }
+    },
+
+    // Updated checkout method (renamed from checkout)
+    async checkoutCart(checkoutData) {
+      try {
+        if (!this.cart || !this.cart.id) {
+          throw new Error('No active cart found');
+        }
+        const response = await this.apiInstance.post(`/carts/${this.cart.id}/checkout/`, checkoutData);
+        this.cart = null;
+        this.cartItems = [];
+        localStorage.removeItem('cartItems');
         await this.fetchOrdersData();
         return response.data;
       } catch (err) {
-        console.error('Full Checkout Error:', err);
-        const errorMessage = err.response?.data?.error || err.message || 'Checkout failed. Please try again.';
-        throw new Error(errorMessage);
+        console.error('Checkout error:', err);
+        throw err;
       }
     },
+
+    async fetchOrdersData() {
+      try {
+        this.loading.orders = true;
+        this.error.orders = null;
+
+        const response = await this.apiInstance.get('orders/');
+        this.orders = response.data;
+
+        this.completedOrders = this.orders.filter(order => order.status === 'Completed');
+      } catch (err) {
+        this.error.orders = 'Could not load orders. Please try again.';
+        console.error('Error loading orders:', err);
+      } finally {
+        this.loading.orders = false;
+      }
+    },
+
+    async fetchCompletedOrdersData() {
+      if (!this.userId) throw new Error('User ID not set');
+      this.loading.completedOrders = true;
+      this.error.completedOrders = null;
+      try {
+        const data = await api.fetchCompletedOrders(this.apiInstance, this.userId);
+        this.completedOrders = data;
+      } catch (error) {
+        this.error.completedOrders = error.message || 'Failed to load completed orders';
+      } finally {
+        this.loading.completedOrders = false;
+      }
+    },
+
+
+
 
     async addToCart(productId, variantId, quantity = 1) {
       try {
@@ -476,38 +554,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    async fetchOrdersData() {
-      try {
-        this.loading.orders = true;
-        this.error.orders = null;
-
-        const response = await this.apiInstance.get('orders/');
-        this.orders = response.data;
-
-        this.completedOrders = this.orders.filter(order => order.status === 'Completed');
-      } catch (err) {
-        this.error.orders = 'Could not load orders. Please try again.';
-        console.error('Error loading orders:', err);
-      } finally {
-        this.loading.orders = false;
-      }
-    },
-
-    async fetchCompletedOrdersData() {
-      if (!this.userId) throw new Error('User ID not set');
-      this.loading.completedOrders = true;
-      this.error.completedOrders = null;
-      try {
-        const data = await api.fetchCompletedOrders(this.apiInstance, this.userId);
-        this.completedOrders = data;
-      } catch (error) {
-        this.error.completedOrders = error.message || 'Failed to load completed orders';
-      } finally {
-        this.loading.completedOrders = false;
-      }
-    },
-
-
 
     async fetchUserProfile() {
       if (!this.apiInstance) {
@@ -543,8 +589,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       try {
         const response = await api.getDeliveryLocations(this.apiInstance);
         this.deliveryLocations = response;
+        return response;
       } catch (error) {
         this.error.deliveryLocations = error.message || 'Failed to fetch delivery locations';
+        return [];
       } finally {
         this.loading.deliveryLocations = false;
       }
@@ -554,6 +602,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       try {
         const response = await api.addDeliveryLocation(this.apiInstance, location);
         this.deliveryLocations.push(response);
+        return response; 
       } catch (error) {
         throw new Error(error.message || 'Failed to add delivery location');
       }
@@ -563,6 +612,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       try {
         await api.setDefaultDeliveryLocation(this.apiInstance, locationId);
         await this.fetchDeliveryLocations();
+        
       } catch (error) {
         throw new Error(error.message || 'Failed to set default delivery location');
       }

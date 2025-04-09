@@ -4,38 +4,464 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
+from django.conf import settings
+
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import AnonymousUser, User
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
+from datetime import datetime
+from django.shortcuts import render
 from ..models import *
 from .serializers import *
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, Http404 ,FileResponse, HttpResponseBadRequest
 from django.db import IntegrityError
 from django.db import transaction
+from django.db import models
 from django.utils import timezone
-import logging
 from django.db import connection, transaction
 from django.db.models import Max
-import requests
-from django.http import JsonResponse
-from django.http import FileResponse
-from django.conf import settings
-import os
-from django.views.decorators.csrf import csrf_protect
+import requests , os , logging ,re ,json,base64
+from dotenv import load_dotenv
+from django.views.decorators.csrf import csrf_protect,csrf_exempt
+from PIL import Image
+from io import BytesIO
+
+load_dotenv()
+
+# Retrieve secrets from .env
+CONSUMER_KEY = os.getenv('CONSUMER_KEY')
+CONSUMER_SECRET = os.getenv('CONSUMER_SECRET')
+MPESA_PASSKEY = os.getenv('MPESA_PASSKEY')
+MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE')
+CALLBACK_URL = os.getenv('CALLBACK_URL')
+MPESA_BASE_URL = os.getenv('MPESA_BASE_URL')
+
+# M-Pesa Helper Functions
+def generate_access_token():
+    try:
+        encoded_credentials = base64.b64encode(f"{CONSUMER_KEY}:{CONSUMER_SECRET}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {encoded_credentials}",
+            "Content-Type": "application/json"
+        }
+        # Fixed typo in URL ('oasuth' -> 'oauth')
+        response = requests.get(
+            f"{MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials",
+            headers=headers
+        ).json()
+
+        if "access_token" in response:
+            return response["access_token"]
+        else:
+            raise Exception(f"Failed to get access token: {response.get('errorMessage', 'Unknown error')}")
+    except Exception as e:
+        logger.error(f"Failed to generate access token: {str(e)}")
+        raise Exception(f"Failed to get access token: {str(e)}")
+
+
+
+def send_stk_push(phone_number, amount, order_id):
+    try:
+        # Convert amount to a positive integer
+        try:
+            amount = Decimal(str(amount))  # Handle Decimal or string input
+            if amount <= 0:
+                raise ValueError("Amount must be greater than 0")
+            amount = int(amount)  # Convert to integer, removing decimals
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid amount value: {amount} - {str(e)}")
+            raise ValueError("Invalid amount format")
+
+        logger.info(f"Formatted amount for STK push: {amount}")
+        token = generate_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        stk_password = base64.b64encode(f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}".encode()).decode()
+
+        request_body = {
+            "BusinessShortCode": MPESA_SHORTCODE,
+            "Password": stk_password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": str(amount),  # Send as string
+            "PartyA": phone_number,
+            "PartyB": MPESA_SHORTCODE,
+            "PhoneNumber": phone_number,
+            "CallBackURL": CALLBACK_URL,
+            "AccountReference": f"Order-{order_id}",
+            "TransactionDesc": f"Payment for Order {order_id}"
+        }
+        response = requests.post(
+            f"{MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest",
+            json=request_body,
+            headers=headers
+        ).json()
+
+        return response
+    except Exception as e:
+        logger.error(f"Failed to send STK push: {str(e)}")
+        raise e
+
+def query_stk_push(checkout_request_id):
+    try:
+        token = generate_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        password = base64.b64encode(f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}".encode()).decode()
+
+        request_body = {
+            "BusinessShortCode": MPESA_SHORTCODE,
+            "Password": password,
+            "Timestamp": timestamp,
+            "CheckoutRequestID": checkout_request_id
+        }
+        response = requests.post(
+            f"{MPESA_BASE_URL}/mpesa/stkpushquery/v1/query",
+            json=request_body,
+            headers=headers
+        ).json()
+        return response
+    except requests.RequestException as e:
+        logger.error(f"Failed to query STK status: {str(e)}")
+        return {"error": str(e)}
+
+# Existing Views (Integrated from Your Original Code)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_order_from_cart(request, cart_id):
+    try:
+        cart = Cart.objects.get(id=cart_id, user=request.user)
+    except Cart.DoesNotExist:
+        return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if cart.items.count() == 0:
+        return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        default_location = DeliveryLocation.objects.filter(user=request.user, is_default=True).first()
+        if not default_location:
+            return Response({"error": "No default delivery location set"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Error fetching delivery location: {str(e)}")
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
+    logger.info(f"Cart contains {cart.items.count()} items")
+    highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
+    next_id = highest_id + 1
+    with transaction.atomic():
+        order = Order.objects.create(
+            user=request.user,
+            id=next_id,
+            shipping_method='standard',
+            delivery_location=default_location,
+            payment_status='pending',
+            delivery_status='processing',
+        )
+        for cart_item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product=cart_item.product,
+                variant=cart_item.variant,
+                quantity=cart_item.quantity,
+                price=cart_item.price_per_piece,
+            )
+        order.update_total_price()
+        cart.items.all().delete()
+
+    serializer = OrderSerializer(order)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_order_shipping(request, order_id):
+    try:
+        order = Order.objects.get(id=order_id, user=request.user)
+    except Order.DoesNotExist:
+        return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    shipping_method = request.data.get('shipping_method')
+    delivery_location_id = request.data.get('delivery_location_id')
+
+    if shipping_method:
+        order.shipping_method = shipping_method
+    if delivery_location_id:
+        try:
+            delivery_location = DeliveryLocation.objects.get(id=delivery_location_id, user=request.user)
+            order.delivery_location = delivery_location
+        except DeliveryLocation.DoesNotExist:
+            return Response({"error": "Delivery location not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    order.save()
+    serializer = OrderSerializer(order)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+    
+def format_phone_number(phone_number):
+    logger.info(f"Formatting phone number: {phone_number}")
+    phone_number = phone_number.replace("+", "")
+    if re.match(r"254\d{9}$", phone_number):
+        logger.info(f"Phone number already in 254 format: {phone_number}")
+        return phone_number
+    elif phone_number.startswith("0") and len(phone_number) == 10:
+        formatted_number = "254" + phone_number[1:]
+        logger.info(f"Converted phone number to: {formatted_number}")
+        return formatted_number
+    else:
+        logger.error(f"Invalid phone number format: {phone_number}")
+        raise ValueError("Invalid phone number format")
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_payment(request):
+    logger.info(f"Received payment request: {request.data}")
+    order_id = request.data.get('order_id')
+    phone_number = request.data.get('phone_number')
+
+    if not all([order_id, phone_number]):
+        logger.error(f"Missing required fields: order_id={order_id}, phone_number={phone_number}")
+        return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
+
+    logger.info(f"Initiating payment for order {order_id} with phone {phone_number}")
+    try:
+        phone_number = format_phone_number(phone_number)
+    except ValueError as e:
+        logger.error(f"Invalid phone number: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        order = Order.objects.get(id=order_id, user=request.user)
+    except Order.DoesNotExist:
+        logger.error(f"Order {order_id} not found for user {request.user}")
+        return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if order.payment_status != 'pending':
+        logger.warning(f"Order {order_id} payment status is {order.payment_status}, cannot process")
+        return Response({"error": "Order already paid or cancelled"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        logger.info(f"Order total_price: {order.total_price} (type: {type(order.total_price)})")
+        response = send_stk_push(phone_number, order.total_price, order_id)
+        logger.info(f"STK push response: {response}")
+        if response.get("ResponseCode") == "0":
+            checkout_request_id = response["CheckoutRequestID"]
+            Payment.objects.update_or_create(
+                order=order,
+                defaults={
+                    'phone_number': phone_number,
+                    'payment_method': 'mpesa',
+                    'amount': order.total_price,
+                    'payment_status': 'pending',
+                    'mpesa_checkout_request_id': checkout_request_id
+                }
+            )
+            logger.info(f"Payment initiated for order {order_id}, CheckoutRequestID: {checkout_request_id}")
+            return Response({
+                "message": "Payment initiated",
+                "checkout_request_id": checkout_request_id
+            }, status=status.HTTP_200_OK)
+        else:
+            error_message = response.get("errorMessage", "Failed to process payment request")
+            logger.error(f"STK push failed: {error_message}")
+            return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Payment initiation failed: {str(e)}")
+        return Response({"error": "Failed to initiate payment"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_payment_details(request, order_id):
+    """Verifies payment status with fallback to STK Push Query."""
+    try:
+        payment = Payment.objects.get(order_id=order_id, order__user=request.user)
+    except Payment.DoesNotExist:
+        return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # If payment is still pending, query M-Pesa for status
+    if payment.payment_status == 'pending' and payment.mpesa_checkout_request_id:
+        try:
+            status_response = query_stk_push(payment.mpesa_checkout_request_id)
+            if status_response.get("ResultCode") == "0":
+                payment.payment_status = 'completed'
+                payment.mpesa_receipt_number = status_response.get("MpesaReceiptNumber")
+                payment.order.payment_status = 'paid'
+                payment.save()
+                payment.order.save()
+            elif status_response.get("ResultCode"):
+                payment.payment_status = 'failed'
+                payment.error_message = status_response.get("ResultDesc", "Payment failed")
+                payment.save()
+        except Exception as e:
+            logger.error(f"Failed to query payment status: {str(e)}")
+
+    return Response({
+        "payment_status": payment.payment_status,
+        "amount": str(payment.amount),
+        "phone_number": payment.phone_number,
+        "payment_method": payment.payment_method,
+        "payment_date": payment.payment_date,
+        "mpesa_receipt_number": payment.mpesa_receipt_number,
+        "error_message": payment.error_message
+    }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def mpesa_callback(request):
+    """Handles M-Pesa STK Push callback to update payment and order status."""
+    if request.method != "POST":
+        logger.error("Invalid request method: Expected POST")
+        return HttpResponseBadRequest("Only POST requests are allowed")
+
+    try:
+        callback_data = json.loads(request.body)
+        logger.info(f"M-Pesa callback received: {callback_data}")
+
+        stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
+        checkout_request_id = stk_callback.get("CheckoutRequestID")
+        result_code = stk_callback.get("ResultCode")
+        result_desc = stk_callback.get("ResultDesc")
+
+        if not checkout_request_id or result_code is None:
+            logger.error("Missing CheckoutRequestID or ResultCode in callback")
+            return HttpResponseBadRequest("Invalid callback data: Missing required fields")
+
+        try:
+            payment = Payment.objects.get(mpesa_checkout_request_id=checkout_request_id)
+        except Payment.DoesNotExist:
+            logger.error(f"No payment found for CheckoutRequestID: {checkout_request_id}")
+            return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if result_code == 0:
+            callback_metadata = stk_callback.get("CallbackMetadata", {}).get("Item", [])
+            amount = next((item["Value"] for item in callback_metadata if item["Name"] == "Amount"), None)
+            mpesa_receipt = next((item["Value"] for item in callback_metadata if item["Name"] == "MpesaReceiptNumber"), None)
+            phone_number = next((item["Value"] for item in callback_metadata if item["Name"] == "PhoneNumber"), None)
+
+            payment.amount = amount or payment.amount
+            payment.mpesa_receipt_number = mpesa_receipt
+            payment.phone_number = phone_number or payment.phone_number
+            payment.payment_status = "completed"
+            payment.save()
+
+            payment.order.payment_status = "paid"
+            payment.order.save()
+
+            logger.info(f"Payment completed for Order {payment.order.id} - M-Pesa Receipt: {mpesa_receipt}")
+            return JsonResponse({"ResultCode": 0, "ResultDesc": "Success"}, status=status.HTTP_200_OK)
+        else:
+            payment.payment_status = "failed"
+            payment.error_message = result_desc
+            payment.save()
+
+            logger.warning(f"Payment failed for Order {payment.order.id} - ResultCode: {result_code}, Desc: {result_desc}")
+            return JsonResponse({"ResultCode": result_code, "ResultDesc": result_desc}, status=status.HTTP_200_OK)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in callback: {str(e)}")
+        return HttpResponseBadRequest(f"Invalid request body: {str(e)}")
+    except KeyError as e:
+        logger.error(f"Missing key in callback data: {str(e)}")
+        return HttpResponseBadRequest(f"Invalid callback data: Missing key {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in callback: {str(e)}", exc_info=True)
+        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+logger = logging.getLogger(__name__)
+@api_view(['POST']) 
+@permission_classes([IsAuthenticated]) 
+def process_checkout(request, cart_id): 
+    try:
+
+        # Log incoming request data
+        logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
+        reset_order_id_sequence()
+        # Extract checkout data with defaults
+        shipping_method = request.data.get('shipping_method', 'standard') 
+        shipping_address = request.data.get('shipping_address', 'shop pick up')
+
+        # Retrieve the cart
+        try:
+            cart = Cart.objects.get(id=cart_id)
+        except Cart.DoesNotExist:
+            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the user owns the cart
+        if cart.user != request.user:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check if the cart has items
+        if cart.items.count() == 0:
+            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Log cart items before processing
+        logger.info(f"Cart contains {cart.items.count()} items")
+        highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
+        next_id = highest_id + 1
+        # Use a database transaction to ensure atomicity
+        with transaction.atomic():
+            # Check if an order was already created for this cart but not completed
+            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+            for existing_order in existing_orders:
+                # If we find a recent order with no items, it might be a failed checkout
+                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:  # 5 min
+                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
+                    existing_order.delete()
+            
+            # Create order with all necessary details
+            order = Order.objects.create(
+                id=next_id, 
+                user=cart.user,
+                shipping_method=shipping_method,
+                shipping_address=shipping_address,
+            )
+            for cart_item in cart.items.all():
+                price_per_unit = cart_item.line_total / cart_item.quantity if cart_item.quantity > 0 else Decimal('0.00')
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.product,
+                    variant=cart_item.variant,
+                    quantity=cart_item.quantity,
+                    price=price_per_unit
+                )
+            order.save()  # Let the model calculate total_price
+
+            # Clear the cart after checkout
+            cart.items.all().delete()
+
+            # Serialize and return the order
+            serializer = OrderSerializer(order)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except IntegrityError as e:
+        logger.error(f"IntegrityError during checkout: {str(e)}")
+        return Response(
+            {"error": "Failed to create order due to a database conflict. Please try again."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during checkout: {str(e)}", exc_info=True)
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @csrf_protect
-
-
 def test_image(request):
     image_path = os.path.join(settings.MEDIA_ROOT, 'category_images', 'agriculture.jpeg')
     if os.path.exists(image_path):
@@ -290,222 +716,29 @@ def remove_cart_item(request, cart_id):  # Add cart_id as URL param
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-logger = logging.getLogger(__name__)
-@api_view(['POST']) 
-@permission_classes([IsAuthenticated]) 
-def process_checkout(request, cart_id): 
-    try:
-
-        # Log incoming request data
-        logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
-        reset_order_id_sequence()
-        # Extract checkout data with defaults
-        shipping_method = request.data.get('shipping_method', 'standard') 
-        shipping_address = request.data.get('shipping_address', 'shop pick up')
-
-        # Retrieve the cart
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_orders(request, order_id=None):
+    """Retrieves all orders or a specific order for the authenticated user."""
+    if order_id:
         try:
-            cart = Cart.objects.get(id=cart_id)
-        except Cart.DoesNotExist:
-            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Ensure the user owns the cart
-        if cart.user != request.user:
-            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
-
-        # Check if the cart has items
-        if cart.items.count() == 0:
-            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
-            
-        # Log cart items before processing
-        logger.info(f"Cart contains {cart.items.count()} items")
-        highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
-        next_id = highest_id + 1
-        # Use a database transaction to ensure atomicity
-        with transaction.atomic():
-            # Check if an order was already created for this cart but not completed
-            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
-            for existing_order in existing_orders:
-                # If we find a recent order with no items, it might be a failed checkout
-                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:  # 5 min
-                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
-                    existing_order.delete()
-            
-            # Create order with all necessary details
-            order = Order.objects.create(
-                id=next_id, 
-                user=cart.user,
-                shipping_method=shipping_method,
-                shipping_address=shipping_address,
-            )
-            for cart_item in cart.items.all():
-                price_per_unit = cart_item.line_total / cart_item.quantity if cart_item.quantity > 0 else Decimal('0.00')
-                OrderItem.objects.create(
-                    order=order,
-                    product=cart_item.product,
-                    variant=cart_item.variant,
-                    quantity=cart_item.quantity,
-                    price=price_per_unit
-                )
-            order.save()  # Let the model calculate total_price
-
-            # Clear the cart after checkout
-            cart.items.all().delete()
-
-            # Serialize and return the order
+            order = Order.objects.get(id=order_id, user=request.user)
             serializer = OrderSerializer(order)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-    except IntegrityError as e:
-        logger.error(f"IntegrityError during checkout: {str(e)}")
-        return Response(
-            {"error": "Failed to create order due to a database conflict. Please try again."},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error during checkout: {str(e)}", exc_info=True)
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-def format_phone_number(phone_number):
-    """
-    Format phone number to start with 254 if it starts with 0
-    
-    Args:
-        phone_number (str): Input phone number
-    
-    Returns:
-        str: Formatted phone number
-    """
-    # Remove any spaces or dashes
-    phone_number = ''.join(phone_number.split())
-    
-    # Check if number starts with 0
-    if phone_number.startswith('0'):
-        # Replace leading 0 with 254
-        return f'254{phone_number[1:]}'
-    
-    # If already starts with 254, return as is
-    if phone_number.startswith('254'):
-        return phone_number
-    
-    # If no country code, assume local number and add 254
-    if len(phone_number) == 9 and phone_number[0] in '17':
-        return f'254{phone_number}'
-    
-    # If number is too short or invalid, raise an error
-    if len(phone_number) < 9:
-        raise ValueError("Invalid phone number: number is too short")
-    
-    # If number doesn't match expected formats, return original
-    return phone_number
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def process_payment(request):
-    """
-    View to process payment for an order
-    """
-    try:
-        order_id = request.data.get('order_id')
-        phone_number = request.data.get('phone_number')
-        payment_method = request.data.get('payment_method', 'other')
-
-
-                # Format phone number
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            logger.info(f"Order {order_id} not found for user {request.user.id}")
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error fetching order {order_id}: {str(e)}")
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
         try:
-            formatted_phone_number = format_phone_number(phone_number)
-        except ValueError as e:
-            return Response(
-                {"error": str(e)}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Retrieve the order
-        order = Order.objects.get(
-            id=order_id, 
-            user=request.user, 
-            payment_status='pending'
-        )
-
-        # Create payment record
-        payment = Payment.objects.create(
-            order=order,
-            phone_number=phone_number,
-            payment_method=payment_method,
-            amount=order.total_price,
-            payment_status='pending'
-        )
-
-        # Update order payment status
-        order.payment_status = 'paid'
-        order.save()
-
-        # Update payment status
-        payment.payment_status = 'completed'
-        payment.save()
-
-        return Response({
-            'order_id': order.id,
-            'amount': payment.amount,
-            'phone_number': payment.phone_number,
-            'payment_method': payment.payment_method,
-            'payment_status': payment.payment_status
-        }, status=status.HTTP_200_OK)
-
-    except Order.DoesNotExist:
-        return Response(
-            {"error": "Order not found or already paid"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_payment_details(request, order_id):
-    """
-    View to retrieve payment details for a specific order
-    """
-    try:
-        payment = Payment.objects.get(
-            order_id=order_id, 
-            order__user=request.user
-        )
-        
-        return Response({
-            'order_id': payment.order.id,
-            'amount': payment.amount,
-            'phone_number': payment.phone_number,
-            'payment_method': payment.payment_method,
-            'payment_status': payment.payment_status,
-            'payment_date': payment.payment_date
-        }, status=status.HTTP_200_OK)
-
-    except Payment.DoesNotExist:
-        return Response(
-            {"error": "Payment not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_user_orders(request):
-    """
-    Retrieve all orders for the authenticated user
-    """
-    try:
-        orders = Order.objects.filter(user=request.user).prefetch_related('items__product')
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
+            orders = Order.objects.filter(user=request.user).prefetch_related('items__product')
+            serializer = OrderSerializer(orders, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error fetching orders for user {request.user.id}: {str(e)}")
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

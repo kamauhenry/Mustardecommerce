@@ -285,7 +285,7 @@ class Order(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipping_method = models.CharField(max_length=20, choices=SHIPPING_METHOD_CHOICES, default='standard')
-    shipping_address = models.CharField(max_length=255, blank=True, null=True)
+    delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default='processing')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -354,16 +354,16 @@ class OrderItem(models.Model):
     def __str__(self):
         return f"{self.quantity} x {self.product.name} in Order #{self.order.id}"
 
+
 class Payment(models.Model):
     PAYMENT_METHOD_CHOICES = (
-        ('Mpesa', 'MPESA'),
-        
+        ('mpesa', 'M-Pesa'),  # Updated to lowercase 'mpesa' for consistency
     )
 
     PAYMENT_STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('completed', 'Completed'),
-        ('failed', 'Failed')
+        ('failed', 'Failed'),
     )
 
     order = models.OneToOneField(
@@ -380,7 +380,7 @@ class Payment(models.Model):
     payment_method = models.CharField(
         max_length=20, 
         choices=PAYMENT_METHOD_CHOICES, 
-        default='other'
+        default='mpesa'  # Changed default to 'mpesa' since this is M-Pesa focused
     )
     payment_status = models.CharField(
         max_length=20, 
@@ -391,9 +391,30 @@ class Payment(models.Model):
         max_digits=10, 
         decimal_places=2
     )
-
     payment_date = models.DateTimeField(auto_now_add=True)
     
+    # New fields for M-Pesa integration
+    mpesa_checkout_request_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Unique ID from M-Pesa STK Push request"
+    )
+    mpesa_receipt_number = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="M-Pesa transaction receipt number (e.g., QJ1234567890)"
+    )
+    error_message = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Reason for payment failure, if any"
+    )
+
     def __str__(self):
         return f"Payment for Order #{self.order.id}"
 
@@ -405,6 +426,9 @@ class Payment(models.Model):
             self.amount = self.order.total_price
         super().save(*args, **kwargs)
 
+    class Meta:
+        verbose_name = "Payment"
+        verbose_name_plural = "Payments"
 class CompletedOrder(models.Model):
     """
     Stores orders that have been fully processed and delivered.
@@ -418,7 +442,7 @@ class CompletedOrder(models.Model):
     order_date = models.DateTimeField()
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     completion_date = models.DateTimeField(auto_now_add=True)
-
+    delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True)
     def __str__(self):
         return f"Completed Order #{self.order_number}"
 

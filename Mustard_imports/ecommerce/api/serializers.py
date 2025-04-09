@@ -79,11 +79,14 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-
+    delivery_location = serializers.PrimaryKeyRelatedField(
+        queryset=DeliveryLocation.objects.all(), 
+        allow_null=True  # Add this if nullable
+    )
     class Meta:
         model = Order
         fields = [
-            'id','user', 'shipping_method', 'shipping_address', 
+            'id','user', 'shipping_method', 'delivery_location', 
             'payment_status', 'delivery_status', 'created_at', 
              'items', 'total_price'
         ]
@@ -100,7 +103,7 @@ class CompletedOrderSerializer(serializers.ModelSerializer):
             'id', 'original_order', 'order_number', 'user', 
             'shipping_method', 'payment_method', 
             'mpesa_confirmation_code', 'order_date', 
-            'completion_date', 'items', 'total_price'
+            'completion_date', 'items', 'total_price','delivery_location'
         ]
         read_only_fields = [
             'order_number', 'user', 'shipping_method', 
@@ -218,12 +221,29 @@ class MOQRequestSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+
+
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ['id', 'order', 'amount', 'method', 'status', 'created_at']
-        read_only_fields = ['status']
-
+        fields = [
+            'order',                # Primary key, linked to Order
+            'phone_number',         # Required field
+            'payment_method',       # Matches model field name
+            'payment_status',       # Matches model field name
+            'amount',               # Amount from order total or set manually
+            'payment_date',         # Matches model field name (replaces 'created_at')
+            'mpesa_checkout_request_id',  # M-Pesa STK Push request ID
+            'mpesa_receipt_number',       # M-Pesa transaction receipt
+            'error_message',        # Reason for failure, if any
+        ]
+        read_only_fields = [
+            'payment_status',       # Status should be updated by the system, not the client
+            'payment_date',         # Auto-set on creation
+            'mpesa_checkout_request_id',  # Set by M-Pesa integration
+            'mpesa_receipt_number',       # Set by M-Pesa callback
+            'error_message',        # Set by payment processing logic
+        ]
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:

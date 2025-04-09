@@ -120,3 +120,45 @@ Use Postman or Django’s browsable API to interact with the backend.
 - Use Nginx or another web server to serve static files efficiently.
 
 Now you’re ready to develop with both Django REST and Vue! 🚀
+
+
+### **Mpesa Integrated sandbpxing we will change to live in production
+**
+
+
+## Environment Configuration and Ngrok Setup
+
+### `.env` Configuration
+Add the following to your `.env` file to configure the M-Pesa integration:
+
+MPESA_BASE_URL=https://sandbox.safaricom.co.ke  # Use https://api.safaricom.co.ke for production
+
+- **Note**: Ensure the `MPESA_BASE_URL` includes the `https://` scheme to avoid URL errors in your application.
+
+### Running Ngrok
+To expose your local development server (e.g., `http://localhost:5173`) to the internet for testing, use ngrok. Below is an example of running ngrok and its output:
+
+#### Steps
+1. **Start your local server**: Run `npm run dev` to start your Vue.js app (default port: `5173`).
+2. **Run ngrok**: In a terminal, navigate to the ngrok executable folder and run:
+
+   ./ngrok http 5173
+
+3. **Output**: You’ll see something like this:
+
+   ngrok by @inconshreveable
+
+   Session Status   online
+   Account          Your Name (Plan: Free)
+   Version          3.6.0
+   Region           United States (us)
+   Web Interface    http://127.0.0.1:4040
+   Forwarding       https://abcd-123-456-789.ngrok-free.app -> http://localhost:5173
+
+#### Details
+- **Forwarding URL**: Use `https://abcd-123-456-789.ngrok-free.app` (replace with your actual ngrok URL) as the `CALLBACK_URL` in your `.env` for M-Pesa testing:
+
+  CALLBACK_URL=https://abcd-123-456-789.ngrok-free.app/mpesa-callback/
+
+- **Web Interface**: Visit `http://127.0.0.1:4040` to inspect HTTP traffic and debug requests.
+

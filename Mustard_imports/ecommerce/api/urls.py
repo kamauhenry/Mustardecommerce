@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping)
 
 
 # Creating DRF router
@@ -52,17 +52,20 @@ urlpatterns = [
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
     path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),
     path('orders/', get_user_orders, name='get-user-orders'),
-    path('orders/<int:order_id>', get_user_orders, name='get-user-orders'),
+    path('orders/<int:order_id>/', get_user_orders, name='get-order-detail'),
     path('create_cart/', create_cart, name='create-cart'),
     path('carts/<int:cart_id>/add_item/', add_item_to_cart, name='add-item-to-cart'),
     path('cart-items/<int:item_id>/update_cart_item_quantity/', update_cart_item_quantity, name='update-cart-item-quantity'),
     path('carts/<int:cart_id>/remove_item/', remove_cart_item, name='remove-cart-item'),
     path('carts/<int:cart_id>/checkout/', process_checkout, name='process-checkout'),
-
+    path('carts/<int:cart_id>/create-order/', create_order_from_cart, name='create-order-from-cart'),
+    path('orders/<int:order_id>/update-shipping/', update_order_shipping, name='update-order-shipping'),
     #custom  payment actions 
   
     path('process-payment/', process_payment, name='process_payment'),
     path('payment-details/<int:order_id>/', get_payment_details, name='get_payment_details'),
+    path('mpesa-callback/', mpesa_callback, name='mpesa-callback'),
+
 
 # Profile
     path('user/profile/me', UserProfileView.as_view(), name='user-profile'),
