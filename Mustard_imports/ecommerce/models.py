@@ -100,9 +100,9 @@ class Product(models.Model):
         ('not_applicable', 'Not Applicable'),
     )
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     slug = models.SlugField(null=True, blank=True)
-    description = models.TextField()
+    description = models.TextField(db_index=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     below_moq_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")

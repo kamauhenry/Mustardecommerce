@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView,latest_products,random_products)
 
 
 # Creating DRF router
@@ -34,6 +34,8 @@ urlpatterns = [
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
     # path('auth/', include('rest_framework.urls', namespace='rest_framework')),  # Commented out
     path('products/search/', search, name='search'), 
+    path('products/random/', random_products, name='random-products'),
+    path('products/latest/', latest_products, name='latest-products'),
     # Product and category-related URLs
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
 

@@ -37,6 +37,7 @@ from PIL import Image
 from io import BytesIO
 from google.oauth2 import id_token
 from google.auth.transport import requests
+import random
 
 User = get_user_model()
 load_dotenv()
@@ -841,6 +842,30 @@ def search(request):
             "pages": 0, 
             "current_page": 1
         })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def random_products(request):
+    
+    products = list(Product.objects.all())
+    random_products = random.sample(products, min(3, len(products)))
+    serializer = ProductSerializer(random_products, many=True)
+    return Response({
+        'results': serializer.data,
+        'total': len(random_products)
+    })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def latest_products(request):
+    limit = int(request.GET.get('limit', 3))
+    products = Product.objects.order_by('-created_at')[:limit]
+    serializer = ProductSerializer(products, many=True)
+    return Response({
+        'results': serializer.data,
+        'total': len(products)
+    })
+
 
 class CategoryProductsView(APIView):
     permission_classes = [permissions.AllowAny]

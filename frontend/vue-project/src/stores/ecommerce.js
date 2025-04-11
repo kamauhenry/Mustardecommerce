@@ -17,7 +17,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       searchResults: [],
       totalSearchResults: 0,
       searchLoading: false,
-      recentSearches: [],
+      recentSearches: JSON.parse(localStorage.getItem("recentSearches")) || [],
       searchSuggestions: [],
       categories: [],
       categoryProducts: {},
@@ -485,13 +485,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         const response = await api.searchProducts(this.apiInstance, query, page, perPage);
         this.searchResults = response.results || [];
         this.totalSearchResults = response.total || 0;
-        if (query && !this.recentSearches.includes(query)) {
-          this.recentSearches.unshift(query);
-          if (this.recentSearches.length > 5) {
-            this.recentSearches.pop();
-          }
-          localStorage.setItem('recentSearches', JSON.stringify(this.recentSearches));
-        }
+        this.addRecentSearch(query); 
         return response;
       } catch (error) {
         console.error('Error searching products:', error);
@@ -502,28 +496,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchSearchSuggestions(query) {
-      if (!query || query.length < 2) {
-        this.searchSuggestions = [];
-        return;
-      }
-
       try {
-        const response = await this.apiInstance.get('/products/', {
-          params: {
-            search: query,
-            page: 1,
-            per_page: 5,
-            ordering: '-created_at',
-          },
-        });
-
-        if (Array.isArray(response.data)) {
-          this.searchSuggestions = response.data;
-        } else if (response.data.products) {
-          this.searchSuggestions = response.data.products;
-        } else {
-          this.searchSuggestions = response.data.results || [];
+        const response = await fetch(
+          `http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
+        );
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
         }
+        const data = await response.json();
+        this.searchSuggestions = data.results || [];
+        console.log('Suggestions fetched:', this.searchSuggestions); // Debugging
       } catch (error) {
         console.error('Error fetching suggestions:', error);
         this.searchSuggestions = [];
@@ -544,14 +526,13 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     addRecentSearch(query) {
       if (!query || !query.trim()) return;
-
+    
       const trimmedQuery = query.trim();
       if (!this.recentSearches.includes(trimmedQuery)) {
-        if (this.recentSearches.length >= 5) {
+        this.recentSearches.unshift(trimmedQuery);
+        if (this.recentSearches.length > 3) {
           this.recentSearches.pop();
         }
-        this.recentSearches.unshift(trimmedQuery);
-
         try {
           localStorage.setItem('recentSearches', JSON.stringify(this.recentSearches));
         } catch (e) {

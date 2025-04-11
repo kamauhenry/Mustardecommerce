@@ -2,10 +2,21 @@
   <div class="recent-campaigns">
     <p class="campaigns-title">Recent Campaigns</p>
     <div class="products-campaigns">
-      <div class="product-campaigns" v-for="(item, index) in campaigns" :key="index">
-        <img :src="item.image" alt="Product 1" class="product-campaign-img" width="50" height="50">
+      <div
+        v-for="(item, index) in latestProducts"
+        :key="index"
+        class="product-campaigns"
+        @click="viewProduct(item)"
+      >
+        <img
+          :src="item.image"
+          :alt="item.name"
+          class="product-campaign-img"
+          width="50"
+          height="50"
+        />
         <div class="slide-content">
-          <p class="campaign-p">{{ item.product }}</p>
+          <p class="campaign-p">{{ item.name }}</p>
         </div>
       </div>
     </div>
@@ -13,25 +24,43 @@
 </template>
 
 <script>
-import placeholder from "@/assets/images/ikea.jpeg";
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
 export default {
-  data() {
+  setup() {
+    const router = useRouter();
+    const latestProducts = ref([]);
+
+    // Fetch the 3 latest products from the backend
+    const fetchLatestProducts = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/products/latest/?limit=3');
+        if (!response.ok) throw new Error('Failed to fetch latest products');
+        const data = await response.json();
+        latestProducts.value = data.results || [];
+      } catch (error) {
+        console.error('Error fetching latest products:', error);
+        latestProducts.value = [];
+      }
+    };
+
+    // Navigate to product detail page
+    const viewProduct = (product) => {
+      router.push({
+        name: 'product-detail',
+        params: { categorySlug: product.category_slug, productSlug: product.slug },
+      });
+    };
+
+    // Fetch products on component mount
+    onMounted(() => {
+      fetchLatestProducts();
+    });
+
     return {
-      campaigns: [
-        {
-          image: placeholder,
-          product: "Product 1",
-        },
-        {
-          image: placeholder,
-          product: "Product 2",
-        },
-        {
-          image: placeholder,
-          product: "Product 3",
-        },
-      ],
+      latestProducts,
+      viewProduct,
     };
   },
 };
@@ -67,6 +96,7 @@ export default {
   justify-content: flex-start;
   align-items: center;
   width: 100%;
+  cursor: pointer;
 }
 
 .product-campaign-img {
