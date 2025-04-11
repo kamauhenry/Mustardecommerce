@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView)
 
 
 # Creating DRF router
@@ -28,6 +28,7 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
+    path('auth/change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('auth/user/me', get_current_user, name='get_current_user'),
 
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView
@@ -62,7 +63,7 @@ urlpatterns = [
 
 # Profile
     path('user/profile/me', UserProfileView.as_view(), name='user-profile'),
-    path('user/update-user/<int:pk>/', UserViewSet.as_view({'put': 'update'}), name='user-update'),
+    path('user/update-user/', UserViewSet.as_view({'put': 'update'}), name='user-update'),
     path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery_locations'),
     path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delivery_location_detail'),
     path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set_default_location'),

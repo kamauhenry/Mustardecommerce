@@ -155,6 +155,21 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
+    async changePassword(currentPassword, newPassword, confirmPassword) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+      try {
+        const response = await this.apiInstance.post('auth/change-password/', {
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        });
+        return response.data;
+      } catch (error) {
+        throw new Error(error.response?.data?.error || 'Failed to change password');
+      }
+    },
     async logout() {
       if (this.isLoggingOut) return;
       this.isLoggingOut = true;
@@ -577,17 +592,27 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
 
+
     async fetchUserProfile() {
       if (!this.apiInstance) {
         this.initializeApiInstance();
       }
-      this.loading.userProfile = true;
-      this.error.userProfile = null;
       try {
-        const response = await api.getUserProfile(this.apiInstance);
-        this.currentUser = response;
+        this.loading.userProfile = true;
+        const userData = await api.getUserProfile(this.apiInstance);
+        this.userId = userData.id; // Set userId
+        this.currentUser = {
+          id: userData.id, // Set currentUser.id
+          username: userData.username,
+          email: userData.email,
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          phone_number: userData.phone_number || '',
+        };
+        return userData;
       } catch (error) {
         this.error.userProfile = error.message || 'Failed to fetch user profile';
+        throw error;
       } finally {
         this.loading.userProfile = false;
       }
@@ -599,7 +624,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
       try {
         const response = await api.updateUserProfile(this.apiInstance, profileData);
-        this.currentUser = response;
+        this.currentUser = {
+          ...this.currentUser,
+          ...response, 
+        };
+        return response;
       } catch (error) {
         throw new Error(error.message || 'Failed to update user profile');
       }

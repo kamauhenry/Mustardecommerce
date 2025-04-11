@@ -18,7 +18,7 @@
                 :class="{ active: activeTab === 'orders' }"
                 @click="setActiveTab('orders')"
               >
-                Orders
+                Order History
               </li>
               <li
                 :class="{ active: activeTab === 'security' }"
@@ -33,7 +33,6 @@
                 Location Information
               </li>
             </ul>
-            <!-- Single Tab Indicator -->
             <span class="tab-indicator" :style="activeTabStyle"></span>
           </nav>
         </aside>
@@ -56,27 +55,20 @@
                       alt="Profile Photo"
                       class="photo"
                     />
-                    <div v-else class="photo-placeholder">No Photo</div>
-                  </div>
-                  <div class="change-photo">
-                    <button @click="triggerFileInput" class="change-photo-btn">
-                      Change Photo
-                    </button>
-                    <input
-                      type="file"
-                      ref="fileInput"
-                      @change="handleProfilePhotoChange"
-                      style="display: none"
-                      accept="image/*"
+                    <img
+                      v-else
+                      src="@/assets/default_avatar.jpg"
+                      alt="Default Avatar"
+                      class="photo"
                     />
                   </div>
                 </div>
                 <div class="profile-info">
                   <p><span>Username:</span> {{ user.username || 'N/A' }}</p>
                   <p><span>Email:</span> {{ user.email || 'N/A' }}</p>
-                  
                   <p><span>Points:</span> {{ user.points || 0 }}</p>
                   <p><span>Affiliate Code:</span> {{ user.affiliate_code || 'N/A' }}</p>
+                  <p><span>Phone Number:</span> {{ user.phone_number }}</p>
                   <p><span>Join Date:</span> {{ formatDate(user.date_joined) }}</p>
                 </div>
               </div>
@@ -105,7 +97,7 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="email">First Name</label>
+                  <label for="first_name">First Name</label>
                   <input
                     type="text"
                     id="first_name"
@@ -114,7 +106,7 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="email">Last Name</label>
+                  <label for="last_name">Last Name</label>
                   <input
                     type="text"
                     id="last_name"
@@ -123,7 +115,7 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="email">Last Name</label>
+                  <label for="phone_number">Phone Number</label>
                   <input
                     type="tel"
                     id="phone_number"
@@ -141,15 +133,16 @@
             </div>
           </div>
 
-          <!-- Orders Tab -->
+          <!-- Order History Tab -->
           <div v-if="activeTab === 'orders'" class="tab-content">
             <div class="orders-section">
-              <h2 class="profile-tabs-title">Orders</h2>
-              <div v-if="ordersLoading" class="loading">Loading orders...</div>
+              <h2 class="profile-tabs-title">Order History</h2>
+              <div v-if="ordersLoading" class="loading">Loading order history...</div>
               <div v-else-if="ordersError" class="error">{{ ordersError }}</div>
+              <div v-else-if="!completedOrders.length">No completed orders yet.</div>
               <div v-else>
                 <ul class="orders-list">
-                  <li v-for="order in orders" :key="order.id">
+                  <li v-for="order in completedOrders" :key="order.id">
                     <div class="order-details">
                       <span class="order-number">Order #{{ order.id }}</span>
                       <span class="order-date">{{ formatDate(order.created_at) }}</span>
@@ -166,7 +159,7 @@
           <div v-if="activeTab === 'security'" class="tab-content">
             <div class="security-section">
               <h2 class="profile-tabs-title">Security</h2>
-              <button @click="showChangePasswordForm" class="change-password-btn">
+                  <button @click="showChangePasswordForm" class="change-password-btn">
                 Change Password
               </button>
               <div v-if="showChangePassword" class="change-password-form">
@@ -216,8 +209,8 @@
               <div class="locations-section-top">
                 <h2 class="profile-tabs-title">Delivery Locations</h2>
                 <button @click="showAddLocationPopup" class="add-location-btn">
-                Add New Location
-              </button>
+                  Add New Location
+                </button>
               </div>
               <ul class="locations-list">
                 <li v-for="location in deliveryLocations" :key="location.id">
@@ -282,15 +275,44 @@ export default {
   },
   setup() {
     const store = useEcommerceStore();
-    const showPopup = ref(false);
-    const isLoading = ref(true);
-    const fileInput = ref(null);
-    const showDeleteModal = ref(false);
-    const locationToDeleteId = ref(null);
-    const activeTab = ref('user-info'); // Default tab
     const { proxy } = getCurrentInstance();
 
-    // Fetch user profile and delivery locations on mount
+    // State variables
+    const showPopup = ref(false);
+    const isLoading = ref(true);
+    const showDeleteModal = ref(false);
+    const locationToDeleteId = ref(null);
+    const activeTab = ref('user-info');
+    const showEditProfile = ref(false);
+    const showChangePassword = ref(false);
+
+    // Edit Profile Form
+    const editProfileForm = ref({
+      username: '',
+      email: '',
+      first_name: '',
+      last_name: '',
+      phone_number: '',
+    });
+
+    // Change Password Form
+    const changePasswordForm = ref({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    });
+
+    // Computed properties from store
+    const user = computed(() => store.currentUser || {});
+    const deliveryLocations = computed(() => store.deliveryLocations || []);
+    const orders = computed(() => store.orders || []);
+    const completedOrders = computed(() =>
+      store.orders.filter(order => order.delivery_status === 'delivered')
+    );
+    const ordersLoading = computed(() => store.loading.orders);
+    const ordersError = computed(() => store.error.orders);
+
+    // Fetch initial data
     onMounted(async () => {
       try {
         isLoading.value = true;
@@ -298,42 +320,78 @@ export default {
         await store.fetchDeliveryLocations();
       } catch (error) {
         console.error('Error loading profile data:', error);
+        proxy.$toast.error('Failed to load profile data');
       } finally {
         isLoading.value = false;
       }
     });
 
-    // Get user data from store
-    const user = computed(() => store.currentUser || {});
-
-    // Get delivery locations from store
-    const deliveryLocations = computed(() => store.deliveryLocations || []);
-
+    // Utility Functions
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A';
       const date = new Date(dateString);
-      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}/${date.getFullYear()}`;
     };
 
-    const triggerFileInput = () => {
-      fileInput.value.click();
+    // Edit Profile Methods
+    const showEditProfileForm = () => {
+      editProfileForm.value = { ...user.value }; // Populate form with current user data
+      showEditProfile.value = true;
     };
 
-    const handleProfilePhotoChange = async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
+    const cancelEditProfile = () => {
+      showEditProfile.value = false;
+    };
 
+
+    const updateProfile = async () => {
       try {
-        const formData = new FormData();
-        formData.append('profile_photo', file);
-        await store.updateProfilePhoto(formData);
-        proxy.$toast.success('Profile photo updated successfully!');
+        await store.updateUserProfile(editProfileForm.value);
+        showEditProfile.value = false;
+        proxy.$toast.success('Profile updated successfully!');
       } catch (error) {
-        console.error('Failed to update profile photo:', error);
-        proxy.$toast.error('Failed to update profile photo');
+        console.error('Update profile error:', error);
+        proxy.$toast.error('Failed to update profile');
       }
     };
 
+    // Change Password Methods
+    const showChangePasswordForm = () => {
+      showChangePassword.value = true;
+    };
+
+    const cancelChangePassword = () => {
+      changePasswordForm.value = {
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      };
+      showChangePassword.value = false;
+    };
+
+    const updatePassword = async () => {
+      if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
+        proxy.$toast.error('New passwords do not match');
+        return;
+      }
+      try {
+        await store.changePassword(
+          changePasswordForm.value.currentPassword,
+          changePasswordForm.value.newPassword,
+          changePasswordForm.value.confirmPassword
+        );
+        showChangePassword.value = false;
+        proxy.$toast.success('Password changed successfully!');
+        cancelChangePassword(); // Reset form
+      } catch (error) {
+        console.error('Change password error:', error);
+        proxy.$toast.error(error.message || 'Failed to change password');
+      }
+    };
+
+    // Location Methods
     const showAddLocationPopup = () => {
       showPopup.value = true;
     };
@@ -389,32 +447,25 @@ export default {
       locationToDeleteId.value = null;
     };
 
-    const editUser = () => {
-      proxy.$toast.error('Edit profile functionality to be implemented.');
-    };
-
-    const changePassword = () => {
-      proxy.$toast.error('Edit profile functionality to be implemented.');
-    };
-
-    // Tab navigation
+    // Tab Navigation
     const setActiveTab = (tab) => {
       activeTab.value = tab;
+      if (tab === 'orders' && !orders.value.length) {
+        store.fetchOrdersData();
+      }
     };
 
-    // Calculate the position of the tab indicator
     const activeTabStyle = computed(() => {
-      const tabHeight = 50; // Height of each tab (adjust based on your design)
+      const tabHeight = 50;
       const tabIndex = {
         'user-info': 0,
-        'orders': 1,
-        'security': 2,
-        'locations': 3,
+        orders: 1,
+        security: 2,
+        locations: 3,
       }[activeTab.value];
-      const topPosition = tabIndex * tabHeight;
       return {
-        top: `${topPosition}px`,
-        transition: 'top 0.3s ease', // Smooth transition
+        top: `${tabIndex * tabHeight}px`,
+        transition: 'top 0.3s ease',
       };
     });
 
@@ -423,13 +474,10 @@ export default {
       deliveryLocations,
       showPopup,
       isLoading,
-      fileInput,
       showDeleteModal,
       activeTab,
       activeTabStyle,
       formatDate,
-      triggerFileInput,
-      handleProfilePhotoChange,
       showAddLocationPopup,
       closePopup,
       addLocation,
@@ -437,9 +485,21 @@ export default {
       confirmDeleteLocation,
       deleteLocation,
       cancelDeleteLocation,
-      editUser,
-      changePassword,
       setActiveTab,
+      showEditProfile,
+      showChangePassword,
+      editProfileForm,
+      changePasswordForm,
+      showEditProfileForm,
+      cancelEditProfile,
+      updateProfile,
+      showChangePasswordForm,
+      cancelChangePassword,
+      updatePassword,
+      orders,
+      completedOrders,
+      ordersLoading,
+      ordersError,
     };
   },
 };

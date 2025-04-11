@@ -127,7 +127,7 @@ export const getUserProfile = async (api) => {
 
 export const updateUserProfile = async (api, profileData) => {
   try {
-    const response = await api.put(`user/update-user/${profileData.id}`, profileData); // Fixed template literal syntax
+    const response = await api.put(`user/update-user/`, profileData);
     return response.data;
   } catch (error) {
     console.error('Error updating user profile:', error.response?.data || error.message);

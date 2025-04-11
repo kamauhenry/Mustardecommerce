@@ -15,7 +15,7 @@ from django.core.cache.backends.base import InvalidCacheBackendError
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import AnonymousUser, User
 from django.core.exceptions import ObjectDoesNotExist
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model , update_session_auth_hash
 from rest_framework.authtoken.models import Token
 from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
@@ -525,6 +525,7 @@ class GoogleAuthView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -532,6 +533,13 @@ class UserViewSet(viewsets.ModelViewSet):
         elif self.action == 'update' or self.action == 'partial_update':
             return UserUpdateSerializer
         return super().get_serializer_class()
+
+    def update(self, request, *args, **kwargs):
+        instance = self.request.user  # Use authenticated user
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -601,6 +609,26 @@ class RegisterView(APIView):
                 'token': token.key  # Return the token to the client
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not user.check_password(current_password):
+            return Response({'error': 'Current password is incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({'error': 'New passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)  
+        return Response({'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
