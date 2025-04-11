@@ -74,7 +74,7 @@
                 <div class="profile-info">
                   <p><span>Username:</span> {{ user.username || 'N/A' }}</p>
                   <p><span>Email:</span> {{ user.email || 'N/A' }}</p>
-                  <p><span>User Type:</span> {{ user.user_type || 'N/A' }}</p>
+                  
                   <p><span>Points:</span> {{ user.points || 0 }}</p>
                   <p><span>Affiliate Code:</span> {{ user.affiliate_code || 'N/A' }}</p>
                   <p><span>Join Date:</span> {{ formatDate(user.date_joined) }}</p>

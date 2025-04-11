@@ -1,25 +1,16 @@
 <template>
   <div class="auth-modal">
     <form @submit.prevent="login">
-
       <div class="input-group">
-        <input
-          v-model="username"
-          type="text"
-          placeholder="Email/Phone Number"
-          required
-        />
+        <input v-model="username" type="text" placeholder="Email/Phone Number" required />
       </div>
       <div class="input-group">
-        <input
-          v-model="password"
-          type="password"
-          placeholder="Password"
-          required
-        />
+        <input v-model="password" type="password" placeholder="Password" required />
       </div>
       <button type="submit" class="auth-button">LOGIN</button>
     </form>
+    <!-- Google Sign-In Button -->
+    <div id="g_id_signin" class="google-signin"></div>
     <p v-if="error" class="error">{{ error }}</p>
     <p class="forgot-password">
       <a href="#" @click.prevent>Forgot Password? Click Here</a>
@@ -35,14 +26,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 
 const username = ref('');
 const password = ref('');
 const error = ref(null);
 const store = useEcommerceStore();
-
 const emit = defineEmits(['switch-to-register', 'close']);
 
 const login = async () => {
@@ -60,6 +50,31 @@ const login = async () => {
 const switchToRegister = () => {
   emit('switch-to-register');
 };
+
+// Initialize and render Google Sign-In button
+onMounted(() => {
+  window.google.accounts.id.initialize({
+    client_id: '370920112183-0pd7i0jqlf78bqjph6j6ocg1s3gkhe9d.apps.googleusercontent.com',
+    callback: handleCredentialResponse,
+  });
+  window.google.accounts.id.renderButton(
+    document.getElementById('g_id_signin'),
+    { theme: 'outline', size: 'large' }
+  );
+});
+
+// Handle Google authentication response
+const handleCredentialResponse = async (response) => {
+  const idToken = response.credential;
+  try {
+    const resp = await store.googleLogin(idToken);
+    console.log(`Logged in with Google as ${resp.username}`);
+    emit('close');
+  } catch (err) {
+    error.value = 'Google login failed';
+    console.error('Google login failed:', err);
+  }
+};
 </script>
 
 <style scoped>
@@ -71,7 +86,10 @@ const switchToRegister = () => {
   background-color: #e2cf1f;
   border-radius: 20px;
 }
-
+.google-signin {
+  margin-top: 20px;
+  text-align: center;
+}
 .input-group {
   width: 100%;
   margin-bottom: 1rem;

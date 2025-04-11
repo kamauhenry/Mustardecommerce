@@ -9,7 +9,6 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from django.conf import settings
-
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
@@ -36,7 +35,10 @@ from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_protect,csrf_exempt
 from PIL import Image
 from io import BytesIO
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
+User = get_user_model()
 load_dotenv()
 
 # Retrieve secrets from .env
@@ -478,9 +480,47 @@ def reset_order_id_sequence():
         cursor.execute(f"SELECT setval('ecommerce_order_id_seq', {max_id + 1}, false)")
 
 
-User = get_user_model()
+
 
 # Authentication Views
+
+class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        id_token_str = request.data.get('access_token')
+        try:
+            # Verify the Google ID token
+            idinfo = id_token.verify_oauth2_token(
+                id_token_str,
+                requests.Request(),
+                settings.GOOGLE_CLIENT_ID
+            )
+            # Extract user info
+            email = idinfo['email']
+            name = idinfo.get('name', '')
+            # Check if user exists
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                # Create new user if not exists
+                user = User.objects.create_user(
+                    username=email,  # Using email as username (ensure uniqueness in your model)
+                    email=email,
+                    first_name=name.split()[0] if name else '',
+                    last_name=' '.join(name.split()[1:]) if name and len(name.split()) > 1 else '',
+                    user_type='customer',
+                )
+            # Generate or get token
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({
+                'message': 'Google login successful',
+                'user_id': user.id,
+                'username': user.username,
+                'token': token.key
+            }, status=status.HTTP_200_OK)
+        except ValueError:
+            return Response({'error': 'Invalid Google token'}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

@@ -82,3 +82,14 @@ Checkout Page
 ## Category Page
 
 - add main category image and category name
+
+
+
+
+fix google login 
+then make sure when logged it refreshes 
+
+
+add Top Purchaes 
+
+add then recent searches

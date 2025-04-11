@@ -235,3 +235,6 @@ ACCOUNT_EMAIL_REQUIRED = False
 
 import mimetypes
 mimetypes.add_type("image/jpeg", ".jpg")
+
+
+GOOGLE_CLIENT_ID = '370920112183-0pd7i0jqlf78bqjph6j6ocg1s3gkhe9d.apps.googleusercontent.com' 

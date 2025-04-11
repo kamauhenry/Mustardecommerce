@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView)
 
 
 # Creating DRF router
@@ -17,14 +17,6 @@ router = routers.DefaultRouter()
 
 # Register viewsets with the router
 router.register(r'categories', CategoryViewSet, basename='category')
-
-
-
-
-#router.register(r'completed-orders', CompletedOrderViewSet, basename='completed-order')
-#router.register(r'reviews', CustomerReviewViewSet, basename='review')
-#router.register(r'moq-requests', MOQRequestViewSet, basename='moq-request')
-#router.register(r'users', UserViewSet, basename='user')
 
 # Define URL patterns
 urlpatterns = [
@@ -35,6 +27,7 @@ urlpatterns = [
     path('auth/logout/', logout_view, name='logout'),
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
+    path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
     path('auth/user/me', get_current_user, name='get_current_user'),
 
     # Remove default DRF auth URLs to avoid conflicts with custom LoginView

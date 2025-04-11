@@ -4,6 +4,7 @@ import api from '@/services/api';
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
     const state = {
+      authToken: localStorage.getItem('authToken') || null,
       currentUser: null,
       userId: null,
       apiInstance: null,
@@ -58,7 +59,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
     return state;
   },
   getters: {
-    isAuthenticated: (state) => !!localStorage.getItem('authToken'),
+    isAuthenticated: (state) => !!state.authToken,
     isAuthModalVisible: (state) => state.showAuthModal,
     cartItemCount: (state) => {
       return state.cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
@@ -84,16 +85,41 @@ export const useEcommerceStore = defineStore('ecommerce', {
           this.initializeApiInstance();
         }
         const response = await api.login(this.apiInstance, username, password);
+        this.authToken = response.token; // Set authToken (assumes response includes token)
+        localStorage.setItem('authToken', response.token); // Sync with localStorage
         this.userId = response.user_id;
         this.currentUser = {
           id: response.user_id,
           username: response.username,
         };
         await this.fetchCurrentUserInfo();
-        await this.syncCartWithBackend(); // Sync local cart after login
+        await this.syncCartWithBackend();
         return response;
       } catch (error) {
         console.error('Login failed:', error);
+        this.showAuthModal = true;
+        throw error;
+      }
+    },
+
+    async googleLogin(idToken) {
+      try {
+        if (!this.apiInstance) {
+          this.initializeApiInstance();
+        }
+        const response = await api.googleAuth(this.apiInstance, idToken); // Assumes api.googleAuth exists
+        this.authToken = response.token; // Set authToken from Google auth response
+        localStorage.setItem('authToken', response.token); // Sync with localStorage
+        this.userId = response.user_id;
+        this.currentUser = {
+          id: response.user_id,
+          username: response.username,
+        };
+        await this.fetchCurrentUserInfo();
+        await this.syncCartWithBackend();
+        return response;
+      } catch (error) {
+        console.error('Google login failed:', error);
         this.showAuthModal = true;
         throw error;
       }
@@ -110,25 +136,21 @@ export const useEcommerceStore = defineStore('ecommerce', {
         if (!this.apiInstance) {
           this.initializeApiInstance();
         }
-
         const userData = await api.fetchCurrentUserInfo(this.apiInstance);
-
         this.userId = userData.id;
         this.currentUser = {
           id: userData.id,
           username: userData.username,
           email: userData.email,
-          first_name:userData.first_name,
-          last_name:userData.last_name,
+          first_name: userData.first_name,
+          last_name: userData.last_name,
           phone_number: userData.phone_number || '',
         };
-
-        await this.fetchCart(); 
+        await this.fetchCart();
         return userData;
       } catch (error) {
         console.error('Authentication check failed:', error);
         this.showAuthModal = true;
-        
         throw error;
       }
     },
@@ -143,6 +165,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       } catch (error) {
         console.error('Logout error:', error.response?.data || error.message);
       } finally {
+        this.authToken = null; // Clear authToken from state
         this.userId = null;
         this.currentUser = null;
         this.cart = null;
@@ -155,7 +178,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.isLoggingOut = false;
       }
     },
-
     async createCart() {
       try {
         if (!this.userId) {
