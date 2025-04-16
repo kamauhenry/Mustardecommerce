@@ -86,6 +86,7 @@ import IconHamburger from '../icons/IconHamburger.vue';
 import IconLightMode from '../icons/IconLightMode.vue';
 import IconCart from '../icons/IconCart.vue';
 import IconLogin from '../icons/IconLogin.vue';
+import IconAdmin from '@/components/icons/IconAdmin.vue'; 
 import AuthModals from '../auth/AuthModals.vue';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute } from 'vue-router';

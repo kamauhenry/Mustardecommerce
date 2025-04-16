@@ -336,6 +336,60 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
   return response.data;
 };
 
+
+const adminRegister = async (api, userData) => {
+  try {
+    const response = await api.post('admin-page/register/', userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error registering as admin:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const adminLogin = async (api, credentials) => {
+  try {
+    const response = await api.post('admin-page/login/', credentials);
+    return { user: response.data.user, token: response.data.token };
+  } catch (error) {
+    console.error('Error logging in as admin:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+const fetchProfile = async (api) => {
+  try {
+    const response = await api.get('admin-page/profile/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching profile:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const updateProfile = async (api, userData) => {
+  try {
+    const response = await api.put('admin-page/profile/', userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating profile:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const fetchDashboardData = async (api) => {
+  try {
+    const response = await api.get('admin-page/dashboard/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+
 export default {
   createApiInstance,
   register,
@@ -362,4 +416,13 @@ export default {
   checkoutCart,
   cancelOrder,
   searchProducts,
+  adminLogin,
+  adminRegister,
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  fetchProfile,
+  updateProfile,
+  fetchDashboardData,
 };

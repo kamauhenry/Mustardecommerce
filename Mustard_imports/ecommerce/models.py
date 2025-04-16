@@ -1,4 +1,5 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin,AbstractBaseUser
+
 from django.db import models
 from django.utils import timezone
 from django.core.files import File
@@ -7,24 +8,86 @@ from io import BytesIO
 from django.db.models import Sum 
 from django.conf import settings
 
+class UserManager(BaseUserManager):
+    def create_user(self, email, username, password=None, **extra_fields):
+        if not email:
+            raise ValueError('The Email field must be set')
+        if not username:
+            raise ValueError('The Username field must be set')
+        email = self.normalize_email(email)
+        user = self.model(email=email, username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
-class User(AbstractUser):
-    USER_TYPES = (
-        ('customer', 'Customer'),
-        ('seller', 'Seller'),
-        ('admin', 'Admin'),
-    )
+    def create_superuser(self, email, username, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('user_type', 'admin')
 
-    user_type = models.CharField(max_length=20, choices=USER_TYPES, default='customer')
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(email, username, password, **extra_fields)
+
+class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    phone_number = models.CharField(max_length=20, unique=True, null=True)
+    username = models.CharField(max_length=150, unique=True)
+    first_name = models.CharField(max_length=30, blank=True)
+    last_name = models.CharField(max_length=30, blank=True)
+    user_type = models.CharField(max_length=20, default='customer')
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
     points = models.IntegerField(default=0)
-    affiliate_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    affiliate_code = models.CharField(max_length=10, unique=True, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    date_joined = models.DateTimeField(default=timezone.now)
 
 
-       
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+
     def __str__(self):
-        return self.username
+        return self.email
+
+    def save(self, *args, **kwargs):
+        # Generate affiliate code if none exists
+        if not self.affiliate_code:
+            self.affiliate_code = self.generate_affiliate_code()
+        super().save(*args, **kwargs)
+
+    def generate_affiliate_code(self):
+        """Generate a unique 8-character affiliate code."""
+        length = 8
+        characters = string.ascii_uppercase + string.digits
+        max_attempts = 10
+        for _ in range(max_attempts):
+            code = ''.join(random.choice(characters) for _ in range(length))
+            if not User.objects.filter(affiliate_code=code).exists():
+                return code
+        raise ValueError('Unable to generate unique affiliate code after multiple attempts')
+
+class AdminUser(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_profile')
+    admin_level = models.CharField(max_length=20, default='standard', choices=[
+        ('standard', 'Standard Admin'),
+        ('senior', 'Senior Admin'),
+    ])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        self.user.user_type = 'admin'
+        self.user.is_staff = True
+        self.user.is_active = True
+        self.user.save()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Admin: {self.user.username}"
 
 class DeliveryLocation(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='delivery_locations')
@@ -336,7 +399,9 @@ class Order(models.Model):
                     order_number=f"ORD-{self.id}",
                     user=self.user,
                     shipping_method=self.shipping_method,
-                    order_date=self.created_at
+                    order_date=self.created_at,
+                    original_order=self,
+                    delivery_location=self.delivery_location
                 )
                 return completed_order
             except Exception as e:
@@ -445,6 +510,12 @@ class CompletedOrder(models.Model):
     delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True)
     def __str__(self):
         return f"Completed Order #{self.order_number}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Add 1.5 points to user's points
+        self.user.points = int(self.user.points + Decimal('1.5'))
+        self.user.save(update_fields=['points'])
 
     @property
     def items(self):

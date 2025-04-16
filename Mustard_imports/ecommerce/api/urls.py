@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView,latest_products,random_products)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView,latest_products,random_products,AdminRegisterView, AdminLoginView, AdminLogoutView, AdminProfileView, admin_dashboard)
 
 
 # Creating DRF router
@@ -23,6 +23,13 @@ urlpatterns = [
     # Prefix all API routes under /api/
     path('api/', include(router.urls)),
     
+    #admin
+    path('admin-page/register/', AdminRegisterView.as_view(), name='admin_register'),
+    path('admin-page/login/', AdminLoginView.as_view(), name='admin_login'),
+    path('admin-page/logout/', AdminLogoutView.as_view(), name='admin_logout'),
+    path('admin-page/profile/', AdminProfileView.as_view(), name='admin_profile'),
+    path('admin-page/dashboard/', admin_dashboard, name='admin_dashboard'),
+
     # Custom authentication views
     path('auth/logout/', logout_view, name='logout'),
     path('auth/register/', RegisterView.as_view(), name='register'),

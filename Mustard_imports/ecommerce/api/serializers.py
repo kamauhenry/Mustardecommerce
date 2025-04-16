@@ -5,6 +5,52 @@ from django.contrib.auth import get_user_model, authenticate
 
 User = get_user_model()
 
+class AdminRegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    country_code = serializers.CharField(required=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'username','email', 'first_name', 'last_name', 
+                  'user_type', 'phone_number', 'points', 'affiliate_code',  'password']
+        read_only_fields = ['id', 'points', 'affiliate_code']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate_user_type(self, value):
+        if value != 'admin':
+            raise serializers.ValidationError("User type must be 'admin' for this endpoint.")
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user_type = validated_data.pop('user_type', 'admin')  # Force user_type to 'admin'
+        
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=password,
+            user_type=user_type,
+            
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+
+        )
+        return user
+
+class AdminLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(username=data.get('username'), password=data.get('password'))
+        if user is None:
+            raise serializers.ValidationError('Invalid credentials')
+        if user.user_type != 'admin':
+            raise serializers.ValidationError('Only admins can use this endpoint')
+        return {'user': user}
+
+
+
 class DeliveryLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryLocation

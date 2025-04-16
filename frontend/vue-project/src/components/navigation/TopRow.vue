@@ -4,6 +4,7 @@ import SearchBar from './SearchBar.vue'
 import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
 import IconLogin from '../icons/IconLogin.vue';
+import IconAdmin from '@/components/icons/IconAdmin.vue'; 
 import AuthModals from '../auth/AuthModals.vue';
 import CartAuth from '../auth/CartAuth.vue';
 
@@ -34,6 +35,15 @@ import CartAuth from '../auth/CartAuth.vue';
         <AuthModals>
           <IconLogin />
         </AuthModals>
+      </div>
+      <div class="icon admin-icon">
+        <div class="admin-links">
+          <IconAdmin />
+          <div class="admin-dropdown">
+            <router-link to="/admin-page/login">Admin Login</router-link>
+            <router-link to="/admin-page/register">Admin Register</router-link>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -72,4 +82,36 @@ import CartAuth from '../auth/CartAuth.vue';
   justify-content: center;
   align-items: center;
 }
+.admin-links {
+  position: relative;
+}
+
+.admin-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: var(--background-color-one);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.admin-links:hover .admin-dropdown {
+  display: block;
+}
+
+.admin-dropdown a {
+  display: block;
+  padding: 8px 12px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.admin-dropdown a:hover {
+  background-color: #f0f0f0;
+}
+
 </style>

@@ -36,6 +36,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
         completedOrders: false,
         userProfile: false,
         deliveryLocations: false,
+        auth: false,
+        profile: false,
+        dashboard: false,
       },
       error: {
         categories: null,
@@ -47,6 +50,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
         completedOrders: null,
         userProfile: null,
         deliveryLocations: null,
+        auth: null,
+        profile: null,
+        dashboard: null,
       },
     };
 
@@ -78,6 +84,97 @@ export const useEcommerceStore = defineStore('ecommerce', {
       localStorage.setItem('userId', userId);
       this.apiInstance = api.createApiInstance(this);
     },
+
+    async adminLogin(credentials) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.adminLogin(apiInstance, credentials);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance(this);
+      } catch (error) {
+        this.error.auth = error.message || 'Admin login failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
+    },
+
+    async adminRegister(userData) {
+      this.loading.auth = true;
+      this.error.auth = null;
+      try {
+        const response = await api.adminRegister(apiInstance, userData);
+        this.token = response.token;
+        this.userId = response.user_id;
+        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('user', JSON.stringify(this.user));
+        apiInstance = api.createApiInstance({ userId: this.userId, token: this.token });
+      } catch (error) {
+        error.value.auth = error.message || 'Admin registration failed';
+        throw error;
+      } finally {
+        this.loading.auth = false;
+      }
+    },
+
+
+    async fetchProfile() {
+        this.loading.profile = true;
+        this.error.profile = null;
+        try {
+          const response = await api.fetchProfile(apiInstance);
+          this.user = response;
+          localStorage.setItem('user', JSON.stringify(this.user));
+        } catch (error) {
+          this.error.profile = error.message || 'Failed to load profile';
+        } finally {
+          this.loading.profile = false;
+        }
+      },
+
+    async updateProfile(userData) {
+      this.loading.profile = true;
+      this.error.profile = null;
+      try {
+        const response = await api.updateProfile(apiInstance, userData);
+        this.user = response;
+        localStorage.setItem('user', JSON.stringify(this.user));
+      } catch (error) {
+        this.error.profile = error.message || 'Failed to update profile';
+        throw error;
+      } finally {
+        this.loading.profile = false;
+      }
+    },
+
+    async fetchDashboardData() {
+      this.loading.dashboard = true;
+      this.error.dashboard = null;
+      try {
+        const data = await api.fetchDashboardData(apiInstance);
+        this.dashboardData = data;
+      } catch (error) {
+        this.error.dashboard = error.message || 'Failed to load dashboard data';
+      } finally {
+        this.loading.dashboard = false;
+      }
+    },
+
+    isAdmin() {
+      // Check if the user is an admin
+      return this.user && (this.user.user_type === 'admin' || !('user_type' in this.user));
+    },
+
+
+
 
     async login(username, password) {
       try {
