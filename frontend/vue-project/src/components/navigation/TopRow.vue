@@ -4,7 +4,7 @@ import SearchBar from './SearchBar.vue'
 import IconLightMode from '../icons/IconLightMode.vue'
 import IconCart from '../icons/IconCart.vue'
 import IconLogin from '../icons/IconLogin.vue';
-import IconAdmin from '@/components/icons/IconAdmin.vue'; 
+import IconAdmin from '@/components/icons/IconAdmin.vue';
 import AuthModals from '../auth/AuthModals.vue';
 import CartAuth from '../auth/CartAuth.vue';
 
@@ -82,36 +82,71 @@ import CartAuth from '../auth/CartAuth.vue';
   justify-content: center;
   align-items: center;
 }
+
 .admin-links {
   position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .admin-dropdown {
   display: none;
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   right: 0;
   background-color: var(--background-color-one);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  width: 160px;
+  padding: 8px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 1000;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .admin-links:hover .admin-dropdown {
   display: block;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .admin-dropdown a {
-  display: block;
-  padding: 8px 12px;
-  color: #333;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  color: var(--text-color, #333);
   text-decoration: none;
   font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.admin-dropdown a:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.admin-dropdown a:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .admin-dropdown a:hover {
-  background-color: #f0f0f0;
+  background-color: rgba(243, 166, 24, 0.15);
+  color: rgba(243, 166, 24, 1);
+}
+
+.admin-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--background-color-one);
+  transform: rotate(45deg);
+  box-shadow: -2px -2px 5px rgba(0, 0, 0, 0.04);
 }
 
 </style>

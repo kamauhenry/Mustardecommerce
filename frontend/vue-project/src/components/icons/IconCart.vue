@@ -68,38 +68,100 @@ export default {
 <style scoped>
 .cart-icon-wrapper {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  transition: transform 0.2s ease;
+}
+
+.cart-icon-wrapper:hover {
+  transform: scale(1.05);
 }
 
 svg {
   display: flex;
-  justify-content: center;
-  width: 1.5rem;
+  justify-content: flex-end;
+  width: 1.6rem;
   height: auto;
+  transition: all 0.2s ease;
+}
+
+.cart-icon-wrapper:hover svg {
+  filter: drop-shadow(0 0 2px rgba(131, 134, 54, 0.3));
 }
 
 .cart-count {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: -10px;
+  right: -10px;
   background-color: #f28c38;
   color: #fff;
-  font-size: 0.65rem;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 12px;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform-origin: center;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
 }
 
 .high-count {
-  background-color: #dc3545; /* Red background for counts > 99 */
+  background-color: #e53935;
+  animation: highCountPulse 2s infinite;
+}
+
+@keyframes highCountPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 4px rgba(229, 57, 53, 0.3);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 3px 8px rgba(229, 57, 53, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 4px rgba(229, 57, 53, 0.3);
+  }
 }
 
 a {
   text-decoration: none;
   color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes cartBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.cart-bump {
+  animation: cartBump 0.5s ease-in-out;
 }
 </style>

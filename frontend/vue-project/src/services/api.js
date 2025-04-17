@@ -11,7 +11,6 @@ export const createApiInstance = (store) => {
     timeout: 150000,
   });
 
-  // Request interceptor to add auth token
   api.interceptors.request.use(
     (config) => {
       const token = getAuthToken();
@@ -24,7 +23,6 @@ export const createApiInstance = (store) => {
     (error) => Promise.reject(error)
   );
 
-  // Response interceptor to handle unauthorized errors
   api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -39,6 +37,9 @@ export const createApiInstance = (store) => {
         localStorage.removeItem('authToken');
         if (store && typeof store.logout === 'function') {
           store.logout();
+        }
+        if (error.config?.url.includes('admin-page/dashboard/') && error.response.status === 403) {
+          window.location.href = '/admin-page/login';
         }
       }
       return Promise.reject(error);
@@ -185,10 +186,10 @@ export const deleteDeliveryLocation = async (api, locationId) => {
   }
 };
 
-// Existing APIs
+// Category APIs
 export const fetchCategories = async (api) => {
   try {
-    const response = await api.get('categories/', {
+    const response = await api.get('categories-with-products/', {
       timeout: 60000,
     });
     return response.data;
@@ -197,7 +198,6 @@ export const fetchCategories = async (api) => {
     throw error;
   }
 };
-
 
 const createCategory = async (api, categoryData) => {
   try {
@@ -229,6 +229,73 @@ const deleteCategory = async (api, categoryId) => {
   }
 };
 
+// Product APIs
+export const fetchProducts = async (api) => {
+  try {
+    const response = await api.get('all-categories-with-products/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching products:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const createProduct = async (api, productData) => {
+  try {
+    const response = await api.post('products/', productData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating product:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateProduct = async (api, productId, productData) => {
+  try {
+    const response = await api.put(`products/${productId}/`, productData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating product:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteProduct = async (api, productId) => {
+  try {
+    const response = await api.delete(`products/${productId}/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting product:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Order APIs
+export const fetchAllOrders = async (api) => {
+  try {
+    const response = await api.get('orders/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching orders:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteOrder = async (api, orderId) => {
+  try {
+    const response = await api.delete(`orders/${orderId}/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting order:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Existing APIs
 export const fetchCategoryProducts = async (api, categorySlug) => {
   try {
     console.log(`Fetching category products for slug: ${categorySlug}`);
@@ -369,7 +436,6 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
   return response.data;
 };
 
-
 export const adminRegister = async (apiInstance, userData) => {
   try {
     const response = await apiInstance.post('admin-page/register/', userData);
@@ -400,8 +466,6 @@ export const adminLogin = async (apiInstance, credentials) => {
   }
 };
 
-
-
 const fetchProfile = async (api) => {
   try {
     const response = await api.get('admin-page/profile/');
@@ -423,16 +487,23 @@ const updateProfile = async (api, userData) => {
 };
 
 const fetchDashboardData = async (api) => {
+  if (!api) {
+    throw new Error('API instance is null');
+  }
   try {
+    console.log('Fetching dashboard data from /api/admin-page/dashboard/');
     const response = await api.get('admin-page/dashboard/');
+    console.log('Dashboard data fetched successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error fetching dashboard data:', error.response?.data || error.message);
+    console.error('Error fetching dashboard data:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
     throw error;
   }
 };
-
-
 
 export default {
   createApiInstance,
@@ -448,6 +519,15 @@ export default {
   setDefaultDeliveryLocation,
   deleteDeliveryLocation,
   fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  fetchProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  fetchAllOrders,
+  deleteOrder,
   fetchCategoryProducts,
   fetchProductDetails,
   fetchAllCategoriesWithProducts,
@@ -462,10 +542,6 @@ export default {
   searchProducts,
   adminLogin,
   adminRegister,
-  fetchCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
   fetchProfile,
   updateProfile,
   fetchDashboardData,

@@ -5,12 +5,12 @@ export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
     const state = {
       authToken: localStorage.getItem('authToken') || null,
-      currentUser: null,
-      userId: null,
+      currentUser: JSON.parse(localStorage.getItem('currentUser')) || null,
+      userId: localStorage.getItem('userId') || null,
       apiInstance: null,
       cart: null,
       isLoggingOut: false,
-      cartItems: [], 
+      cartItems: [],
       userLoading: false,
       userError: null,
       showAuthModal: false,
@@ -26,6 +26,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       productDetails: {},
       orders: [],
       completedOrders: [],
+      dashboardData: null,
       loading: {
         categories: false,
         categoryProducts: false,
@@ -62,6 +63,12 @@ export const useEcommerceStore = defineStore('ecommerce', {
       state.cartItems = JSON.parse(storedCart);
     }
 
+    // Initialize apiInstance if authToken exists (e.g., after a page refresh)
+    if (state.authToken && !state.apiInstance) {
+      console.log('Initializing apiInstance on store creation due to existing authToken');
+      state.apiInstance = api.createApiInstance(state);
+    }
+
     return state;
   },
   getters: {
@@ -74,15 +81,20 @@ export const useEcommerceStore = defineStore('ecommerce', {
     getSearchResults: (state) => state.searchResults,
     isSearchLoading: (state) => state.searchLoading,
     getRecentSearches: (state) => state.recentSearches,
+    isAdmin: (state) => {
+      return state.currentUser && state.currentUser.user_type === 'admin';
+    },
   },
   actions: {
     initializeApiInstance() {
+      console.log('Initializing apiInstance');
       this.apiInstance = api.createApiInstance(this);
+      console.log('apiInstance initialized:', this.apiInstance);
     },
     setUserId(userId) {
       this.userId = userId;
       localStorage.setItem('userId', userId);
-      this.apiInstance = api.createApiInstance(this);
+      this.initializeApiInstance();
     },
 
     async adminLogin(credentials) {
@@ -106,7 +118,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         localStorage.setItem('authToken', response.token);
         localStorage.setItem('userId', response.user_id);
         localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-        this.apiInstance = api.createApiInstance(this);
+        this.initializeApiInstance();
         return response;
       } catch (error) {
         this.error.auth = error.response?.data?.error || error.message || 'Admin login failed';
@@ -134,7 +146,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         localStorage.setItem('authToken', response.token);
         localStorage.setItem('userId', response.user_id);
         localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-        this.apiInstance = api.createApiInstance(this);
+        this.initializeApiInstance();
         return response;
       } catch (error) {
         this.error.auth = error.response?.data?.error || error.message || 'Admin registration failed';
@@ -145,6 +157,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchProfile() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.profile = true;
       this.error.profile = null;
       try {
@@ -160,6 +175,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async updateProfile(userData) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.profile = true;
       this.error.profile = null;
       try {
@@ -175,32 +193,47 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async fetchDashboardData() {
+      if (!this.apiInstance) {
+        console.log('apiInstance is null, initializing...');
+        this.initializeApiInstance();
+      }
+      if (!this.apiInstance) {
+        throw new Error('Failed to initialize apiInstance');
+      }
       this.loading.dashboard = true;
       this.error.dashboard = null;
       try {
+        console.log('Fetching dashboard data for user:', this.currentUser);
         const response = await api.fetchDashboardData(this.apiInstance);
         this.dashboardData = response;
+        console.log('Dashboard data loaded:', this.dashboardData);
         return response;
       } catch (error) {
-        this.error.dashboard = error.response?.data?.error || error.message || 'Failed to load dashboard data';
-        throw error;
+        const errorMessage = error.response?.data?.error || error.message || 'Failed to load dashboard data';
+        this.error.dashboard = errorMessage;
+        console.error('Fetch dashboard data error:', {
+          status: error.response?.status,
+          message: errorMessage,
+          user: this.currentUser,
+        });
+        if (error.response?.status === 403 && errorMessage.includes('Only admins can access this endpoint')) {
+          console.log('User is not an admin, logging out...');
+          await this.logout();
+        }
+        throw new Error(errorMessage);
       } finally {
         this.loading.dashboard = false;
       }
     },
-    isAdmin() {
-      return this.currentUser && this.currentUser.user_type === 'admin';
-    },
-
 
     async login(username, password) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
         const response = await api.login(this.apiInstance, username, password);
-        this.authToken = response.token; // Set authToken (assumes response includes token)
-        localStorage.setItem('authToken', response.token); // Sync with localStorage
+        this.authToken = response.token;
+        localStorage.setItem('authToken', response.token);
         this.userId = response.user_id;
         this.currentUser = {
           id: response.user_id,
@@ -217,13 +250,13 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async googleLogin(idToken) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
-        const response = await api.googleAuth(this.apiInstance, idToken); // Assumes api.googleAuth exists
-        this.authToken = response.token; // Set authToken from Google auth response
-        localStorage.setItem('authToken', response.token); // Sync with localStorage
+        const response = await api.googleAuth(this.apiInstance, idToken);
+        this.authToken = response.token;
+        localStorage.setItem('authToken', response.token);
         this.userId = response.user_id;
         this.currentUser = {
           id: response.user_id,
@@ -240,16 +273,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchCurrentUserInfo() {
+      if (!this.isAuthenticated) {
+        this.showAuthModal = true;
+        this.cartItems = this.loadCartFromLocalStorage();
+        return null;
+      }
+      if (this.currentUser) return this.currentUser;
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
-        if (!this.isAuthenticated) {
-          this.showAuthModal = true;
-          this.cartItems = this.loadCartFromLocalStorage(); // Load from localStorage if not authenticated
-          return null;
-        }
-        if (this.currentUser) return this.currentUser;
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
         const userData = await api.fetchCurrentUserInfo(this.apiInstance);
         this.userId = userData.id;
         this.currentUser = {
@@ -294,30 +327,31 @@ export const useEcommerceStore = defineStore('ecommerce', {
       } catch (error) {
         console.error('Logout error:', error.response?.data || error.message);
       } finally {
-        this.authToken = null; // Clear authToken from state
+        this.authToken = null;
         this.userId = null;
         this.currentUser = null;
         this.cart = null;
         this.orders = [];
         this.completedOrders = [];
         this.deliveryLocations = [];
+        this.dashboardData = null;
         localStorage.removeItem('authToken');
         this.cartItems = this.loadCartFromLocalStorage();
-        this.initializeApiInstance();
+        this.apiInstance = null; // Clear apiInstance on logout
         this.isLoggingOut = false;
       }
     },
     async createCart() {
+      if (!this.userId) {
+        this.showAuthModal = true;
+        throw new Error('No user logged in');
+      }
+
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+
       try {
-        if (!this.userId) {
-          this.showAuthModal = true;
-          throw new Error('No user logged in');
-        }
-
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
-
         const newCart = await api.createCart(this.apiInstance, this.userId);
         this.cart = newCart;
         this.cartItems = newCart.items || [];
@@ -336,6 +370,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
       if (!this.userId) {
         this.cartItems = this.loadCartFromLocalStorage();
         return;
+      }
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
       }
       try {
         const response = await this.apiInstance.get(`/users/${this.userId}/cart/`);
@@ -356,6 +393,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async syncCartWithBackend() {
       if (!this.isAuthenticated || !this.cartItems.length) return;
 
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         if (!this.cart) {
           await this.createCart();
@@ -368,13 +408,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
           });
         }
         await this.fetchCart();
-        localStorage.removeItem('cartItems'); // Clear localStorage after sync
+        localStorage.removeItem('cartItems');
       } catch (error) {
         console.error('Failed to sync cart with backend:', error);
       }
     },
 
     async createOrderFromCart() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         if (!this.cart || !this.cart.id) {
           throw new Error('No active cart found');
@@ -391,8 +434,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    // New method: Fetch order details
     async fetchOrder(orderId) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         const response = await this.apiInstance.get(`/orders/${orderId}/`);
         return response.data;
@@ -402,8 +447,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    // New method: Update order shipping details
     async updateOrderShipping(orderId, shippingMethod, deliveryLocationId) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         const response = await this.apiInstance.put(`/orders/${orderId}/update-shipping/`, {
           shipping_method: shippingMethod,
@@ -416,8 +463,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    // New method: Initiate M-Pesa payment
     async initiatePayment(orderId, phoneNumber) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         const response = await this.apiInstance.post(`/process-payment/`, {
           order_id: orderId,
@@ -430,8 +479,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    // New method: Verify payment status
     async verifyPayment(orderId) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         const response = await this.apiInstance.get(`/payment-details/${orderId}/`);
         return response.data;
@@ -441,8 +492,10 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-    // Updated checkout method (renamed from checkout)
     async checkoutCart(checkoutData) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         if (!this.cart || !this.cart.id) {
           throw new Error('No active cart found');
@@ -460,6 +513,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchOrdersData() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         this.loading.orders = true;
         this.error.orders = null;
@@ -478,6 +534,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     async fetchCompletedOrdersData() {
       if (!this.userId) throw new Error('User ID not set');
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.completedOrders = true;
       this.error.completedOrders = null;
       try {
@@ -490,23 +549,19 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-
-
-
     async addToCart(productId, variantId, quantity = 1) {
+      if (!this.isAuthenticated) {
+        const newItem = { product_id: productId, variant_id: variantId, quantity };
+        this.cartItems.push(newItem);
+        localStorage.setItem('cartItems', JSON.stringify(this.cartItems));
+        return;
+      }
+
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+
       try {
-        if (!this.isAuthenticated) {
-          // For unauthenticated users, store in localStorage
-          const newItem = { product_id: productId, variant_id: variantId, quantity };
-          this.cartItems.push(newItem);
-          localStorage.setItem('cartItems', JSON.stringify(this.cartItems));
-          return;
-        }
-
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
-
         if (!this.cart) {
           try {
             this.cart = await api.fetchCart(this.apiInstance, this.userId);
@@ -538,14 +593,12 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchAllCategoriesWithProducts() {
-      
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.allCategoriesWithProducts = true;
       this.error.allCategoriesWithProducts = null;
       try {
-        
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
         const data = await api.fetchAllCategoriesWithProducts(this.apiInstance);
         this.allCategoriesWithProducts = data;
       } catch (error) {
@@ -557,12 +610,12 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchCategories() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.categories = true;
       this.error.categories = null;
       try {
-        if (!this.apiInstance) {
-          this.initializeApiInstance();
-        }
         const data = await api.fetchCategories(this.apiInstance);
         this.categories = data;
       } catch (error) {
@@ -573,6 +626,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchCategoryProducts(categorySlug) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.categoryProducts = true;
       this.error.categoryProducts[categorySlug] = null;
       try {
@@ -599,7 +655,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         const response = await api.searchProducts(this.apiInstance, query, page, perPage);
         this.searchResults = response.results || [];
         this.totalSearchResults = response.total || 0;
-        this.addRecentSearch(query); 
+        this.addRecentSearch(query);
         return response;
       } catch (error) {
         console.error('Error searching products:', error);
@@ -619,7 +675,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         }
         const data = await response.json();
         this.searchSuggestions = data.results || [];
-        console.log('Suggestions fetched:', this.searchSuggestions); // Debugging
+        console.log('Suggestions fetched:', this.searchSuggestions);
       } catch (error) {
         console.error('Error fetching suggestions:', error);
         this.searchSuggestions = [];
@@ -640,7 +696,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     addRecentSearch(query) {
       if (!query || !query.trim()) return;
-    
+
       const trimmedQuery = query.trim();
       if (!this.recentSearches.includes(trimmedQuery)) {
         this.recentSearches.unshift(trimmedQuery);
@@ -686,8 +742,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-
-
     async fetchUserProfile() {
       if (!this.apiInstance) {
         this.initializeApiInstance();
@@ -695,11 +749,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
       try {
         this.loading.userProfile = true;
         const userData = await api.getUserProfile(this.apiInstance);
-        this.userId = userData.id; // Set userId
+        this.userId = userData.id;
         this.currentUser = {
-          id: userData.id, // Set currentUser.id
+          id: userData.id,
           username: userData.username,
-          email: userData.email,
+          eemail: userData.email,
           first_name: userData.first_name,
           last_name: userData.last_name,
           phone_number: userData.phone_number || '',
@@ -721,7 +775,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         const response = await api.updateUserProfile(this.apiInstance, profileData);
         this.currentUser = {
           ...this.currentUser,
-          ...response, 
+          ...response,
         };
         return response;
       } catch (error) {
@@ -730,6 +784,9 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async fetchDeliveryLocations() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.deliveryLocations = true;
       this.error.deliveryLocations = null;
       try {
@@ -745,26 +802,34 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async addDeliveryLocation(location) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         const response = await api.addDeliveryLocation(this.apiInstance, location);
         this.deliveryLocations.push(response);
-        return response; 
+        return response;
       } catch (error) {
         throw new Error(error.message || 'Failed to add delivery location');
       }
     },
 
     async setDefaultDeliveryLocation(locationId) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         await api.setDefaultDeliveryLocation(this.apiInstance, locationId);
         await this.fetchDeliveryLocations();
-        
       } catch (error) {
         throw new Error(error.message || 'Failed to set default delivery location');
       }
     },
 
     async deleteDeliveryLocation(locationId) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       try {
         await api.deleteDeliveryLocation(this.apiInstance, locationId);
         this.deliveryLocations = this.deliveryLocations.filter(loc => loc.id !== locationId);
@@ -775,7 +840,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
   },
   persist: {
     key: 'ecommerce-search-history',
-    paths: ['recentSearches'],
+    paths: ['recentSearches', 'dashboardData'],
     storage: localStorage,
   },
 });

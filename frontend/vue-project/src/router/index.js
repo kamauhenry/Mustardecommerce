@@ -20,10 +20,10 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy.vue';
 import CookiePolicy from '@/pages/CookiePolicy.vue';
 
 // Admin components
-import Dashboard from '@/components/admin/Dashboard.vue';
+import AdminDashboard from '@/components/admin/Dashboard.vue';
 import Settings from '@/components/admin/Settings.vue';
 import Products from '@/components/admin/Products.vue';
-import AdminOrders from '@/components/admin/Orders.vue'; // Renamed to avoid conflict with main app Orders
+import AdminOrders from '@/components/admin/Orders.vue';
 import Categories from '@/components/admin/Categories.vue';
 import LoginAdmin from '@/components/admin/LoginAdmin.vue';
 import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
@@ -66,7 +66,20 @@ const routes = [
   },
 
   // **Admin Routes**
-  { path: '/admin-page/dashboard', component: Dashboard, meta: { requiresAdmin: true } },
+  {
+    path: '/admin-page/dashboard',
+    name: 'admin_dashboard',
+    component: AdminDashboard,
+    meta: { requiresAdmin: true },
+    beforeEnter: (to, from, next) => {
+      const store = useEcommerceStore(); // This will now work after Pinia is initialized
+      if (store.isAdmin) {
+        next();
+      } else {
+        next('/admin-page/login');
+      }
+    },
+  },
   { path: '/admin-page/settings', component: Settings, meta: { requiresAdmin: true } },
   { path: '/admin-page/products', component: Products, meta: { requiresAdmin: true } },
   { path: '/admin-page/orders', component: AdminOrders, meta: { requiresAdmin: true } },
@@ -79,7 +92,7 @@ const routes = [
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
 
-export default function createMyRouter() {
+export default function createMyRouter(pinia) {
   const router = createRouter({
     history: createWebHistory(),
     routes,
@@ -94,9 +107,9 @@ export default function createMyRouter() {
     }
 
     // Access the store to check authentication status
-    const store = useEcommerceStore();
+    const store = useEcommerceStore(pinia); // Use the pinia instance passed from main.js
     const isAuthenticated = store.isAuthenticated;
-    const isAdmin = store.isAdmin();
+    const isAdmin = store.isAdmin;
 
     // **Admin Routes**: Require admin privileges
     if (to.meta.requiresAdmin) {
