@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.db.models import Q , Sum , Count , Max
+from django.contrib.auth import login, logout
 from django.core.paginator import Paginator
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
@@ -19,7 +20,7 @@ from django.contrib.auth import get_user_model , update_session_auth_hash
 from rest_framework.authtoken.models import Token
 from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
-from datetime import datetime
+from datetime import datetime ,  timedelta
 from django.shortcuts import render
 from ..models import *
 from .serializers import *
@@ -29,7 +30,7 @@ from django.db import transaction
 from django.db import models
 from django.utils import timezone
 from django.db import connection, transaction
-from django.db.models import Max
+
 import requests , os , logging ,re ,json,base64
 from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_protect,csrf_exempt
@@ -484,39 +485,43 @@ def reset_order_id_sequence():
 
 
 class AdminRegisterView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = AdminRegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
             login(request, user)
+            # Ensure token exists
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
-                'message': 'Admin registered successfully',
+                'message': 'Admin registration successful',
                 'user_id': user.id,
                 'username': user.username,
-                
                 'email': user.email,
                 'user_type': user.user_type,
-                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+                'token': token.key,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
 class AdminLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = AdminLoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
+            # Ensure token exists
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Admin login successful',
                 'user_id': user.id,
                 'username': user.username,
-                'email': user.email,
                 'user_type': user.user_type,
-                'token': user.auth_token.key if hasattr(user, 'auth_token') else None,
+                'token': token.key,
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -533,6 +538,7 @@ class AdminLoginView(APIView):
             'user_type': request.user.user_type,
         }, status=status.HTTP_200_OK)
 
+        
 class AdminLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -568,10 +574,10 @@ def admin_dashboard(request):
 
     # Optimize queries with select_related and annotate
     total_sales = Order.objects.count()
-    total_revenue = Order.objects.aggregate(Sum('price'))['price__sum'] or 0
+    total_revenue = Order.objects.aggregate(Sum('total_price'))['total_price__sum'] or 0
     total_customers = User.objects.filter(user_type='customer').count()
     top_products = Product.objects.select_related('category').annotate(
-        moq_count=Count('order', filter=Q(order__status='active'))
+        moq_count=Count('orderitem', filter=Q(orderitem__order__delivery_status__in=['processing', 'shipped']))
     ).order_by('-moq_count')[:5]
     top_products_data = ProductSerializer(top_products, many=True, context={'request': request}).data
 
@@ -582,18 +588,18 @@ def admin_dashboard(request):
         month = today - timedelta(days=30 * i)
         current_month_revenue = Order.objects.filter(
             created_at__month=month.month, created_at__year=month.year
-        ).aggregate(Sum('price'))['price__sum'] or 0
+        ).aggregate(Sum('total_price'))['total_price__sum'] or 0
         previous_month = month - timedelta(days=30)
         previous_month_revenue = Order.objects.filter(
             created_at__month=previous_month.month, created_at__year=previous_month.year
-        ).aggregate(Sum('price'))['price__sum'] or 0
+        ).aggregate(Sum('total_price'))['total_price__sum'] or 0
         revenue_trend['current'].insert(0, float(current_month_revenue))
         revenue_trend['previous'].insert(0, float(previous_month_revenue))
 
     # Sales by location
-    sales_by_location = Order.objects.values('shipping_address').annotate(sales=Count('id')).order_by('-sales')[:3]
+    sales_by_location = Order.objects.filter(delivery_location__isnull=False).values('delivery_location__address').annotate(sales=Count('id')).order_by('-sales')[:3]
     sales_by_location = [
-        {'location': item['shipping_address'] or 'Unknown', 'sales': item['sales']}
+        {'location': item['delivery_location__address'] or 'Unknown', 'sales': item['sales']}
         for item in sales_by_location
     ]
 
@@ -614,7 +620,6 @@ def admin_dashboard(request):
         'sales_by_location': sales_by_location,
         'total_sales_breakdown': total_sales_breakdown,
     })
-
 
 # Authentication Views
 

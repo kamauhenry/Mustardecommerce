@@ -1,12 +1,11 @@
-
 import { createRouter, createWebHistory } from 'vue-router';
-import Dashboard from '@/components/admin/Dashboard.vue'; // Updated path to match your directory structure
+import Dashboard from '@/components/admin/Dashboard.vue';
 import Settings from '@/components/admin/Settings.vue';
 import Products from '@/components/admin/Products.vue';
 import Orders from '@/components/admin/Orders.vue';
 import Categories from '@/components/admin/Categories.vue';
 import LoginAdmin from '@/components/admin/LoginAdmin.vue';
-import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue'; // Corrected component name to match file
+import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 
 const routes = [
@@ -32,15 +31,12 @@ const createAdminRouter = () => {
 
   router.beforeEach((to, from, next) => {
     const store = useEcommerceStore();
-
     const isAuthenticated = store.isAuthenticated;
     const isAdmin = store.isAdmin();
 
     if (to.meta.requiresAdmin) {
-      if (!isAuthenticated) {
-        next('/admin-page/dashboard');
-      } else if (!isAdmin) {
-        next('/');
+      if (!isAuthenticated || !isAdmin) {
+        next('/admin-page/login');
       } else {
         next();
       }
@@ -59,4 +55,3 @@ const createAdminRouter = () => {
 };
 
 export default createAdminRouter;
-

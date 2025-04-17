@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin,AbstractBaseUser
-
+import string
+import random
 from django.db import models
 from django.utils import timezone
 from django.core.files import File
@@ -73,7 +74,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class AdminUser(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_profile')
-    admin_level = models.CharField(max_length=20, default='standard', choices=[
+    admin_level = models.CharField(max_length=20, default='senior', choices=[
         ('standard', 'Standard Admin'),
         ('senior', 'Senior Admin'),
     ])

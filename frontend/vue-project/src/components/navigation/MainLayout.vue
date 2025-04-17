@@ -10,7 +10,7 @@
 
     <!-- Main Content -->
     <main>
-      <slot></slot> <!-- This will render the page content -->
+      <slot></slot>
     </main>
 
     <!-- Footer -->
@@ -52,23 +52,36 @@
       </div>
     </footer>
 
-    <!-- Modals -->
-    <Modal :isOpen="showTrackOrder" @close="showTrackOrder = false">
+    <!-- Cookie Consent Modal -->
+    <Modal :isOpen="showCookieConsentModal" @close="declineCookies">
+      <div class="cookie-consent">
+        <p>
+          We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <router-link to="/cookie-policy">Cookie Policy</router-link>.
+        </p>
+        <div class="cookie-buttons">
+          <button id="accept-cookies" @click="acceptCookies">Accept</button>
+          <button id="decline-cookies" @click="declineCookies">Decline</button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Other Modals -->
+    <Modal :isOpen="showTrackOrder ?? false" @close="showTrackOrder = false">
       <TrackOrder @close="showTrackOrder = false" />
     </Modal>
 
-    <Modal :isOpen="showRequestMOQ" @close="showRequestMOQ = false">
+    <Modal :isOpen="showRequestMOQ ?? false" @close="showRequestMOQ = false">
       <RequestMOQ @close="showRequestMOQ = false" />
     </Modal>
 
-    <Modal :isOpen="showLoginModal" @close="showLoginModal = false">
+    <Modal :isOpen="showLoginModal ?? false" @close="showLoginModal = false">
       <LoginModal @close="showLoginModal = false" />
     </Modal>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, inject, provide, computed } from 'vue'; // Added computed
+import { ref, onMounted, onUnmounted, computed, provide, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router';
 import TopRow from '@/components/navigation/TopRow.vue';
 import PagesRow from '@/components/navigation/PagesRow.vue';
@@ -92,30 +105,25 @@ export default {
     LoginModal,
   },
   setup() {
+    const instance = getCurrentInstance();
     const isMobile = ref(window.innerWidth <= 500);
     const isSidebarOpen = ref(false);
     const showTrackOrder = ref(false);
     const showRequestMOQ = ref(false);
     const showLoginModal = ref(false);
+    const showCookieConsentModal = ref(false);
     const currentYear = ref(new Date().getFullYear());
-    const toastInstance = ref(null);
 
     const route = useRoute();
     const excludedRoutes = ['/checkout', '/checkout/confirmation'];
 
-    // Use computed for reactive route checking
     const isExcludedRoute = computed(() => {
       const currentPath = route.path;
-      console.log('Current route.path:', currentPath); // Debug log
+      console.log('Current route.path:', currentPath);
       const isExcluded = excludedRoutes.some((excludedPath) => currentPath.startsWith(excludedPath));
-      console.log('isExcludedRoute result:', isExcluded); // Debug log
+      console.log('isExcludedRoute result:', isExcluded);
       return isExcluded;
     });
-
-    const $toast = inject('$toast');
-    if (!$toast) {
-      console.error('Toast instance not found! Ensure vue-toast-notification is properly set up in main.js.');
-    }
 
     const updateScreenSize = () => {
       isMobile.value = window.innerWidth <= 500;
@@ -137,30 +145,33 @@ export default {
       showTrackOrder.value = false;
       showRequestMOQ.value = false;
       showLoginModal.value = false;
+      showCookieConsentModal.value = false;
     };
 
     const acceptCookies = () => {
       console.log('Accept button clicked');
       localStorage.setItem('cookieConsent', 'accepted');
-      if (toastInstance.value && typeof toastInstance.value.close === 'function') {
-        toastInstance.value.close();
+      showCookieConsentModal.value = false;
+      const toast = instance.appContext.config.globalProperties.$toast;
+      if (toast) {
+        toast.success('Cookies accepted!', { autoClose: 3000 });
       } else {
-        console.error('Toast instance is not valid:', toastInstance.value);
+        console.warn('Toast unavailable: Cookies accepted');
       }
-      $toast.success('Cookies accepted!', { duration: 3000 });
-      window.location.reload();
+      // Load Google Analytics after accepting cookies
+      loadGoogleAnalytics();
     };
 
     const declineCookies = () => {
       console.log('Decline button clicked');
       localStorage.setItem('cookieConsent', 'declined');
-      if (toastInstance.value && typeof toastInstance.value.close === 'function') {
-        toastInstance.value.close();
+      showCookieConsentModal.value = false;
+      const toast = instance.appContext.config.globalProperties.$toast;
+      if (toast) {
+        toast.info('Cookies declined.', { autoClose: 3000 });
       } else {
-        console.error('Toast instance is not valid:', toastInstance.value);
+        console.warn('Toast unavailable: Cookies declined');
       }
-      $toast.info('Cookies declined.', { duration: 3000 });
-      window.location.reload();
     };
 
     const showCookieConsent = () => {
@@ -170,23 +181,8 @@ export default {
         return;
       }
 
-      console.log('Showing cookie consent popup...');
-      toastInstance.value = $toast.open({
-        message: `
-          <div class="cookie-consent">
-            <p>We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <a href="/cookie-policy" target="_blank">Cookie Policy</a>.</p>
-            <div class="cookie-buttons">
-              <button onclick="window.vueApp.acceptCookies()" id="accept-cookies" tabindex="0" aria-label="Accept cookies">Accept</button>
-              <button onclick="window.vueApp.declineCookies()" id="decline-cookies" tabindex="0" aria-label="Decline cookies">Decline</button>
-            </div>
-          </div>
-        `,
-        type: 'info',
-        position: 'bottom-right',
-        duration: 0,
-        dismissible: false,
-      });
-      console.log('Toast instance created:', toastInstance.value);
+      console.log('Showing cookie consent modal...');
+      showCookieConsentModal.value = true;
     };
 
     const manageCookies = () => {
@@ -195,19 +191,36 @@ export default {
       showCookieConsent();
     };
 
+    // Load Google Analytics if consent is already accepted
+    const loadGoogleAnalytics = () => {
+      if (localStorage.getItem('cookieConsent') === 'accepted') {
+        console.log('Loading Google Analytics...');
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtag/js?id=G-4HWLRPEN7Y';
+        document.head.appendChild(script);
+
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+          window.dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'G-4HWLRPEN7Y');
+      }
+    };
+
     onMounted(() => {
       console.log('MainLayout mounted, setting up resize listener and showing cookie consent...');
       window.addEventListener('resize', updateScreenSize);
-      window.vueApp = { acceptCookies, declineCookies };
       showCookieConsent();
     });
 
     onUnmounted(() => {
       console.log('MainLayout unmounted, removing resize listener...');
       window.removeEventListener('resize', updateScreenSize);
-      delete window.vueApp;
     });
 
+    // Provide functions to child components
     provide('openTrackOrder', openTrackOrder);
     provide('openRequestMOQ', openRequestMOQ);
     provide('openLoginModal', openLoginModal);
@@ -219,13 +232,17 @@ export default {
       showTrackOrder,
       showRequestMOQ,
       showLoginModal,
+      showCookieConsentModal,
       currentYear,
       manageCookies,
       isExcludedRoute,
+      acceptCookies,
+      declineCookies,
     };
   },
 };
 </script>
+
 <style scoped>
 @import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";
 
@@ -330,7 +347,7 @@ h3 {
   font-size: 0.875rem;
 }
 
-/* Style the cookie consent popup */
+/* Cookie Consent Modal */
 .cookie-consent {
   text-align: center;
   padding: 1rem;
@@ -339,25 +356,23 @@ h3 {
 .cookie-consent p {
   margin-bottom: 10px;
 }
+
 .cookie-buttons {
   display: flex;
   gap: 10px;
+  justify-content: center;
 }
+
 .cookie-buttons button {
   padding: 5px 10px;
-  cursor: pointer; /* Ensure buttons show pointer cursor */
-  background-color: #007bff; /* Example: blue background */
+  cursor: pointer;
   color: white;
   border: none;
   border-radius: 4px;
 }
-.cookie-buttons button:hover {
-  background-color: #0056b3; /* Darker blue on hover */
-}
 
 #accept-cookies {
   background-color: #28a745;
-  color: #fff;
 }
 
 #accept-cookies:hover {
@@ -366,7 +381,6 @@ h3 {
 
 #decline-cookies {
   background-color: #dc3545;
-  color: #fff;
 }
 
 #decline-cookies:hover {

@@ -13,7 +13,7 @@ import { defineProps, defineEmits } from 'vue';
 const props = defineProps({
   isOpen: {
     type: Boolean,
-    required: true,
+    default: false,
   },
 });
 

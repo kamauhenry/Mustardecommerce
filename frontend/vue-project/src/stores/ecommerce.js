@@ -86,94 +86,111 @@ export const useEcommerceStore = defineStore('ecommerce', {
     },
 
     async adminLogin(credentials) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.auth = true;
       this.error.auth = null;
       try {
-        const response = await api.adminLogin(apiInstance, credentials);
-        this.token = response.token;
+        const response = await api.adminLogin(this.apiInstance, credentials);
+        if (!response.token) {
+          throw new Error('No token received from server');
+        }
+        this.authToken = response.token;
         this.userId = response.user_id;
-        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
-        localStorage.setItem('token', response.token);
+        this.currentUser = {
+          id: response.user_id,
+          username: response.username,
+          user_type: response.user_type,
+        };
+        localStorage.setItem('authToken', response.token);
         localStorage.setItem('userId', response.user_id);
-        localStorage.setItem('user', JSON.stringify(this.user));
-        apiInstance = api.createApiInstance(this);
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+        this.apiInstance = api.createApiInstance(this);
+        return response;
       } catch (error) {
-        this.error.auth = error.message || 'Admin login failed';
+        this.error.auth = error.response?.data?.error || error.message || 'Admin login failed';
         throw error;
       } finally {
         this.loading.auth = false;
       }
     },
-
     async adminRegister(userData) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
       this.loading.auth = true;
       this.error.auth = null;
       try {
-        const response = await api.adminRegister(apiInstance, userData);
-        this.token = response.token;
+        const response = await api.adminRegister(this.apiInstance, userData);
+        this.authToken = response.token;
         this.userId = response.user_id;
-        this.user = { id: response.user_id, username: response.username, email: response.email, user_type: response.user_type };
-        localStorage.setItem('token', response.token);
+        this.currentUser = {
+          id: response.user_id,
+          username: response.username,
+          email: response.email,
+          user_type: response.user_type,
+        };
+        localStorage.setItem('authToken', response.token);
         localStorage.setItem('userId', response.user_id);
-        localStorage.setItem('user', JSON.stringify(this.user));
-        apiInstance = api.createApiInstance({ userId: this.userId, token: this.token });
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+        this.apiInstance = api.createApiInstance(this);
+        return response;
       } catch (error) {
-        error.value.auth = error.message || 'Admin registration failed';
+        this.error.auth = error.response?.data?.error || error.message || 'Admin registration failed';
         throw error;
       } finally {
         this.loading.auth = false;
       }
     },
-
 
     async fetchProfile() {
-        this.loading.profile = true;
-        this.error.profile = null;
-        try {
-          const response = await api.fetchProfile(apiInstance);
-          this.user = response;
-          localStorage.setItem('user', JSON.stringify(this.user));
-        } catch (error) {
-          this.error.profile = error.message || 'Failed to load profile';
-        } finally {
-          this.loading.profile = false;
-        }
-      },
-
-    async updateProfile(userData) {
       this.loading.profile = true;
       this.error.profile = null;
       try {
-        const response = await api.updateProfile(apiInstance, userData);
-        this.user = response;
-        localStorage.setItem('user', JSON.stringify(this.user));
+        const response = await api.fetchProfile(this.apiInstance);
+        this.currentUser = response;
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+        return response;
       } catch (error) {
-        this.error.profile = error.message || 'Failed to update profile';
+        this.error.profile = error.response?.data?.error || error.message || 'Failed to load profile';
         throw error;
       } finally {
         this.loading.profile = false;
       }
     },
-
+    async updateProfile(userData) {
+      this.loading.profile = true;
+      this.error.profile = null;
+      try {
+        const response = await api.updateProfile(this.apiInstance, userData);
+        this.currentUser = response;
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+        return response;
+      } catch (error) {
+        this.error.profile = error.response?.data?.error || error.message || 'Failed to update profile';
+        throw error;
+      } finally {
+        this.loading.profile = false;
+      }
+    },
     async fetchDashboardData() {
       this.loading.dashboard = true;
       this.error.dashboard = null;
       try {
-        const data = await api.fetchDashboardData(apiInstance);
-        this.dashboardData = data;
+        const response = await api.fetchDashboardData(this.apiInstance);
+        this.dashboardData = response;
+        return response;
       } catch (error) {
-        this.error.dashboard = error.message || 'Failed to load dashboard data';
+        this.error.dashboard = error.response?.data?.error || error.message || 'Failed to load dashboard data';
+        throw error;
       } finally {
         this.loading.dashboard = false;
       }
     },
-
     isAdmin() {
-      // Check if the user is an admin
-      return this.user && (this.user.user_type === 'admin' || !('user_type' in this.user));
+      return this.currentUser && this.currentUser.user_type === 'admin';
     },
-
-
 
 
     async login(username, password) {

@@ -17,6 +17,12 @@ admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(DeliveryLocation)
 
+admin.site.register(AdminUser)
+
+
+
+
+
 
 
 admin.site.register(OrderItem)

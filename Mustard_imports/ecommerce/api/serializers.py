@@ -7,7 +7,7 @@ User = get_user_model()
 
 class AdminRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    country_code = serializers.CharField(required=True)
+
 
     class Meta:
         model = User
@@ -29,7 +29,7 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             email=validated_data['email'],
             password=password,
-            user_type=user_type,
+            user_type='admin',
             
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
@@ -216,6 +216,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         return obj.get_thumbnail()
 
 class ProductSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
     category_slug = serializers.SlugField(source='category.slug', read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
@@ -226,7 +227,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
-            'moq', 'moq_per_person', 'moq_status', 'moq_progress',
+            'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
             'category_slug', 'created_at', 'variants'
         ]
 

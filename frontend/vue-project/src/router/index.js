@@ -1,4 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useEcommerceStore } from '@/stores/ecommerce';
+
+// Main app components
 import Home from '@/views/HomePage.vue';
 import MOQCampaigns from '@/views/MOQCampaigns.vue';
 import Profile from '@/views/Profile.vue';
@@ -10,16 +13,26 @@ import CategoryPage from '@/views/AllCategories.vue';
 import CategoriesPage from '@/views/CategoryProducts.vue';
 import ProductDetails from '@/views/ProductDetails.vue';
 import CompletedOrders from '@/views/CompletedOrders.vue';
-import SearchResults from '../views/SearchResults.vue';
+import SearchResults from '@/views/SearchResults.vue';
 import Confirmation from '@/views/Confirmation.vue';
 import Checkout from '@/views/Checkout.vue';
 import PrivacyPolicy from '@/pages/PrivacyPolicy.vue';
 import CookiePolicy from '@/pages/CookiePolicy.vue';
 
+// Admin components
+import Dashboard from '@/components/admin/Dashboard.vue';
+import Settings from '@/components/admin/Settings.vue';
+import Products from '@/components/admin/Products.vue';
+import AdminOrders from '@/components/admin/Orders.vue'; // Renamed to avoid conflict with main app Orders
+import Categories from '@/components/admin/Categories.vue';
+import LoginAdmin from '@/components/admin/LoginAdmin.vue';
+import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
+
 const routes = [
+  // **Main App Routes**
   { path: '/', component: Home },
   { path: '/moq-campaigns', component: MOQCampaigns },
-  { path: '/SearchResults', component: SearchResults, name:'search-results' },
+  { path: '/SearchResults', component: SearchResults, name: 'search-results' },
   { path: '/profile', component: Profile },
   { path: '/orders', component: Orders },
   { path: '/completed-orders', component: CompletedOrders },
@@ -30,17 +43,17 @@ const routes = [
     path: '/Checkout',
     name: 'Checkout',
     component: Checkout,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: '/checkout/confirmation',
     name: 'checkout-confirmation',
     component: Confirmation,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   { path: '/category/:categorySlug', component: CategoryPage, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },
-  { path: '/product/:categorySlug/:productSlug',name: 'product-detail', component: ProductDetails, props: true },
+  { path: '/product/:categorySlug/:productSlug', name: 'product-detail', component: ProductDetails, props: true },
   {
     path: '/privacy-policy',
     name: 'PrivacyPolicy',
@@ -51,23 +64,69 @@ const routes = [
     name: 'CookiePolicy',
     component: CookiePolicy,
   },
+
+  // **Admin Routes**
+  { path: '/admin-page/dashboard', component: Dashboard, meta: { requiresAdmin: true } },
+  { path: '/admin-page/settings', component: Settings, meta: { requiresAdmin: true } },
+  { path: '/admin-page/products', component: Products, meta: { requiresAdmin: true } },
+  { path: '/admin-page/orders', component: AdminOrders, meta: { requiresAdmin: true } },
+  { path: '/admin-page/categories', component: Categories, meta: { requiresAdmin: true } },
+  { path: '/admin-page/login', component: LoginAdmin, meta: { requiresGuest: true } },
+  { path: '/admin-page/register', component: RegistrationAdmin, meta: { requiresGuest: true } },
+  { path: '/admin-page', redirect: '/admin-page/login' },
+
+  // **Catch-All Route**
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
 
-// Create the router instance
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-});
+export default function createMyRouter() {
+  const router = createRouter({
+    history: createWebHistory(),
+    routes,
+  });
 
-// Add navigation guard to exclude /api/* and /media/* from client-side routing
-router.beforeEach((to, from, next) => {
-  if (to.path.startsWith('/api/') || to.path.startsWith('/media/')) {
-    // Let the browser handle the request (i.e., pass it to the backend)
-    window.location.href = to.fullPath;
-    return;
-  }
-  next();
-});
+  // **Navigation Guard**
+  router.beforeEach((to, from, next) => {
+    // Handle API and media requests by passing them to the backend
+    if (to.path.startsWith('/api/') || to.path.startsWith('/media/')) {
+      window.location.href = to.fullPath;
+      return;
+    }
 
-export default router;
+    // Access the store to check authentication status
+    const store = useEcommerceStore();
+    const isAuthenticated = store.isAuthenticated;
+    const isAdmin = store.isAdmin();
+
+    // **Admin Routes**: Require admin privileges
+    if (to.meta.requiresAdmin) {
+      if (!isAuthenticated || !isAdmin) {
+        next('/admin-page/login');
+      } else {
+        next();
+      }
+    }
+    // **Guest Routes**: Redirect authenticated admins to dashboard
+    else if (to.meta.requiresGuest) {
+      if (isAuthenticated && isAdmin) {
+        next('/admin-page/dashboard');
+      } else {
+        next();
+      }
+    }
+    // **Authenticated Routes**: Require user authentication
+    else if (to.meta.requiresAuth) {
+      if (!isAuthenticated) {
+        next('/');
+      } else {
+        next();
+      }
+    }
+    // **Public Routes**: Allow access
+    else {
+      next();
+    }
+  });
+
+  return router;
+}

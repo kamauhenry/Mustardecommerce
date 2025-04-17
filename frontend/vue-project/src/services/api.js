@@ -28,10 +28,12 @@ export const createApiInstance = (store) => {
   api.interceptors.response.use(
     (response) => response,
     (error) => {
+      const isLoginRequest = error.config?.url.includes('auth/login/') || error.config?.url.includes('admin-page/login/');
       if (
         error.response &&
         (error.response.status === 401 || error.response.status === 403) &&
-        error.config.url !== 'auth/logout/'
+        error.config?.url !== 'auth/logout/' &&
+        !isLoginRequest
       ) {
         console.log('Response interceptor - unauthorized, logging out');
         localStorage.removeItem('authToken');
@@ -196,6 +198,37 @@ export const fetchCategories = async (api) => {
   }
 };
 
+
+const createCategory = async (api, categoryData) => {
+  try {
+    const response = await api.post('categories/', categoryData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating category:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const updateCategory = async (api, categoryId, categoryData) => {
+  try {
+    const response = await api.put(`categories/${categoryId}/`, categoryData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating category:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const deleteCategory = async (api, categoryId) => {
+  try {
+    const response = await api.delete(`categories/${categoryId}/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting category:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export const fetchCategoryProducts = async (api, categorySlug) => {
   try {
     console.log(`Fetching category products for slug: ${categorySlug}`);
@@ -337,25 +370,36 @@ export const searchProducts = async (apiInstance, query, page = 1, perPage = 10)
 };
 
 
-const adminRegister = async (api, userData) => {
+export const adminRegister = async (apiInstance, userData) => {
   try {
-    const response = await api.post('admin-page/register/', userData);
+    const response = await apiInstance.post('admin-page/register/', userData);
+    const token = response.data.token;
+    if (!token) {
+      throw new Error('No token received from server');
+    }
+    localStorage.setItem('authToken', token);
     return response.data;
   } catch (error) {
-    console.error('Error registering as admin:', error.response?.data || error.message);
+    console.error('Admin registration error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-const adminLogin = async (api, credentials) => {
+export const adminLogin = async (apiInstance, credentials) => {
   try {
-    const response = await api.post('admin-page/login/', credentials);
-    return { user: response.data.user, token: response.data.token };
+    const response = await apiInstance.post('admin-page/login/', credentials);
+    const token = response.data.token;
+    if (!token) {
+      throw new Error('No token received from server');
+    }
+    localStorage.setItem('authToken', token);
+    return response.data;
   } catch (error) {
-    console.error('Error logging in as admin:', error.response?.data || error.message);
+    console.error('Admin login error:', error.response?.data || error.message);
     throw error;
   }
 };
+
 
 
 const fetchProfile = async (api) => {
