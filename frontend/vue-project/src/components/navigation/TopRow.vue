@@ -1,24 +1,18 @@
 <script setup>
-// import { ref } from 'vue';
-import SearchBar from './SearchBar.vue'
-import IconLightMode from '../icons/IconLightMode.vue'
-import IconCart from '../icons/IconCart.vue'
+import SearchBar from './SearchBar.vue';
+import IconLightMode from '../icons/IconLightMode.vue';
+import IconCart from '../icons/IconCart.vue';
 import IconLogin from '../icons/IconLogin.vue';
 import IconAdmin from '@/components/icons/IconAdmin.vue';
 import AuthModals from '../auth/AuthModals.vue';
 import CartAuth from '../auth/CartAuth.vue';
-
 </script>
 
 <template>
   <div class="navbar">
     <div class="logo-image">
-      <router-link to="/">
-        <img
-          src="../../assets/images/mustard-imports.png"
-          alt="Mustard Imports Logo"
-          class="main-logo"
-        />
+      <router-link to="/" class="logo-link">
+        <img src="../../assets/images/mustard-imports.png" alt="Icon" class="logo-icon" />
       </router-link>
     </div>
     <SearchBar></SearchBar>
@@ -51,7 +45,7 @@ import CartAuth from '../auth/CartAuth.vue';
 
 <style scoped>
 .navbar {
-  padding: .3rem 1rem;
+  padding: 1rem;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
@@ -59,13 +53,19 @@ import CartAuth from '../auth/CartAuth.vue';
 
 .logo-image {
   display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
+  align-items: center;
 }
 
-.main-logo {
-  width: 120px;
-  height: 80px;
+.logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 90px;
+  height: auto;
+  margin-right: 8px;
 }
 
 .nav-icons {
@@ -149,4 +149,57 @@ import CartAuth from '../auth/CartAuth.vue';
   box-shadow: -2px -2px 5px rgba(0, 0, 0, 0.04);
 }
 
+/* Responsive Styles */
+@media (max-width: 767px) {
+  .navbar {
+    padding: .3rem .5rem;
+    justify-content: space-between;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+  }
+
+  .logo-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+  }
+
+  .nav-icons {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 0.9rem;
+  }
+
+  .logo-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 5px;
+  }
+
+  .nav-icons {
+    gap: 0.8rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .logo-text {
+    font-size: 0.85rem;
+  }
+
+  .logo-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+
+  .nav-icons {
+    gap: 0.6rem;
+  }
+}
 </style>
