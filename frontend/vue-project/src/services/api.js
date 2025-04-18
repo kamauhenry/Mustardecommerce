@@ -165,7 +165,29 @@ export const addDeliveryLocation = async (api, location) => {
     throw error;
   }
 };
+export const fetchProductReviews = async (apiInstance, productId) => {
+  try {
+    const response = await apiInstance.get(`products/${productId}/reviews/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching product reviews:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
+export const submitProductReview = async (apiInstance, productId, reviewData) => {
+  try {
+    const response = await apiInstance.post(`products/${productId}/reviews/`, reviewData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error submitting product review:', error.response?.data || error.message);
+    throw error;
+  }
+};
 export const setDefaultDeliveryLocation = async (api, locationId) => {
   try {
     const response = await api.put(`user/delivery-locations/${locationId}/set-default/`);
@@ -424,6 +446,20 @@ export const cancelOrder = async (api, orderId) => {
   }
 };
 
+export const fetchRelatedProducts = async (apiInstance, categorySlug, productId) => {
+  try {
+    console.log(`Fetching related products for category: ${categorySlug}, product: ${productId}`);
+    const response = await apiInstance.get(`category/${categorySlug}/products/${productId}/related/`, {
+      timeout: 60000,
+    });
+    console.log('Related products response:', response.data);
+    return response.data; // Should be an array
+  } catch (error) {
+    console.error('Error fetching related products:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export const searchProducts = async (apiInstance, query, page = 1, perPage = 10) => {
   const response = await apiInstance.get('/products/search/', {
     params: {
@@ -519,6 +555,7 @@ export default {
   setDefaultDeliveryLocation,
   deleteDeliveryLocation,
   fetchCategories,
+  fetchRelatedProducts,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -545,4 +582,6 @@ export default {
   fetchProfile,
   updateProfile,
   fetchDashboardData,
+  fetchProductReviews, 
+  submitProductReview,
 };

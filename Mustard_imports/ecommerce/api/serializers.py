@@ -168,12 +168,9 @@ class CustomerReviewSerializer(serializers.ModelSerializer):
         model = CustomerReview
         fields = ['id', 'user', 'username', 'product', 'content',
                   'rating', 'created_at']
-        read_only_fields = ['user']
+        read_only_fields = ['user','product']
 
-    def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
-
+    
 
 
 
@@ -220,16 +217,23 @@ class ProductSerializer(serializers.ModelSerializer):
     category_slug = serializers.SlugField(source='category.slug', read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
-    # thumbnail = serializers.SerializerMethodField()
-    variants  = ProductVariantSerializer(many=True, read_only=True)
+    thumbnail = serializers.SerializerMethodField()
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_slug', 'created_at', 'variants'
+            'category_slug', 'created_at', 'variants', 'thumbnail', 'rating'
         ]
+    read_only_fields = ['latest_reviews']
+
+    def get_latest_reviews(self, obj):
+        reviews = obj.reviews.order_by('-created_at')[:3]
+        serializer = CustomerReviewSerializer(reviews, many=True)
+        return serializer.data
 
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
@@ -240,14 +244,8 @@ class ProductSerializer(serializers.ModelSerializer):
             }
         return None
 
-    # def get_thumbnail(self, obj):
-    #     if obj.thumbnail and hasattr(obj.thumbnail, 'url'):
-    #         return settings.SITE_URL + obj.thumbnail.url.lstrip('/')
-    #     elif obj.picture and hasattr(obj.picture, 'url'):
-    #         return settings.SITE_URL + obj.picture.url.lstrip('/')
-    #     return ''
-
-
+    def get_thumbnail(self, obj):
+        return obj.get_primary_thumbnail()
 class CategoriesProductsSerializer(serializers.ModelSerializer):
     products = ProductSerializer(many=True)
     class Meta:

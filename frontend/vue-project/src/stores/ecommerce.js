@@ -20,6 +20,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       recentSearches: JSON.parse(localStorage.getItem("recentSearches")) || [],
       searchSuggestions: [],
       categories: [],
+      relatedProducts: {},
       categoryProducts: {},
       allCategoriesWithProducts: [],
       deliveryLocations: [],
@@ -31,6 +32,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         categories: false,
         categoryProducts: false,
         productDetails: false,
+        relatedProducts: false,
         allCategoriesWithProducts: false,
         cart: false,
         orders: false,
@@ -44,6 +46,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       error: {
         categories: null,
         categoryProducts: {},
+        relatedProducts: {},
         productDetails: null,
         allCategoriesWithProducts: null,
         cart: null,
@@ -645,6 +648,25 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.categoryProducts = false;
       }
     },
+
+    async fetchRelatedProducts(categorySlug, productId) {
+      const key = `${categorySlug}:${productId}`;
+      this.loading.relatedProducts = true;
+      this.error.relatedProducts[key] = null;
+      try {
+        const response = await api.fetchRelatedProducts(this.apiInstance, categorySlug, productId);
+        this.relatedProducts[key] = Array.isArray(response) ? response : [];
+        this.fetchedRelatedProducts[key] = true;
+      } catch (error) {
+        this.error.relatedProducts[key] = error.response?.data?.error || error.message || 'Failed to fetch related products';
+        this.relatedProducts[key] = [];
+        this.fetchedRelatedProducts[key] = false;
+        console.error(`Error fetching related products for ${key}:`, error);
+      } finally {
+        this.loading.relatedProducts = false;
+      }
+    },
+    
 
     async searchProducts(query, page = 1, perPage = 10) {
       if (!this.apiInstance) {

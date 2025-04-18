@@ -1,5 +1,5 @@
-from django.db.models import Q , Sum , Count , Max
-from django.contrib.auth import login, logout
+from django.db.models import Q, Sum, Count, Max
+from django.contrib.auth import login, logout, authenticate, get_user_model, update_session_auth_hash
 from django.core.paginator import Paginator
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
@@ -13,27 +13,19 @@ from django.conf import settings
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import AnonymousUser, User
-from django.core.exceptions import ObjectDoesNotExist
-from django.contrib.auth import get_user_model , update_session_auth_hash
 from rest_framework.authtoken.models import Token
 from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
-from datetime import datetime ,  timedelta
+from datetime import datetime, timedelta
 from django.shortcuts import render
 from ..models import *
 from .serializers import *
-from django.http import JsonResponse, Http404 ,FileResponse, HttpResponseBadRequest
-from django.db import IntegrityError
-from django.db import transaction
-from django.db import models
+from django.http import JsonResponse, Http404, FileResponse, HttpResponseBadRequest
+from django.db import IntegrityError, transaction, connection
 from django.utils import timezone
-from django.db import connection, transaction
-
-import requests , os , logging ,re ,json,base64
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
+import requests, os, logging, re, json, base64
 from dotenv import load_dotenv
-from django.views.decorators.csrf import csrf_protect,csrf_exempt
 from PIL import Image
 from io import BytesIO
 from google.oauth2 import id_token
@@ -51,6 +43,8 @@ MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE')
 CALLBACK_URL = os.getenv('CALLBACK_URL')
 MPESA_BASE_URL = os.getenv('MPESA_BASE_URL')
 
+logger = logging.getLogger(__name__)
+
 # M-Pesa Helper Functions
 def generate_access_token():
     try:
@@ -59,7 +53,6 @@ def generate_access_token():
             "Authorization": f"Basic {encoded_credentials}",
             "Content-Type": "application/json"
         }
-        # Fixed typo in URL ('oasuth' -> 'oauth')
         response = requests.get(
             f"{MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials",
             headers=headers
@@ -73,16 +66,13 @@ def generate_access_token():
         logger.error(f"Failed to generate access token: {str(e)}")
         raise Exception(f"Failed to get access token: {str(e)}")
 
-
-
 def send_stk_push(phone_number, amount, order_id):
     try:
-        # Convert amount to a positive integer
         try:
-            amount = Decimal(str(amount))  # Handle Decimal or string input
+            amount = Decimal(str(amount))
             if amount <= 0:
                 raise ValueError("Amount must be greater than 0")
-            amount = int(amount)  # Convert to integer, removing decimals
+            amount = int(amount)
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid amount value: {amount} - {str(e)}")
             raise ValueError("Invalid amount format")
@@ -101,7 +91,7 @@ def send_stk_push(phone_number, amount, order_id):
             "Password": stk_password,
             "Timestamp": timestamp,
             "TransactionType": "CustomerPayBillOnline",
-            "Amount": str(amount),  # Send as string
+            "Amount": str(amount),
             "PartyA": phone_number,
             "PartyB": MPESA_SHORTCODE,
             "PhoneNumber": phone_number,
@@ -146,7 +136,21 @@ def query_stk_push(checkout_request_id):
         logger.error(f"Failed to query STK status: {str(e)}")
         return {"error": str(e)}
 
-# Existing Views (Integrated from Your Original Code)
+def format_phone_number(phone_number):
+    logger.info(f"Formatting phone number: {phone_number}")
+    phone_number = phone_number.replace("+", "")
+    if re.match(r"254\d{9}$", phone_number):
+        logger.info(f"Phone number already in 254 format: {phone_number}")
+        return phone_number
+    elif phone_number.startswith("0") and len(phone_number) == 10:
+        formatted_number = "254" + phone_number[1:]
+        logger.info(f"Converted phone number to: {formatted_number}")
+        return formatted_number
+    else:
+        logger.error(f"Invalid phone number format: {phone_number}")
+        raise ValueError("Invalid phone number format")
+
+# Views
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order_from_cart(request, cart_id):
@@ -165,7 +169,6 @@ def create_order_from_cart(request, cart_id):
     except Exception as e:
         logger.error(f"Error fetching delivery location: {str(e)}")
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
     
     logger.info(f"Cart contains {cart.items.count()} items")
     highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
@@ -190,8 +193,17 @@ def create_order_from_cart(request, cart_id):
         order.update_total_price()
         cart.items.all().delete()
 
-    serializer = OrderSerializer(order)
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # Invalidate orders cache
+        cache_key_orders = f'user_orders_{request.user.id}'
+        cache_key_order = f'user_order_{request.user.id}_{next_id}'
+        try:
+            cache.delete(cache_key_orders)
+            cache.delete(cache_key_order)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -214,23 +226,18 @@ def update_order_shipping(request, order_id):
             return Response({"error": "Delivery location not found"}, status=status.HTTP_404_NOT_FOUND)
 
     order.save()
+
+    # Invalidate orders cache
+    cache_key_orders = f'user_orders_{request.user.id}'
+    cache_key_order = f'user_order_{request.user.id}_{order_id}'
+    try:
+        cache.delete(cache_key_orders)
+        cache.delete(cache_key_order)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to invalidate cache: {e}")
+
     serializer = OrderSerializer(order)
     return Response(serializer.data, status=status.HTTP_200_OK)
-
-    
-def format_phone_number(phone_number):
-    logger.info(f"Formatting phone number: {phone_number}")
-    phone_number = phone_number.replace("+", "")
-    if re.match(r"254\d{9}$", phone_number):
-        logger.info(f"Phone number already in 254 format: {phone_number}")
-        return phone_number
-    elif phone_number.startswith("0") and len(phone_number) == 10:
-        formatted_number = "254" + phone_number[1:]
-        logger.info(f"Converted phone number to: {formatted_number}")
-        return formatted_number
-    else:
-        logger.error(f"Invalid phone number format: {phone_number}")
-        raise ValueError("Invalid phone number format")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -289,17 +296,14 @@ def process_payment(request):
         logger.error(f"Payment initiation failed: {str(e)}")
         return Response({"error": "Failed to initiate payment"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_payment_details(request, order_id):
-    """Verifies payment status with fallback to STK Push Query."""
     try:
         payment = Payment.objects.get(order_id=order_id, order__user=request.user)
     except Payment.DoesNotExist:
         return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # If payment is still pending, query M-Pesa for status
     if payment.payment_status == 'pending' and payment.mpesa_checkout_request_id:
         try:
             status_response = query_stk_push(payment.mpesa_checkout_request_id)
@@ -330,7 +334,6 @@ def get_payment_details(request, order_id):
 @permission_classes([AllowAny])
 @csrf_exempt
 def mpesa_callback(request):
-    """Handles M-Pesa STK Push callback to update payment and order status."""
     if request.method != "POST":
         logger.error("Invalid request method: Expected POST")
         return HttpResponseBadRequest("Only POST requests are allowed")
@@ -369,12 +372,30 @@ def mpesa_callback(request):
             payment.order.payment_status = "paid"
             payment.order.save()
 
+            # Invalidate orders cache
+            cache_key_orders = f'user_orders_{payment.order.user.id}'
+            cache_key_order = f'user_order_{payment.order.user.id}_{payment.order.id}'
+            try:
+                cache.delete(cache_key_orders)
+                cache.delete(cache_key_order)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache: {e}")
+
             logger.info(f"Payment completed for Order {payment.order.id} - M-Pesa Receipt: {mpesa_receipt}")
             return JsonResponse({"ResultCode": 0, "ResultDesc": "Success"}, status=status.HTTP_200_OK)
         else:
             payment.payment_status = "failed"
             payment.error_message = result_desc
             payment.save()
+
+            # Invalidate orders cache
+            cache_key_orders = f'user_orders_{payment.order.user.id}'
+            cache_key_order = f'user_order_{payment.order.user.id}_{payment.order.id}'
+            try:
+                cache.delete(cache_key_orders)
+                cache.delete(cache_key_order)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache: {e}")
 
             logger.warning(f"Payment failed for Order {payment.order.id} - ResultCode: {result_code}, Desc: {result_desc}")
             return JsonResponse({"ResultCode": result_code, "ResultDesc": result_desc}, status=status.HTTP_200_OK)
@@ -389,50 +410,38 @@ def mpesa_callback(request):
         logger.error(f"Unexpected error in callback: {str(e)}", exc_info=True)
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-logger = logging.getLogger(__name__)
-@api_view(['POST']) 
-@permission_classes([IsAuthenticated]) 
-def process_checkout(request, cart_id): 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_checkout(request, cart_id):
     try:
-
-        # Log incoming request data
         logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
         reset_order_id_sequence()
-        # Extract checkout data with defaults
-        shipping_method = request.data.get('shipping_method', 'standard') 
+        shipping_method = request.data.get('shipping_method', 'standard')
         shipping_address = request.data.get('shipping_address', 'shop pick up')
 
-        # Retrieve the cart
         try:
             cart = Cart.objects.get(id=cart_id)
         except Cart.DoesNotExist:
             return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Ensure the user owns the cart
         if cart.user != request.user:
             return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Check if the cart has items
         if cart.items.count() == 0:
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
             
-        # Log cart items before processing
         logger.info(f"Cart contains {cart.items.count()} items")
         highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
         next_id = highest_id + 1
-        # Use a database transaction to ensure atomicity
         with transaction.atomic():
-            # Check if an order was already created for this cart but not completed
             existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
             for existing_order in existing_orders:
-                # If we find a recent order with no items, it might be a failed checkout
-                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:  # 5 min
+                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
                     logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
                     existing_order.delete()
             
-            # Create order with all necessary details
             order = Order.objects.create(
-                id=next_id, 
+                id=next_id,
                 user=cart.user,
                 shipping_method=shipping_method,
                 shipping_address=shipping_address,
@@ -446,12 +455,19 @@ def process_checkout(request, cart_id):
                     quantity=cart_item.quantity,
                     price=price_per_unit
                 )
-            order.save()  # Let the model calculate total_price
+            order.save()
 
-            # Clear the cart after checkout
             cart.items.all().delete()
 
-            # Serialize and return the order
+            # Invalidate orders cache
+            cache_key_orders = f'user_orders_{request.user.id}'
+            cache_key_order = f'user_order_{request.user.id}_{next_id}'
+            try:
+                cache.delete(cache_key_orders)
+                cache.delete(cache_key_order)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache: {e}")
+
             serializer = OrderSerializer(order)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
     except IntegrityError as e:
@@ -464,7 +480,6 @@ def process_checkout(request, cart_id):
         logger.error(f"Unexpected error during checkout: {str(e)}", exc_info=True)
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
 @csrf_protect
 def test_image(request):
     image_path = os.path.join(settings.MEDIA_ROOT, 'category_images', 'agriculture.jpeg')
@@ -475,15 +490,11 @@ def test_image(request):
 
 def reset_order_id_sequence():
     with connection.cursor() as cursor:
-        # Get the current maximum ID
         cursor.execute("SELECT MAX(id) FROM ecommerce_order")
         max_id = cursor.fetchone()[0] or 0
-        # Reset the sequence to be higher than the current maximum
         cursor.execute(f"SELECT setval('ecommerce_order_id_seq', {max_id + 1}, false)")
 
-
-
-
+# Authentication Views
 class AdminRegisterView(APIView):
     permission_classes = [AllowAny]
 
@@ -492,7 +503,6 @@ class AdminRegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             login(request, user)
-            # Ensure token exists
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Admin registration successful',
@@ -504,8 +514,6 @@ class AdminRegisterView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -514,7 +522,6 @@ class AdminLoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
-            # Ensure token exists
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Admin login successful',
@@ -538,7 +545,6 @@ class AdminLoginView(APIView):
             'user_type': request.user.user_type,
         }, status=status.HTTP_200_OK)
 
-        
 class AdminLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -554,8 +560,24 @@ class AdminProfileView(APIView):
     def get(self, request):
         if request.user.user_type != 'admin':
             return Response({'error': 'Only admins can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        
+        cache_key = f'admin_profile_{request.user.id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
 
     def put(self, request):
         if request.user.user_type != 'admin':
@@ -563,16 +585,22 @@ class AdminProfileView(APIView):
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+
+            # Invalidate cache
+            cache_key = f'admin_profile_{request.user.id}'
+            try:
+                cache.delete(cache_key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache: {e}")
+
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def admin_dashboard(request):
-    # Log the request details for debugging
     logger.info(f"Admin dashboard accessed by user: {request.user.username} (ID: {request.user.id}, Type: {request.user.user_type})")
 
-    # Check if the user is an admin
     if request.user.user_type != 'admin':
         logger.warning(f"Non-admin user {request.user.username} attempted to access the dashboard")
         return Response(
@@ -580,8 +608,15 @@ def admin_dashboard(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    cache_key = 'admin_dashboard'
     try:
-        # Optimize queries with select_related and annotate
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
+    try:
         total_sales = Order.objects.count()
         total_revenue = Order.objects.aggregate(Sum('total_price'))['total_price__sum'] or 0
         total_customers = User.objects.filter(user_type='customer').count()
@@ -590,7 +625,6 @@ def admin_dashboard(request):
         ).order_by('-moq_count')[:5]
         top_products_data = ProductSerializer(top_products, many=True, context={'request': request}).data
 
-        # Revenue trend over the last 6 months
         today = datetime.today()
         revenue_trend = {'current': [], 'previous': []}
         for i in range(6):
@@ -605,14 +639,12 @@ def admin_dashboard(request):
             revenue_trend['current'].insert(0, float(current_month_revenue))
             revenue_trend['previous'].insert(0, float(previous_month_revenue))
 
-        # Sales by location
         sales_by_location = Order.objects.filter(delivery_location__isnull=False).values('delivery_location__address').annotate(sales=Count('id')).order_by('-sales')[:3]
         sales_by_location = [
             {'location': item['delivery_location__address'] or 'Unknown', 'sales': item['sales']}
             for item in sales_by_location
         ]
 
-        # Total sales breakdown (mock data for now)
         total_sales_breakdown = [
             {'channel': 'Direct', 'sales': 38},
             {'channel': 'Affiliate', 'sales': 15},
@@ -620,7 +652,6 @@ def admin_dashboard(request):
             {'channel': 'E-mail', 'sales': 48},
         ]
 
-        # Additional metrics (optional): Active orders and recent orders
         active_orders = Order.objects.filter(delivery_status__in=['processing', 'shipped']).count()
         recent_orders = Order.objects.order_by('-created_at')[:5].values('id', 'total_price', 'created_at')
 
@@ -636,18 +667,19 @@ def admin_dashboard(request):
             'recent_orders': list(recent_orders),
         }
 
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
         logger.info(f"Dashboard data retrieved successfully for user: {request.user.username}")
         return Response(response_data)
-
     except Exception as e:
         logger.error(f"Error retrieving dashboard data for user {request.user.username}: {str(e)}", exc_info=True)
         return Response(
             {'error': 'Internal server error while fetching dashboard data'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-    
-# Authentication Views
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -655,28 +687,23 @@ class GoogleAuthView(APIView):
     def post(self, request):
         id_token_str = request.data.get('access_token')
         try:
-            # Verify the Google ID token
             idinfo = id_token.verify_oauth2_token(
                 id_token_str,
                 requests.Request(),
                 settings.GOOGLE_CLIENT_ID
             )
-            # Extract user info
             email = idinfo['email']
             name = idinfo.get('name', '')
-            # Check if user exists
             try:
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
-                # Create new user if not exists
                 user = User.objects.create_user(
-                    username=email,  # Using email as username (ensure uniqueness in your model)
+                    username=email,
                     email=email,
                     first_name=name.split()[0] if name else '',
                     last_name=' '.join(name.split()[1:]) if name and len(name.split()) > 1 else '',
                     user_type='customer',
                 )
-            # Generate or get token
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Google login successful',
@@ -700,10 +727,20 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def update(self, request, *args, **kwargs):
-        instance = self.request.user  # Use authenticated user
+        instance = self.request.user
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+
+        # Invalidate user profile and current user cache
+        cache_key_profile = f'user_profile_{request.user.id}'
+        cache_key_current = f'current_user_{request.user.id}'
+        try:
+            cache.delete(cache_key_profile)
+            cache.delete(cache_key_current)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         return Response(serializer.data)
 
 class LoginView(APIView):
@@ -713,19 +750,16 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            # Create or get a token for this user
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Login successful',
                 'user_id': user.id,
                 'username': user.username,
-                'token': token.key  # Return the token to the client
+                'token': token.key
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
-        # Token validation should be handled by permission classes in each view
-        # This endpoint is kept for compatibility
         if request.user.is_authenticated:
             return Response({
                 'message': 'Logged in',
@@ -734,18 +768,15 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
         return Response({'message': 'Not logged in'}, status=status.HTTP_401_UNAUTHORIZED)
 
-
 @api_view(['POST'])
 def logout_view(request):
     try:
-        # Check if the user is authenticated via token
         if not request.user.is_authenticated:
             return JsonResponse({
                 'status': 'error',
                 'message': 'Authentication required'
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Delete the user's token
         Token.objects.filter(user=request.user).delete()
         return JsonResponse({
             'status': 'success',
@@ -762,16 +793,15 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer =RegisterSerializer(data=request.data)
+        serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            # Create a token for the new user
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'User registered successfully',
                 'user_id': user.id,
                 'username': user.username,
-                'token': token.key  # Return the token to the client
+                'token': token.key
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -792,23 +822,35 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save()
-        update_session_auth_hash(request, user)  
+        update_session_auth_hash(request, user)
         return Response({'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_current_user(request):
+    cache_key = f'current_user_{request.user.id}'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return JsonResponse(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
 
     user = request.user
-    return JsonResponse({
+    response_data = {
         'id': user.id,
         'username': user.username,
-    })
+    }
 
+    try:
+        cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to cache response: {e}")
+
+    return JsonResponse(response_data)
 
 @api_view(['POST'])
 def create_cart(request, user_id=None):
-    # If user_id is provided, use that. Otherwise, use current user
     if user_id:
         try:
             user = User.objects.get(id=user_id)
@@ -817,43 +859,51 @@ def create_cart(request, user_id=None):
     else:
         user = request.user
     
-    # Check if user is authenticated
     if not user.is_authenticated:
         return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        # Use get_or_create to avoid duplicate carts for the user
         cart, created = Cart.objects.get_or_create(user=user)
         serializer = CartSerializer(cart)
         return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_cart(request, user_id):
-    # Ensure the requesting user is either the cart owner or an admin
     if request.user.id != user_id and not request.user.is_staff:
         return Response(
-            {"detail": "You do not have permission to access this cart."}, 
+            {"detail": "You do not have permission to access this cart."},
             status=status.HTTP_403_FORBIDDEN
         )
 
+    cache_key = f'user_cart_{user_id}'
     try:
-        # Try to get an existing cart or create a new one
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
+    try:
         cart, created = Cart.objects.get_or_create(user_id=user_id)
         serializer = CartSerializer(cart)
-        return Response(serializer.data)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 2)  # Cache for 2 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_item_to_cart(request, cart_id):
     try:
-        # cart_id is now coming from the URL parameter
         product_id = request.data.get('productId')
         variant_id = request.data.get('variantId')
         quantity = request.data.get('quantity', 1)
@@ -863,8 +913,8 @@ def add_item_to_cart(request, cart_id):
         variant = ProductVariant.objects.get(id=variant_id)
 
         cart_item, created = CartItem.objects.get_or_create(
-            cart=cart, 
-            product=product, 
+            cart=cart,
+            product=product,
             variant=variant,
             defaults={'quantity': quantity}
         )
@@ -873,9 +923,15 @@ def add_item_to_cart(request, cart_id):
             cart_item.quantity += quantity
             cart_item.save()
 
+        # Invalidate cart cache
+        cache_key = f'user_cart_{cart.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         serializer = CartItemSerializer(cart_item)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
     except Cart.DoesNotExist:
         return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
     except Product.DoesNotExist:
@@ -885,35 +941,36 @@ def add_item_to_cart(request, cart_id):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def update_cart_item_quantity(request, item_id):  # Add item_id as URL param
+def update_cart_item_quantity(request, item_id):
     try:
-        # Get cart_id from request data (optional, depending on your needs)
         cart_id = request.data.get('cart_id')
         new_quantity = request.data.get('quantity')
 
-        # Validate new_quantity
         if not isinstance(new_quantity, int) or new_quantity < 1:
             return Response({"error": "Invalid quantity"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch cart item using item_id and optionally cart_id
         if cart_id:
             cart_item = CartItem.objects.get(id=item_id, cart_id=cart_id)
         else:
             cart_item = CartItem.objects.get(id=item_id)
 
-        # Check authorization
         if cart_item.cart.user != request.user:
             return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
 
         cart_item.quantity = new_quantity
         cart_item.save()
 
+        # Invalidate cart cache
+        cache_key = f'user_cart_{cart_item.cart.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         serializer = CartItemSerializer(cart_item)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     except CartItem.DoesNotExist:
         return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
@@ -921,43 +978,58 @@ def update_cart_item_quantity(request, item_id):  # Add item_id as URL param
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def remove_cart_item(request, cart_id):  # Add cart_id as URL param
+def remove_cart_item(request, cart_id):
     try:
         item_id = request.data.get('item_id')
 
         if not item_id:
             return Response({"error": "Item ID required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Find the cart item
         cart_item = CartItem.objects.get(id=item_id, cart_id=cart_id)
         
-        # Authorization check
         if cart_item.cart.user != request.user:
             return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Delete the cart item
         cart_item.delete()
 
-        # Return updated cart
+        # Invalidate cart cache
+        cache_key = f'user_cart_{cart_item.cart.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         cart = Cart.objects.get(id=cart_id)
         serializer = CartSerializer(cart)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     except CartItem.DoesNotExist:
         return Response({"error": "Cart item not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_orders(request, order_id=None):
-    """Retrieves all orders or a specific order for the authenticated user."""
     if order_id:
+        cache_key = f'user_order_{request.user.id}_{order_id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         try:
             order = Order.objects.get(id=order_id, user=request.user)
             serializer = OrderSerializer(order)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            response_data = serializer.data
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data, status=status.HTTP_200_OK)
         except Order.DoesNotExist:
             logger.info(f"Order {order_id} not found for user {request.user.id}")
             return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -965,10 +1037,25 @@ def get_user_orders(request, order_id=None):
             logger.error(f"Error fetching order {order_id}: {str(e)}")
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
+        cache_key = f'user_orders_{request.user.id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         try:
             orders = Order.objects.filter(user=request.user).prefetch_related('items__product')
             serializer = OrderSerializer(orders, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            response_data = serializer.data
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error fetching orders for user {request.user.id}: {str(e)}")
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -981,55 +1068,130 @@ def search(request):
     per_page = int(request.GET.get('per_page', 10))
     ordering = request.GET.get('ordering', '-created_at')
     
+    cache_key = f'search_{query}_{page}_{per_page}_{ordering}'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
     if query:
-        # First apply all filters
         products = Product.objects.filter(
             Q(name__icontains=query) | Q(description__icontains=query)
         ).order_by(ordering)
         
-        # Then handle pagination
         paginator = Paginator(products, per_page)
         page_obj = paginator.get_page(page)
         
-        serializer = ProductSerializer(page_obj, many=True)
+        serializer = ProductSerializer(page_obj, many=True, context={'request': request})
         
-        return Response({
-            'results': serializer.data,  # Changed from 'products' to 'results' to match frontend expectation
+        response_data = {
+            'results': serializer.data,
             'total': paginator.count,
             'pages': paginator.num_pages,
             'current_page': page
-        })
+        }
     else:
-        return Response({
-            "results": [],  # Changed from 'products' to 'results'
-            "total": 0, 
-            "pages": 0, 
+        response_data = {
+            "results": [],
+            "total": 0,
+            "pages": 0,
             "current_page": 1
-        })
+        }
+
+    try:
+        cache.set(cache_key, response_data, timeout=60 * 10)  # Cache for 10 minutes
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to cache response: {e}")
+
+    return Response(response_data)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def random_products(request):
-    
+    cache_key = 'random_products'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
     products = list(Product.objects.all())
     random_products = random.sample(products, min(3, len(products)))
-    serializer = ProductSerializer(random_products, many=True)
-    return Response({
+    serializer = ProductSerializer(random_products, many=True, context={'request': request})
+    response_data = {
         'results': serializer.data,
         'total': len(random_products)
-    })
+    }
+
+    try:
+        cache.set(cache_key, response_data, timeout=60 * 30)  # Cache for 30 minutes
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to cache response: {e}")
+
+    return Response(response_data)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def latest_products(request):
     limit = int(request.GET.get('limit', 3))
+    cache_key = f'latest_products_{limit}'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
     products = Product.objects.order_by('-created_at')[:limit]
-    serializer = ProductSerializer(products, many=True)
-    return Response({
+    serializer = ProductSerializer(products, many=True, context={'request': request})
+    response_data = {
         'results': serializer.data,
         'total': len(products)
-    })
+    }
 
+    try:
+        cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to cache response: {e}")
+
+    return Response(response_data)
+
+class RelatedProductsView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, category_slug, product_id):
+        cache_key = f'related_products_{category_slug}_{product_id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        try:
+            queryset = Product.objects.filter(
+                category__slug=category_slug,
+                moq_status='active'
+            ).exclude(id=product_id)[:5]
+            if not queryset.exists():
+                response_data = {"detail": "No related products found."}
+                status_code = status.HTTP_204_NO_CONTENT
+            else:
+                serializer = ProductSerializer(queryset, many=True, context={'request': request})
+                response_data = serializer.data
+                status_code = status.HTTP_200_OK
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data, status=status_code)
+        except ObjectDoesNotExist:
+            raise Http404("Category or product not found.")
 
 class CategoryProductsView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -1044,7 +1206,6 @@ class CategoryProductsView(APIView):
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            # Fetch the category, ensuring it's active
             category = get_object_or_404(Category, slug=category_slug, is_active=True)
             products = Product.objects.filter(category=category).order_by('-created_at')
 
@@ -1055,7 +1216,6 @@ class CategoryProductsView(APIView):
             end = start + per_page
             products = products[start:end]
 
-            # Serialize category with request context
             category_serializer = CategorySerializer(category, context={'request': request})
             product_serializer = ProductSerializer(products, many=True, context={'request': request})
 
@@ -1066,7 +1226,7 @@ class CategoryProductsView(APIView):
             }
 
             try:
-                cache.set(cache_key, response_data, timeout=60 * 15)
+                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
             except (InvalidCacheBackendError, Exception) as e:
                 print(f"Failed to cache response: {e}")
 
@@ -1080,59 +1240,132 @@ class CategoriesWithProductsViewSet(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, format=None):
-        categories = Category.objects.all()
-        serializer = CategorySerializer(categories, many=True, context={'request': request})
-        return Response(serializer.data)
+        cache_key = 'categories_with_products'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
 
+        categories = Category.objects.prefetch_related('products')
+        serializer = CategorySerializer(categories, many=True, context={'request': request})
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
 
 class CategoryListView(APIView):
     def get(self, request):
+        cache_key = 'category_list'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         try:
             categories = Category.objects.all()
-            serializer = CategorySerializer(categories, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = CategorySerializer(categories, many=True, context={'request': request})
+            response_data = serializer.data
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 30)  # Cache for 30 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class AllCategoriesWithProductsView(APIView):
-    permission_classes = [permissions.AllowAny]
-
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         cache_key = 'all_categories_with_products'
-        result = cache.get(cache_key)
-        if not result: 
-            categories = Category.objects.prefetch_related('products')
-            serializer = CategoriesProductsSerializer(categories, many=True, context={'request': request})
-            result = serializer.data
-            cache.set(cache_key, result, 60*15)
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
 
-        return Response(result)
+        categories = Category.objects.prefetch_related('products')
+        serializer = CategoriesProductsSerializer(categories, many=True, context={'request': request})
+        response_data = serializer.data
 
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
 
-# ViewSets
+        return Response(response_data)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all().only('id', 'name', 'slug')
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter]
     search_fields = ['name']
-    pagination_class = None  # Disable pagination
+    pagination_class = None
 
     def list(self, request, *args, **kwargs):
         cache_key = 'categories_list'
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return Response(cached_data)
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
 
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         response_data = serializer.data
 
-        cache.set(cache_key, response_data, timeout=60 * 15)
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
         return Response(response_data)
 
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
 
 class ProductDetail(APIView):
     permission_classes = [permissions.AllowAny]
@@ -1144,9 +1377,24 @@ class ProductDetail(APIView):
             raise Http404
 
     def get(self, request, category_slug, product_slug, format=None):
+        cache_key = f'product_detail_{category_slug}_{product_slug}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         product = self.get_object(category_slug, product_slug)
-        serializer = ProductSerializer(product)
-        return Response(serializer.data)
+        serializer = ProductSerializer(product, context={'request': request})
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
@@ -1171,6 +1419,16 @@ class OrderViewSet(viewsets.ModelViewSet):
         order.is_cancelled = True
         order.delivery_status = 'cancelled'
         order.save()
+
+        # Invalidate orders cache
+        cache_key_orders = f'user_orders_{request.user.id}'
+        cache_key_order = f'user_order_{request.user.id}_{pk}'
+        try:
+            cache.delete(cache_key_orders)
+            cache.delete(cache_key_order)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         serializer = OrderSerializer(order)
         return Response(serializer.data)
 
@@ -1186,6 +1444,46 @@ class CompletedOrderViewSet(viewsets.ReadOnlyModelViewSet):
             return CompletedOrder.objects.all()
         return CompletedOrder.objects.filter(user=self.request.user)
 
+    def list(self, request, *args, **kwargs):
+        cache_key = f'completed_orders_{request.user.id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        cache_key = f'completed_order_{request.user.id}_{instance.pk}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        serializer = self.get_serializer(instance)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
+
 class CustomerReviewViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrAdmin]
@@ -1198,6 +1496,70 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+class ProductReviewsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request, product_id):
+        cache_key = f'product_reviews_{product_id}_page_{request.query_params.get("page", 1)}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        try:
+            product = Product.objects.get(id=product_id)
+            reviews = product.reviews.all()
+            page = int(request.query_params.get('page', 1))
+            per_page = int(request.query_params.get('per_page', 5))
+            total = reviews.count()
+            start = (page - 1) * per_page
+            end = start + per_page
+            reviews = reviews[start:end]
+            serializer = CustomerReviewSerializer(reviews, many=True, context={'request': request})
+            response_data = {'reviews': serializer.data, 'total': total}
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, product_id):
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            product = Product.objects.get(id=product_id)
+            serializer = CustomerReviewSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save(user=request.user, product=product)
+
+                # Invalidate reviews cache
+                cache_key_reviews = f'product_reviews_{product_id}_page_1'
+                try:
+                    cache.delete(cache_key_reviews)
+                except (InvalidCacheBackendError, Exception) as e:
+                    print(f"Failed to invalidate reviews cache: {e}")
+
+                # Invalidate product detail cache
+                cache_key_product = f'product_detail_{product.category.slug}_{product.slug}'
+                try:
+                    cache.delete(cache_key_product)
+                except (InvalidCacheBackendError, Exception) as e:
+                    print(f"Failed to invalidate product cache: {e}")
+
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            print(f"Serializer errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class MOQRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MOQRequestSerializer
@@ -1224,24 +1586,37 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
         moq_request.save()
         serializer = MOQRequestSerializer(moq_request)
         return Response(serializer.data)
-    
 
 class UserProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        cache_key = f'user_profile_{request.user.id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         user = request.user
-        data = {
+        response_data = {
             'username': user.username,
             'email': user.email,
             'name': user.first_name,
             'phone': user.phone_number,
-            'first_name':user.first_name,
-            'last_name':user.last_name,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
             'date_joined': user.date_joined,
             'avatar': getattr(user, 'avatar', ''),
         }
-        return Response(data)
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
 
     def put(self, request):
         user = request.user
@@ -1257,6 +1632,16 @@ class UserProfileView(APIView):
         if 'avatar' in data:
             user.avatar = data['avatar']
         user.save()
+
+        # Invalidate cache
+        cache_key_profile = f'user_profile_{user.id}'
+        cache_key_current = f'current_user_{user.id}'
+        try:
+            cache.delete(cache_key_profile)
+            cache.delete(cache_key_current)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         return Response({
             'username': user.username,
             'email': user.email,
@@ -1271,29 +1656,49 @@ class DeliveryLocationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, location_id=None):
-        """Retrieve all delivery locations for the authenticated user."""
+        cache_key = f'delivery_locations_{request.user.id}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
         locations = DeliveryLocation.objects.filter(user=request.user)
         serializer = DeliveryLocationSerializer(locations, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     def post(self, request, location_id=None):
-        """Add a new delivery location for the authenticated user."""
         data = request.data
         serializer = DeliveryLocationSerializer(data={
             'name': data.get('name'),
             'address': data.get('address'),
-            'latitude': data.get('latitude'),  # Include latitude
-            'longitude': data.get('longitude'),  # Include longitude
-            'is_default': data.get('is_default', False),  # Changed key to match API
+            'latitude': data.get('latitude'),
+            'longitude': data.get('longitude'),
+            'is_default': data.get('is_default', False),
             'user': request.user.id
         })
         if serializer.is_valid():
             serializer.save(user=request.user)
+
+            # Invalidate cache
+            cache_key = f'delivery_locations_{request.user.id}'
+            try:
+                cache.delete(cache_key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache: {e}")
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, location_id=None):
-        """Set a location as the default for the authenticated user."""
         if not location_id:
             return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1303,11 +1708,18 @@ class DeliveryLocationView(APIView):
             return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
 
         location.is_default = True
-        location.save()  # This will trigger the save method to unset other defaults
+        location.save()
+
+        # Invalidate cache
+        cache_key = f'delivery_locations_{request.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         return Response({'message': 'Set as default'}, status=status.HTTP_200_OK)
 
     def delete(self, request, location_id=None):
-        """Delete a delivery location for the authenticated user."""
         if not location_id:
             return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1317,16 +1729,30 @@ class DeliveryLocationView(APIView):
             return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
 
         location.delete()
+
+        # Invalidate cache
+        cache_key = f'delivery_locations_{request.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-  
+
 def autocomplete(request):
     query = request.GET.get('input', '')
     if not query:
         return JsonResponse({'status': 'error', 'message': 'No input provided'}, status=400)
 
-    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same as Vue frontend
-    # Alternatively, use settings.GOOGLE_MAPS_API_KEY if defined in settings.py
+    cache_key = f'autocomplete_{query}'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return JsonResponse(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'
     url = (
         f"https://maps.googleapis.com/maps/api/place/autocomplete/json?"
         f"input={query}&key={api_key}&types=geocode"
@@ -1334,20 +1760,33 @@ def autocomplete(request):
 
     try:
         response = requests.get(url)
-        response.raise_for_status()  # Raise an error for bad status codes
-        data = response.json()
-        return JsonResponse(data)
-    except requests.RequestException as e:
-        print(f"Error fetching autocomplete data: {str(e)}")  # Log error for debugging
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        response.raise_for_status()
+        response_data = response.json()
 
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 60)  # Cache for 1 hour
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return JsonResponse(response_data)
+    except requests.RequestException as e:
+        print(f"Error fetching autocomplete data: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 def place_details(request):
     place_id = request.GET.get('place_id', '')
     if not place_id:
         return JsonResponse({'status': 'error', 'message': 'No place_id provided'}, status=400)
 
-    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'  # Same key as frontend
+    cache_key = f'place_details_{place_id}'
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return JsonResponse(cached_data)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Cache error: {e}. Falling back to direct query.")
+
+    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'
     url = (
         f"https://maps.googleapis.com/maps/api/place/details/json?"
         f"place_id={place_id}&key={api_key}"
@@ -1356,8 +1795,14 @@ def place_details(request):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        data = response.json()
-        return JsonResponse(data)
+        response_data = response.json()
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 60)  # Cache for 1 hour
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return JsonResponse(response_data)
     except requests.RequestException as e:
         print(f"Error fetching place details: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
