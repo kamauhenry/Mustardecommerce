@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'ecommerce',
-    'ecommerce.api',
+
+    'ecommerce.api.apps.CoreConfig',
     'corsheaders',
     'djoser',
     'django_filters',
@@ -238,3 +239,13 @@ mimetypes.add_type("image/jpeg", ".jpg")
 
 
 GOOGLE_CLIENT_ID = '370920112183-0pd7i0jqlf78bqjph6j6ocg1s3gkhe9d.apps.googleusercontent.com' 
+
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Or your email provider
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # e.g., 'your-email@gmail.com'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # App-specific password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

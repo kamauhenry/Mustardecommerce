@@ -1,3 +1,4 @@
+
 from django.db.models import Q, Sum, Count, Max
 from django.contrib.auth import login, logout, authenticate, get_user_model, update_session_auth_hash
 from django.core.paginator import Paginator
@@ -31,6 +32,8 @@ from io import BytesIO
 from google.oauth2 import id_token
 from google.auth.transport import requests
 import random
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
 
 User = get_user_model()
 load_dotenv()
@@ -159,16 +162,7 @@ def create_order_from_cart(request, cart_id):
     except Cart.DoesNotExist:
         return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    if cart.items.count() == 0:
-        return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        default_location = DeliveryLocation.objects.filter(user=request.user, is_default=True).first()
-        if not default_location:
-            return Response({"error": "No default delivery location set"}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        logger.error(f"Error fetching delivery location: {str(e)}")
-        return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     logger.info(f"Cart contains {cart.items.count()} items")
     highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
@@ -178,7 +172,7 @@ def create_order_from_cart(request, cart_id):
             user=request.user,
             id=next_id,
             shipping_method='standard',
-            delivery_location=default_location,
+            
             payment_status='pending',
             delivery_status='processing',
         )
@@ -372,6 +366,75 @@ def mpesa_callback(request):
             payment.order.payment_status = "paid"
             payment.order.save()
 
+            # Send email with order details
+            try:
+                order = payment.order
+                user = order.user
+                items = order.items.all()
+                item_details = [
+                    {
+                        'product_name': item.product.name,
+                        'quantity': item.quantity,
+                        'price': float(item.price),
+                        'line_total': float(item.quantity * item.price),
+                    }
+                    for item in items
+                ]
+
+                email_context = {
+                    'order_id': order.id,
+                    'created_at': order.created_at.strftime('%B %d, %Y'),
+                    'items': item_details,
+                    'total_price': float(order.total_price),
+                    'shipping_method': order.shipping_method,
+                    'delivery_location': order.delivery_location.address if order.delivery_location else 'Not specified',
+                    'payment_status': order.payment_status,
+                    'delivery_status': order.delivery_status,
+                    'user_name': user.first_name or user.username,
+                }
+
+                # Format items list with newlines
+                items_text = ''.join(
+                    f"- {item['product_name']} (Qty: {item['quantity']}, Price: ${item['price']}, Total: ${item['line_total']})\n"
+                    for item in item_details
+                )
+
+                subject = f'Order #{order.id} Confirmation'
+                html_message = render_to_string('order_confirmation_email.html', email_context)
+                plain_message = f"""
+            Dear {user.first_name or user.username},
+
+            Thank you for your order! Below are the details:
+
+            Order #{order.id}
+            Placed on: {order.created_at.strftime('%B %d, %Y')}
+            Total: ${order.total_price}
+            Payment Status: {order.payment_status}
+            Delivery Status: {order.delivery_status}
+
+            Items:
+            {items_text}
+            Shipping: {order.shipping_method}
+            Address: {order.delivery_location.address if order.delivery_location else 'Not specified'}
+
+            Regards,
+            Your Ecommerce Team
+            """
+
+                send_mail(
+                    subject=subject,
+                    message=plain_message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_message,
+                    fail_silently=False,
+                )
+                logger.info(f"Order confirmation email sent to {user.email} for Order #{order.id}")
+            except Exception as e:
+                logger.error(f"Failed to send order confirmation email for Order #{payment.order.id}: {str(e)}")
+
+
+
             # Invalidate orders cache
             cache_key_orders = f'user_orders_{payment.order.user.id}'
             cache_key_order = f'user_order_{payment.order.user.id}_{payment.order.id}'
@@ -410,6 +473,7 @@ def mpesa_callback(request):
         logger.error(f"Unexpected error in callback: {str(e)}", exc_info=True)
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def process_checkout(request, cart_id):
@@ -417,7 +481,7 @@ def process_checkout(request, cart_id):
         logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
         reset_order_id_sequence()
         shipping_method = request.data.get('shipping_method', 'standard')
-        shipping_address = request.data.get('shipping_address', 'shop pick up')
+
 
         try:
             cart = Cart.objects.get(id=cart_id)
@@ -440,20 +504,21 @@ def process_checkout(request, cart_id):
                     logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
                     existing_order.delete()
             
+
+
             order = Order.objects.create(
                 id=next_id,
                 user=cart.user,
                 shipping_method=shipping_method,
-                shipping_address=shipping_address,
+            
             )
             for cart_item in cart.items.all():
-                price_per_unit = cart_item.line_total / cart_item.quantity if cart_item.quantity > 0 else Decimal('0.00')
                 OrderItem.objects.create(
                     order=order,
                     product=cart_item.product,
                     variant=cart_item.variant,
                     quantity=cart_item.quantity,
-                    price=price_per_unit
+                    price=cart_item.price_per_piece  # Use price_per_piece from CartItem
                 )
             order.save()
 

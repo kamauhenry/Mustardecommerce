@@ -1,7 +1,13 @@
 <template>
   <div class="recent-campaigns">
     <p class="campaigns-title">Recent Campaigns</p>
-    <div class="products-campaigns">
+    <div v-if="isLoading" class="skeleton-container">
+      <div v-for="n in 3" :key="n" class="skeleton-campaign">
+        <div class="skeleton-campaign-img"></div>
+        <div class="skeleton-campaign-text"></div>
+      </div>
+    </div>
+    <div v-else class="products-campaigns">
       <div
         v-for="(item, index) in latestProducts"
         :key="index"
@@ -31,10 +37,12 @@ export default {
   setup() {
     const router = useRouter();
     const latestProducts = ref([]);
+    const isLoading = ref(true);
 
     // Fetch the 3 latest products from the backend
     const fetchLatestProducts = async () => {
       try {
+        isLoading.value = true;
         const response = await fetch('http://localhost:8000/api/products/latest/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch latest products');
         const data = await response.json();
@@ -42,6 +50,8 @@ export default {
       } catch (error) {
         console.error('Error fetching latest products:', error);
         latestProducts.value = [];
+      } finally {
+        isLoading.value = false;
       }
     };
 
@@ -61,6 +71,7 @@ export default {
     return {
       latestProducts,
       viewProduct,
+      isLoading,
     };
   },
 };
@@ -101,6 +112,44 @@ export default {
 
 .product-campaign-img {
   border-radius: 10px;
+}
+
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.skeleton-campaign {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  width: 100%;
+}
+
+.skeleton-campaign-img {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 10px;
+}
+
+.skeleton-campaign-text {
+  width: 60%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @media (max-width: 768px) {

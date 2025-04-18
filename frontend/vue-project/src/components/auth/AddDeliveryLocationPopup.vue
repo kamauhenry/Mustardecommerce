@@ -69,6 +69,7 @@
 import { ref, getCurrentInstance } from 'vue';
 import { GoogleMap, Marker } from 'vue3-google-map';
 import axios from 'axios';
+import { toast } from 'vue3-toastify';
 
 const googleMapsApiKey = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8';
 const emit = defineEmits(['add-location', 'close']);
@@ -83,7 +84,7 @@ const isLoading = ref(false);
 
 // Get toast instance
 const instance = getCurrentInstance();
-const toast = instance.appContext.config.globalProperties.$toast;
+Properties.$toast;
 
 // Debounce function
 const debounce = (func, delay) => {

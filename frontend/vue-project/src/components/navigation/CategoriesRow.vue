@@ -3,7 +3,11 @@
     <div class="category category-list">
       <p class="category-p">Categories</p>
     </div>
-    <div v-if="store.loading.allCategoriesWithProducts" class="loading">Loading categories...</div>
+    <div v-if="store.loading.allCategoriesWithProducts" class="skeleton-container">
+      <div v-for="n in 3" :key="n" class="skeleton-category">
+        <div v-for="i in 4" :key="i" class="skeleton-category-item"></div>
+      </div>
+    </div>
     <div v-else-if="store.error.allCategoriesWithProducts" class="error">
       Error: {{ store.error.allCategoriesWithProducts }}
     </div>
@@ -59,8 +63,7 @@ const categoryGroupsComputed = computed(() => {
 }
 
 .category-p {
-  font-weight: 700; /* Bolder to match the first code's category title */
-  /* font-size: 1.25rem; Matches the first code's category-title */
+  font-weight: 700;
   text-transform: uppercase;
   margin: 0;
   color: #f28c38;
@@ -71,13 +74,13 @@ const categoryGroupsComputed = computed(() => {
 }
 
 .category-link {
-  font-size: 1rem; /* Slightly smaller than the title for hierarchy */
+  font-size: 1rem;
   text-decoration: none;
   transition: color 0.3s ease-in-out;
 }
 
 .category-link:hover {
-  color: #f28c38; /* Matches the hover color from the first code */
+  color: #f28c38;
 }
 
 .loading,
@@ -85,6 +88,31 @@ const categoryGroupsComputed = computed(() => {
   font-size: 1rem;
   color: #666;
   padding: 0.5rem;
+}
+
+.skeleton-container {
+  display: flex;
+  gap: 2rem;
+}
+
+.skeleton-category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 150px;
+}
+
+.skeleton-category-item {
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Responsive adjustments */
@@ -101,6 +129,14 @@ const categoryGroupsComputed = computed(() => {
 
   .category-link {
     font-size: 0.9rem;
+  }
+
+  .skeleton-container {
+    flex-direction: column;
+  }
+
+  .skeleton-category {
+    width: 100%;
   }
 }
 

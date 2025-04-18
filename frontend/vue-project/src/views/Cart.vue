@@ -26,14 +26,20 @@
       <div v-else class="cart-items">
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-image">
-            <img :src="item.variant?.image || item.product?.picture || grey" alt="Item image" />
+            <img :src="item.product?.thumbnail || grey" alt="Item image" />
           </div>
           <div class="item-details">
             <h3>{{ item.product_name }}</h3>
-            <p v-if="item.variant">Color: {{ item.variant_info.color }}</p>
-            <p v-if="item.variant">Size: {{ item.variant_info.size }}</p>
+            <div v-for="attr in item.variant_attributes" :key="attr.attribute_name">
+              <p>{{ attr.attribute_name }}: {{ attr.value }}</p>
+            </div>
             <p>Quantity: {{ item.quantity }}</p>
-            <p>Price: KES {{ formatPrice(item.price_per_piece || 0) }}</p>
+            <p>
+              Price per item: KES {{ formatPrice(item.price_per_piece || 0) }}
+              <span v-if="item.quantity < item.product.moq_per_person && item.product.moq_status === 'active'">
+                (Below MOQ Price)
+              </span>
+            </p>
             <p>Total: KES {{ formatPrice(item.line_total) }}</p>
           </div>
           <div class="item-actions">
@@ -45,8 +51,8 @@
         </div>
         <div class="cart-summary">
           <p>Subtotal: KES {{ formatPrice(cartSubtotal) }}</p>
+          <p>Shipping: KES {{ formatPrice(shippingCost) }}</p>
           <p class="total">Total: KES {{ formatPrice(cartTotal) }}</p>
-          <!-- Updated 'Proceed to Checkout' button -->
           <button @click="proceedToCheckout" class="checkout-button">Proceed to Checkout</button>
         </div>
       </div>
@@ -58,6 +64,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 import grey from '@/assets/images/placeholder.png';
 
@@ -68,6 +75,7 @@ export default {
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
+    const shippingCost = ref(0); // Placeholder for shipping cost
 
     // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
@@ -76,7 +84,7 @@ export default {
     const cartSubtotal = computed(() =>
       cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0)
     );
-    const cartTotal = computed(() => cartSubtotal.value);
+    const cartTotal = computed(() => cartSubtotal.value + shippingCost.value);
 
     // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
@@ -92,6 +100,8 @@ export default {
         await store.fetchCurrentUserInfo();
         await store.fetchCart();
         error.value = null;
+        // Example: Fetch shipping cost (implement based on your backend)
+        // shippingCost.value = await fetchShippingCost();
       } catch (err) {
         error.value = 'Please login to view your cart';
         console.error(err);
@@ -113,8 +123,10 @@ export default {
           cart_id: store.cart.id,
         });
         await store.fetchCart();
+        toast.success('Quantity updated successfully!', { autoClose: 3000 });
       } catch (err) {
         console.error('Failed to update quantity:', err);
+        toast.error('Failed to update quantity.', { autoClose: 3000 });
       }
     };
 
@@ -126,21 +138,26 @@ export default {
           item_id: itemId,
         });
         await store.fetchCart();
+        toast.success('Item removed from cart!', { autoClose: 3000 });
       } catch (err) {
         console.error('Failed to remove item:', err);
+        toast.error('Failed to remove item.', { autoClose: 3000 });
       }
     };
 
-    // Proceed to Checkout: Creates an order and redirects
+    // Proceed to Checkout
     const proceedToCheckout = async () => {
-      if (!cartItems.value.length) return;
+      if (!cartItems.value.length) {
+        toast.error('Your cart is empty.', { autoClose: 3000 });
+        return;
+      }
       try {
-        const order = await store.createOrderFromCart(); // New store method
+        const order = await store.createOrderFromCart();
         router.push({ path: '/checkout', query: { orderId: order.id } });
       } catch (err) {
         console.error('Failed to proceed to checkout:', err);
-        console.log('Server response:', err.response?.data); // Log the exact error
-        alert('Failed to create order. Please try again.');
+        console.log('Server response:', err.response?.data);
+        toast.error('Failed to create order. Please try again.', { autoClose: 3000 });
       }
     };
 
@@ -154,6 +171,7 @@ export default {
       cartItemCount,
       cartSubtotal,
       cartTotal,
+      shippingCost,
       formatPrice,
       goToLogin,
       goToProducts,

@@ -38,64 +38,12 @@
 </template>
 
 <script>
-import { toast } from 'vue3-toastify';
-
 export default {
   name: 'MainLayout',
   data() {
     return {
-      currentYear: new Date().getFullYear(), // Store the current year
+      currentYear: new Date().getFullYear(),
     };
-  },
-  methods: {
-    showCookieConsent() {
-      // Check if the user has already made a choice
-      const consent = localStorage.getItem('cookieConsent');
-      if (consent) return; // If consent exists, don't show the popup
-
-      // Show the cookie consent popup
-      toast(
-        `
-          <div class="cookie-consent">
-            <p>We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <a href="/cookie-policy" target="_blank">Cookie Policy</a>.</p>
-            <div class="cookie-buttons">
-              <button id="accept-cookies">Accept</button>
-              <button id="decline-cookies">Decline</button>
-            </div>
-          </div>
-        `,
-        {
-          dangerouslyHTMLString: true, // Allow HTML in the toast message
-          position: toast.POSITION.BOTTOM_CENTER,
-          autoClose: false, // Keep the popup open until the user makes a choice
-          closeButton: false, // Disable the default close button
-          onOpen: () => {
-            // Add event listeners to the buttons after the toast is rendered
-            document.getElementById('accept-cookies').addEventListener('click', () => {
-              localStorage.setItem('cookieConsent', 'accepted');
-              toast.dismiss(); // Close the popup
-              toast.success('Cookies accepted!', { autoClose: 3000 });
-              window.location.reload(); // Reload to apply changes (e.g., load GA)
-            });
-
-            document.getElementById('decline-cookies').addEventListener('click', () => {
-              localStorage.setItem('cookieConsent', 'declined');
-              toast.dismiss(); // Close the popup
-              toast.info('Cookies declined. Some features may be limited.', { autoClose: 3000 });
-              window.location.reload(); // Reload to apply changes
-            });
-          },
-        }
-      );
-    },
-    manageCookies() {
-      // Clear the existing consent and show the popup again
-      localStorage.removeItem('cookieConsent');
-      this.showCookieConsent();
-    },
-  },
-  mounted() {
-    this.showCookieConsent();
   },
 };
 </script>

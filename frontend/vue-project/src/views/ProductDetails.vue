@@ -1,205 +1,231 @@
 <template>
   <MainLayout>
     <div class="product-details-container">
-      <!-- Breadcrumb Navigation -->
-      <div class="breadcrumb">
-        <router-link to="/">Home</router-link> /
-        <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug || 'Category' }}</router-link> /
-        <span>{{ product?.name || 'Product' }}</span>
+      <!-- Skeleton for Main Product Content -->
+      <div v-if="isLoadingProduct" class="skeleton-product-details">
+        <div class="skeleton-breadcrumb"></div>
+        <div class="skeleton-product-title"></div>
+        <div class="skeleton-product-content">
+          <div class="skeleton-product-left">
+            <div class="skeleton-tabs">
+              <div v-for="n in 4" :key="n" class="skeleton-tab"></div>
+            </div>
+            <div class="skeleton-main-image"></div>
+            <div class="skeleton-thumbnails">
+              <div v-for="n in 3" :key="n" class="skeleton-thumbnail"></div>
+            </div>
+          </div>
+          <div class="skeleton-product-right">
+            <div class="skeleton-price"></div>
+            <div class="skeleton-moq-info"></div>
+            <div class="skeleton-moq-info"></div>
+            <div class="skeleton-button"></div>
+            <div class="skeleton-rating"></div>
+          </div>
+        </div>
       </div>
+      <!-- Error State -->
+      <div v-else-if="!product" class="error">Failed to load product.</div>
+      <!-- Main Product Content -->
+      <div v-else>
+        <!-- Breadcrumb Navigation -->
+        <div class="breadcrumb">
+          <router-link to="/">Home</router-link> /
+          <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug || 'Category' }}</router-link> /
+          <span>{{ product.name || 'Product' }}</span>
+        </div>
 
-      <!-- Product Title -->
-      <h1 class="product-title">{{ product?.name || 'Loading...' }}</h1>
+        <!-- Product Title -->
+        <h1 class="product-title">{{ product.name || 'Loading...' }}</h1>
 
-      <!-- Product Content -->
-      <div class="product-content">
-        <!-- Left Section: Tabs and Images -->
-        <div class="product-left">
-          <!-- Tabs -->
-          <div class="tabs">
-            <button
-              v-for="tab in tabs"
-              :key="tab"
-              :class="{ active: activeTab === tab }"
-              @click="activeTab = tab"
-            >
-              {{ tab }}
-            </button>
+        <!-- Product Content -->
+        <div class="product-content">
+          <!-- Left Section: Tabs and Images -->
+          <div class="product-left">
+            <!-- Tabs -->
+            <div class="tabs">
+              <button
+                v-for="tab in tabs"
+                :key="tab"
+                :class="{ active: activeTab === tab }"
+                @click="activeTab = tab"
+              >
+                {{ tab }}
+              </button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+              <!-- Description Tab -->
+              <div v-if="activeTab === 'Description'" class="description">
+                <h3>Design and Materials</h3>
+                <p>{{ product.description || 'No description available.' }}</p>
+                <ul>
+                  <li><strong>Material:</strong> {{ product.material || 'N/A' }}</li>
+                  <li><strong>Fit:</strong> {{ product.fit || 'N/A' }}</li>
+                  <li><strong>Product Code:</strong> {{ product.code || 'N/A' }}</li>
+                </ul>
+              </div>
+
+              <!-- Gallery Tab -->
+              <div v-if="activeTab === 'Gallery'" class="gallery">
+                <div class="product-images">
+                  <div class="main-image-container">
+                    <img
+                      :src="product.thumbnail || placeholderImage"
+                      class="main-image"
+                      alt="Main Product Image"
+                    />
+                  </div>
+                  <div class="thumbnails">
+                    <img
+                      v-for="(image, index) in product.images || []"
+                      :key="index"
+                      :src="image"
+                      :alt="`Thumbnail ${index + 1}`"
+                      class="thumbnail"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Review Tab -->
+              <div v-if="activeTab === 'Review'" class="reviews-tab">
+                <div v-if="reviews.length" class="reviews-list">
+                  <div v-for="review in reviews" :key="review.id" class="review-item">
+                    <div class="review-content">
+                      <p>{{ review.content }}</p>
+                      <div class="review-rating">
+                        <span v-for="star in 5" :key="star" :class="star <= review.rating ? 'fas fa-star' : 'far fa-star'"></span>
+                      </div>
+                      <p class="review-meta">By {{ review.username }} on {{ new Date(review.created_at).toLocaleDateString() }}</p>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="no-reviews">No reviews yet. Be the first to share your thoughts!</p>
+                <div v-if="isAuthenticated" class="review-actions">
+                  <button v-if="!showReviewForm" class="button button-primary" @click="showReviewForm = true">Add a Review</button>
+                  <form v-else @submit.prevent="submitReview" class="review-form">
+                    <textarea
+                      v-model="reviewContent"
+                      placeholder="Write your review here..."
+                      required
+                      rows="5"
+                      id="review"
+                    ></textarea>
+                    <div class="rating-input">
+                      <label for="reviewRating">Your Rating:</label>
+                      <div class="star-rating">
+                        <span
+                          v-for="star in 5"
+                          :key="star"
+                          :class="star <= reviewRating ? 'fas fa-star' : 'far fa-star'"
+                          @click="reviewRating = star"
+                          @mouseover="hoveredRating = star"
+                          @mouseleave="hoveredRating = null"
+                          :style="{ color: star <= (hoveredRating || reviewRating) ? '#f5c518' : '#ccc' }"
+                        ></span>
+                      </div>
+                    </div>
+                    <div class="form-actions">
+                      <button type="submit" class="button button-primary">Submit Review</button>
+                      <button type="button" class="button button-secondary" @click="showReviewForm = false">Cancel</button>
+                    </div>
+                  </form>
+                </div>
+                <p v-else class="login-prompt">Please <router-link to="/login">log in</router-link> to add a review.</p>
+              </div>
+
+              <!-- Order Tab -->
+              <div v-if="activeTab === 'Order'" class="order-tab">
+                <div class="order-details">
+                  <div class="attributes">
+                    <label>Order Attributes</label>
+                    <div class="attribute-row">
+                      <div v-if="product.attributes?.length" v-for="attr in product.attributes" :key="attr.id" class="attribute">
+                        <label>{{ attr.name }}</label>
+                        <select v-model="selectedAttributes[attr.name]">
+                          <option disabled value="">Select {{ attr.name }}</option>
+                          <option v-for="value in attributeOptions[attr.name] || []" :key="value" :value="value">
+                            {{ value }}
+                          </option>
+                        </select>
+                      </div>
+                      <div class="attribute">
+                        <label>Quantity</label>
+                        <input type="number" v-model.number="quantity" min="1" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="shipping">
+                    <label>Shipping Method</label>
+                    <div class="shipping-option">
+                      <input type="radio" id="ship" name="shipping" value="ship" v-model="shippingMethod" />
+                      <label for="ship">Ship Approximation cost KES 310 each</label>
+                    </div>
+                    <div class="shipping-option">
+                      <input type="radio" id="air" name="shipping" value="air" v-model="shippingMethod" />
+                      <label for="air">Air Approximation cost</label>
+                    </div>
+                  </div>
+
+                  <div class="promo-code">
+                    <label>Promo Code</label>
+                    <input type="text" v-model="promoCode" placeholder="Enter promo code" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- Tab Content -->
-          <div class="tab-content">
-            <!-- Description Tab -->
-            <div v-if="activeTab === 'Description'" class="description">
-              <h3>Design and Materials</h3>
-              <p>{{ product?.description || 'No description available.' }}</p>
-              <ul>
-                <li><strong>Material:</strong> {{ product?.material || 'N/A' }}</li>
-                <li><strong>Fit:</strong> {{ product?.fit || 'N/A' }}</li>
-                <li><strong>Product Code:</strong> {{ product?.code || 'N/A' }}</li>
-              </ul>
-            </div>
-
-            <!-- Gallery Tab -->
-            <div v-if="activeTab === 'Gallery'" class="gallery">
-              <div class="product-images">
-                <div class="main-image-container">
-                  <img
-                    :src="product?.thumbnail || placeholderImage"
-                    class="main-image"
-                    alt="Main Product Image"
-                  />
-                </div>
-                <div class="thumbnails">
-                  <img
-                    v-for="(image, index) in product?.images || []"
-                    :key="index"
-                    :src="image"
-                    :alt="`Thumbnail ${index + 1}`"
-                    class="thumbnail"
-                  />
-                </div>
+          <!-- Right Section: Product Info -->
+          <div class="product-right">
+            <div class="product-info">
+              <!-- Pricing -->
+              <div class="pricing">
+                <h2 class="price">KES {{ effectivePrice }}</h2>
+                <p class="moq-info">Below MOQ price: KES {{ product.below_moq_price || product.price || '0' }}</p>
+                <p class="moq-info">Price: {{ product.price }}</p>
+                <p class="moq-info">MOQ Per Person: {{ product.moq_per_person || 'N/A' }} items/bundle</p>
+                <!-- Debug Info -->
+                <p class="moq-info">Quantity: {{ quantity }} </p>
+                <p class="moq-infoovery">MOQ Status: {{ product.moq_status }}</p>
               </div>
-            </div>
 
-            <!-- Review Tab -->
-            <div v-if="activeTab === 'Review'" class="reviews-tab">
-              <div v-if="reviews.length" class="reviews-list">
-                <div v-for="review in reviews" :key="review.id" class="review-item">
-                  <div class="review-content">
-                    <p>{{ review.content }}</p>
-                    <div class="review-rating">
-                      <span v-for="star in 5" :key="star" :class="star <= review.rating ? 'fas fa-star' : 'far fa-star'"></span>
-                    </div>
-                    <p class="review-meta">By {{ review.username }} on {{ new Date(review.created_at).toLocaleDateString() }}</p>
-                  </div>
-                </div>
+              <!-- Add to Cart Button -->
+              <div class="control">
+                <button class="add-to-cart" @click="handleAddToCart">Add to Cart</button>
               </div>
-              <p v-else class="no-reviews">No reviews yet. Be the first to share your thoughts!</p>
-              <div v-if="isAuthenticated" class="review-actions">
-                <button v-if="!showReviewForm" class="button button-primary" @click="showReviewForm = true">Add a Review</button>
-                <form v-else @submit.prevent="submitReview" class="review-form">
-                  <textarea
-                    v-model="reviewContent"
-                    placeholder="Write your review here..."
-                    required
-                    rows="5" 
-                    id='review'
-                  ></textarea>
-                  <div class="rating-input">
-                    <label for="reviewRating">Your Rating:</label>
-                    <div class="star-rating">
-                      <span
-                        v-for="star in 5"
-                        :key="star"
-                        :class="star <= reviewRating ? 'fas fa-star' : 'far fa-star'"
-                        @click="reviewRating = star"
-                        @mouseover="hoveredRating = star"
-                        @mouseleave="hoveredRating = null"
-                        :style="{ color: star <= (hoveredRating || reviewRating) ? '#f5c518' : '#ccc' }"
-                      ></span>
-                    </div>
-                  </div>
-                  <div class="form-actions">
-                    <button type="submit" class="button button-primary">Submit Review</button>
-                    <button type="button" class="button button-secondary" @click="showReviewForm = false">Cancel</button>
-                  </div>
-                </form>
-              </div>
-              <p v-else class="login-prompt">Please <router-link to="/login">log in</router-link> to add a review.</p>
-            </div>
 
-            <!-- Order Tab -->
-            <div v-if="activeTab === 'Order'" class="order-tab">
-              <div class="order-details">
-                <div class="quantity">
-                  <label>Total Quantity</label>
-                  <input type="number" v-model="quantity" min="1" />
-                </div>
-
-                <div class="attributes">
-                  <label>Order Attributes</label>
-                  <div class="attribute-row">
-                    <div class="attribute">
-                      <label>Size/Patterns</label>
-                      <select v-model="selectedSize">
-                        <option disabled value="">Select Size</option>
-                        <option v-for="size in availableSizes" :key="size" :value="size">
-                          {{ size }}
-                        </option>
-                      </select>
-                    </div>
-                    <div class="attribute">
-                      <label>Color</label>
-                      <select v-model="selectedColor">
-                        <option disabled value="">Select Color</option>
-                        <option v-for="color in availableColors" :key="color" :value="color">
-                          {{ color }}
-                        </option>
-                      </select>
-                    </div>
-                    <div class="attribute">
-                      <label>Quantity</label>
-                      <input type="number" v-model="quantity" min="1" />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="shipping">
-                  <label>Shipping Method</label>
-                  <div class="shipping-option">
-                    <input type="radio" id="ship" name="shipping" value="ship" v-model="shippingMethod" />
-                    <label for="ship">Ship Approximation cost KES 310 each</label>
-                  </div>
-                  <div class="shipping-option">
-                    <input type="radio" id="air" name="shipping" value="air" v-model="shippingMethod" />
-                    <label for="air">Air Approximation cost</label>
-                  </div>
-                </div>
-
-                <div class="promo-code">
-                  <label>Promo Code</label>
-                  <input type="text" v-model="promoCode" placeholder="Enter promo code" />
-                </div>
+              <!-- Rating -->
+              <div class="rating">
+                <span
+                  v-for="star in 5"
+                  :key="star"
+                  :class="star <= Math.round(product.rating || 0) ? 'fas fa-star' : 'far fa-star'"
+                  style="color: #f5c518;"
+                ></span>
+                <span>({{ product.rating || 0 }})</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right Section: Product Info -->
-        <div class="product-right">
-          <div class="product-info">
-            <!-- Pricing -->
-            <div class="pricing">
-              <h2 class="price">KES {{ product?.price || '0' }}</h2>
-              <p class="moq-info">Below MOQ price: KES {{ product?.below_moq_price || product?.price || '0' }}</p>
-              <p class="moq-info">MOQ Per Person: {{ product?.moq || 'N/A' }} items/bundle</p>
-            </div>
-
-            <!-- Add to Cart Button -->
-            <div class="control">
-              <button class="add-to-cart" @click="handleAddToCart">Add to Cart</button>
-            </div>
-
-            <!-- Rating -->
-            <div class="rating">
-              <span
-                v-for="star in 5"
-                :key="star"
-                :class="star <= Math.round(product?.rating || 0) ? 'fas fa-star' : 'far fa-star'"
-                style="color: #f5c518;"
-              ></span>
-              <span>({{ product?.rating || 0 }})</span>
+        <!-- Related Products Section -->
+        <div class="related-products">
+          <h3>You May Also Like</h3>
+          <!-- Skeleton for Related Products -->
+          <div v-if="isLoadingRelated" class="skeleton-related-products">
+            <div v-for="n in 3" :key="n" class="skeleton-related-product">
+              <div class="skeleton-related-image"></div>
+              <div class="skeleton-related-name"></div>
+              <div class="skeleton-related-price"></div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div class="related-products">
-        <h3>You May Also Like</h3>
-        <div v-if="isLoadingRelated" class="loading">Loading related products...</div>
-        <div v-else-if="relatedProducts.length" class="related-products-grid">
-          <router-link
+          <!-- Related Products Content -->
+          <div v-else-if="Array.isArray(relatedProducts) && relatedProducts.length" class="related-products-grid">
+            <router-link
               v-for="relatedProduct in relatedProducts"
               :key="relatedProduct.id"
               :to="{
@@ -209,27 +235,27 @@
               class="related-product"
               :aria-label="`View ${relatedProduct.name}`"
             >
-            <img
-              :src="relatedProduct.thumbnail || placeholderImage"
-              :alt="relatedProduct.name"
-              class="related-product-image"
-            />
-            <h4 class="related-product-name">{{ relatedProduct.name }}</h4>
-            <p class="related-product-price">KES {{ relatedProduct.price }}</p>
-          </router-link>
+              <img
+                :src="relatedProduct.thumbnail || placeholderImage"
+                :alt="relatedProduct.name"
+                class="related-product-image"
+              />
+              <h4 class="related-product-name">{{ relatedProduct.name }}</h4>
+              <p class="related-product-price">KES {{ relatedProduct.price }}</p>
+            </router-link>
+          </div>
+          <div v-else class="no-related">No related products available.</div>
+          <router-link :to="`/category/${categorySlug}/products`" class="show-more">Show More</router-link>
         </div>
-        <div v-else class="no-related">No related products available.</div>
-        <router-link :to="`/category/${categorySlug}/products`" class="show-more">Show More</router-link>
       </div>
     </div>
   </MainLayout>
 </template>
 
 
-
 <script>
 import { ref, computed, onMounted, watch } from 'vue';
-import { createApiInstance, fetchRelatedProducts , fetchProductReviews, submitProductReview} from '@/services/api';
+import { createApiInstance, fetchRelatedProducts, fetchProductReviews, submitProductReview } from '@/services/api';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
@@ -245,19 +271,18 @@ export default {
     const store = useEcommerceStore();
     const api = createApiInstance(store);
     const isAuthenticated = computed(() => store.isAuthenticated);
-    
+
     // Product data
     const productKey = computed(() => `${props.categorySlug}:${props.productSlug}`);
     const product = computed(() => store.productDetails[productKey.value]);
-
+    const isLoadingProduct = ref(true);
     const relatedProducts = ref([]);
     const relatedProductsError = ref(null);
     const isLoadingRelated = ref(false);
 
     // Form state
     const quantity = ref(1);
-    const selectedSize = ref('');
-    const selectedColor = ref('');
+    const selectedAttributes = ref({});
     const shippingMethod = ref('ship');
     const promoCode = ref('');
 
@@ -266,12 +291,80 @@ export default {
     const tabs = ['Description', 'Gallery', 'Review', 'Order'];
 
     // Review state
-    const reviews = ref([]); // Initialize as empty array
+    const reviews = ref([]);
     const showReviewForm = ref(false);
     const reviewContent = ref('');
     const reviewRating = ref(1);
     const hoveredRating = ref(null);
- 
+
+    const attributeOptions = computed(() => {
+      if (!product.value?.attributes || !Array.isArray(product.value.attributes)) return {};
+      const options = {};
+      product.value.attributes.forEach(attr => {
+        const values = new Set();
+        if (product.value.variants && Array.isArray(product.value.variants)) {
+          product.value.variants.forEach(variant => {
+            const attrValue = variant.attribute_values?.find(av => av.attribute_name === attr.name);
+            if (attrValue) values.add(attrValue.value);
+          });
+        }
+        options[attr.name] = Array.from(values);
+      });
+      return options;
+    });
+
+    const effectivePrice = computed(() => {
+      if (!product.value) return '0';
+
+      const qty = Number(quantity.value) || 1;
+      const moqPerPerson = Number(product.value.moq_per_person) || 2;
+      const belowMoqPrice = Number(product.value.below_moq_price) || Number(product.value.price) || 0;
+      const price = Number(product.value.price) || 0;
+
+      console.log('Calculating effectivePrice:', {
+        qty,
+        moqPerPerson,
+        moqStatus: product.value.moq_status,
+        belowMoqPrice,
+        price,
+      });
+
+      if (product.value.moq_status === 'active' && qty < moqPerPerson) {
+        return belowMoqPrice.toFixed(2);
+      }
+      return price.toFixed(2);
+    });
+
+    const selectedVariant = computed(() => {
+      if (!product.value?.variants || !Array.isArray(product.value.variants)) return null;
+      if (!product.value?.attributes || !Array.isArray(product.value.attributes)) return null;
+      return product.value.variants.find(variant => {
+        return product.value.attributes.every(attr => {
+          const selectedValue = selectedAttributes.value[attr.name];
+          const variantValue = variant.attribute_values?.find(av => av.attribute_name === attr.name)?.value;
+          return selectedValue === variantValue;
+        });
+      });
+    });
+
+    const handleAddToCart = async () => {
+      if (!selectedVariant.value) {
+        toast.warning('Please select all attributes or the selected combination is not available', { autoClose: 3000 });
+        return;
+      }
+      try {
+        await store.addToCart(
+          product.value.id,
+          selectedVariant.value.id,
+          quantity.value
+        );
+        toast.success('Product added to cart successfully!', { autoClose: 3000 });
+      } catch (error) {
+        console.error('Add to cart error:', error);
+        toast.error('Failed to add to cart.', { autoClose: 3000 });
+      }
+    };
+
     const fetchReviews = async () => {
       if (!product.value?.id) return;
       try {
@@ -298,7 +391,6 @@ export default {
         content: reviewContent.value.trim(),
         rating: reviewRating.value,
       };
-      console.log('Submitting review with data:', reviewData);
       try {
         const response = await submitProductReview(api, product.value.id, reviewData);
         reviews.value.push(response);
@@ -306,43 +398,44 @@ export default {
         reviewRating.value = 1;
         showReviewForm.value = false;
         toast.success('Review submitted successfully!', { autoClose: 3000 });
-        // Refresh product details to update rating
         await store.fetchProductDetails(props.categorySlug, props.productSlug);
       } catch (error) {
-        const errorMessage = error.response?.data?.content?.[0] ||
-                            error.response?.data?.rating?.[0] ||
-                            error.response?.data?.non_field_errors?.[0] ||
-                            'Failed to submit review.';
+        let errorMessage = 'Failed to submit review.';
+        if (error.response?.data) {
+          if (error.response.data.content?.[0]) {
+            errorMessage = error.response.data.content[0];
+          } else if (error.response.data.rating?.[0]) {
+            errorMessage = error.response.data.rating[0];
+          } else if (error.response.data.non_field_errors?.[0]) {
+            errorMessage = error.response.data.non_field_errors[0];
+          } else if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else if (error.response.data.detail) {
+            errorMessage = typeof error.response.data.detail === 'string'
+              ? error.response.data.detail
+              : 'An error occurred while submitting the review.';
+          }
+        }
         console.error('Error submitting review:', error.response?.data || error.message);
         toast.error(errorMessage, { autoClose: 3000 });
       }
     };
-    // Placeholder image
+
     const placeholderImage = 'data:image/jpeg;base64,...'; // Your placeholder image
 
-    // Computed properties for sizes and colors
-    const availableSizes = computed(() => {
-      return [...new Set(product.value?.variants?.map(variant => variant.size) || [])];
-    });
-
-    const availableColors = computed(() => {
-      return [...new Set(product.value?.variants?.map(variant => variant.color) || [])];
-    });
-
-    const selectedVariantId = computed(() => {
-      if (!product.value?.variants) return null;
-      const variant = product.value.variants.find(
-        v => v.size === selectedSize.value && v.color === selectedColor.value
-      );
-      return variant ? variant.id : null;
-    });
-
     const fetchProductAndRelated = async () => {
+      isLoadingProduct.value = true;
       const key = productKey.value;
-      if (!store.productDetails[key]) {
-        console.log('Fetching product details for:', key);
+      console.log('Fetching product details for:', key);
+      try {
         await store.fetchProductDetails(props.categorySlug, props.productSlug);
+      } catch (error) {
+        console.error('Failed to fetch product details:', error);
+        toast.error('Failed to load product details.', { autoClose: 3000 });
+        isLoadingProduct.value = false;
+        return;
       }
+      isLoadingProduct.value = false;
       const currentProduct = store.productDetails[key];
       if (currentProduct && currentProduct.id) {
         console.log('Fetching related products for:', `${props.categorySlug}:${currentProduct.id}`);
@@ -355,13 +448,16 @@ export default {
           relatedProductsError.value = error.response?.data?.error || error.message || 'Failed to fetch related products';
           relatedProducts.value = [];
           console.error('Failed to fetch related products:', error);
+          toast.error('Failed to load related products.', { autoClose: 3000 });
         } finally {
           isLoadingRelated.value = false;
         }
+      } else {
+        relatedProducts.value = [];
       }
     };
 
-    onMounted(fetchProductAndRelated);
+    onMounted(() => fetchProductAndRelated());
 
     watch([productKey, activeTab], ([newKey, newTabValue], [oldKey]) => {
       if (newKey !== oldKey) {
@@ -371,38 +467,28 @@ export default {
         fetchReviews();
       }
     });
+
+    watch(quantity, (newQuantity) => {
+      console.log('Quantity updated:', newQuantity, 'Type:', typeof newQuantity);
+      console.log('moq_per_person:', product.value?.moq_per_person, 'Type:', typeof product.value?.moq_per_person);
+      console.log('moq_status:', product.value?.moq_status);
+      console.log('below_moq_price:', product.value?.below_moq_price);
+      console.log('price:', product.value?.price);
+      console.log('effectivePrice:', effectivePrice.value);
+    });
+
     watch(reviewRating, (newRating) => {
       console.log('reviewRating updated:', newRating);
     });
-    // Add to cart handler
-    const handleAddToCart = async () => {
-      try {
-        if (!selectedSize.value || !selectedColor.value) {
-          toast.warning('Please select both size and color', { autoClose: 3000 });
-          return;
-        }
-        await store.addToCart(
-          product.value.id,
-          selectedVariantId.value,
-          quantity.value
-        );
-        toast.success('Product added to cart successfully!', { autoClose: 3000 });
-      } catch (error) {
-        console.error('Add to cart error:', error);
-        toast.error('Failed to add to cart.', { autoClose: 3000 });
-      }
-    };
-
 
     return {
       product,
+      isLoadingProduct,
       quantity,
-      selectedSize,
-      selectedColor,
+      selectedAttributes,
+      attributeOptions,
       shippingMethod,
       promoCode,
-      availableSizes,
-      availableColors,
       activeTab,
       tabs,
       placeholderImage,
@@ -417,13 +503,219 @@ export default {
       reviewRating,
       isAuthenticated,
       submitReview,
-      hoveredRating, 
+      effectivePrice,
+      hoveredRating,
     };
   },
 };
 </script>
 
 <style scoped>
+
+/* Skeleton for Product Details */
+.skeleton-product-details {
+  padding: 20px;
+}
+
+.skeleton-breadcrumb {
+  width: 30%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.skeleton-product-title {
+  width: 50%;
+  height: 30px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.skeleton-product-content {
+  display: flex;
+  gap: 30px;
+}
+
+.skeleton-product-left {
+  flex: 2;
+}
+
+.skeleton-tabs {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.skeleton-tab {
+  width: 80px;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-main-image {
+  width: 100%;
+  height: 300px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.skeleton-thumbnails {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.skeleton-thumbnail {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-product-right {
+  flex: 1;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 5px 5px rgba(46, 46, 46, 0.1);
+}
+
+.skeleton-price {
+  width: 50%;
+  height: 30px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.skeleton-moq-info {
+  width: 70%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.skeleton-button {
+  width: 100%;
+  height: 40px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.skeleton-rating {
+  width: 30%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* Skeleton for Related Products */
+.skeleton-related-products {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.skeleton-related-product {
+  flex: 0 0 auto;
+  width: 200px;
+  text-align: center;
+}
+
+.skeleton-related-image {
+  width: 100%;
+  height: 150px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.skeleton-related-name {
+  width: 80%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin: 0 auto 10px;
+}
+
+.skeleton-related-price {
+  width: 50%;
+  height: 18px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin: 0 auto;
+}
+
+/* Shimmer Animation (reused from Recent Campaigns) */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsiveness for Skeleton */
+@media (max-width: 768px) {
+  .skeleton-product-content {
+    flex-direction: column;
+  }
+
+  .skeleton-product-left,
+  .skeleton-product-right {
+    flex: none;
+    width: 100%;
+  }
+
+  .skeleton-product-right {
+    padding: 15px;
+  }
+
+  .skeleton-main-image {
+    height: 200px;
+  }
+
+  .skeleton-tabs {
+    gap: 10px;
+  }
+
+  .skeleton-tab {
+    width: 60px;
+  }
+}
+.loading, .error {
+  text-align: center;
+  padding: 20px;
+  font-size: 1rem;
+  color: #666;
+}
 .related-products-grid {
   display: flex;           /* Enables Flexbox to align items in a row */
   flex-wrap: nowrap;       /* Keeps all items in a single row */

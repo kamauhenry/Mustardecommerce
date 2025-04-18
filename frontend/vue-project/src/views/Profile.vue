@@ -2,7 +2,26 @@
   <MainLayout>
     <div class="profile-page">
       <h1 class="page-title">Profile</h1>
-      <div v-if="isLoading" class="loading">Loading...</div>
+      <div v-if="isLoading" class="skeleton-container">
+        <div class="skeleton-sidebar">
+          <div v-for="n in 4" :key="n" class="skeleton-sidebar-item"></div>
+        </div>
+        <div class="skeleton-content">
+          <!-- User Info Skeleton -->
+          <div class="skeleton-profile-section">
+            <div class="skeleton-section-top">
+              <div class="skeleton-title"></div>
+              <div class="skeleton-button"></div>
+            </div>
+            <div class="skeleton-profile-details">
+              <div class="skeleton-photo"></div>
+              <div class="skeleton-info">
+                <div v-for="n in 5" :key="n" class="skeleton-text"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div v-else class="profile-container">
         <!-- Left Sidebar -->
         <aside class="sidebar">
@@ -506,7 +525,107 @@ export default {
 </script>
 
 <style scoped>
+.skeleton-container {
+  display: flex;
+  gap: 2rem;
+}
 
+.skeleton-sidebar {
+  width: 20vw;
+  padding-top: 1rem;
+}
+
+.skeleton-sidebar-item {
+  height: 50px;
+  margin: 0 1.5rem;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-content {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.skeleton-profile-section {
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.skeleton-section-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.skeleton-title {
+  width: 150px;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-button {
+  width: 80px;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-profile-details {
+  display: flex;
+  gap: 2rem;
+}
+
+.skeleton-photo {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 50%;
+}
+
+.skeleton-info {
+  flex: 1;
+}
+
+.skeleton-text {
+  width: 60%;
+  height: 20px;
+  margin: 1rem 0;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 768px) {
+  .skeleton-container {
+    flex-direction: column;
+  }
+
+  .skeleton-sidebar {
+    width: 100%;
+  }
+
+  .skeleton-sidebar-item {
+    margin: 0 1rem;
+  }
+}
 .page-title {
   margin-bottom: 1.5rem;
 }

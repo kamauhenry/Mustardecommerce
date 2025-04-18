@@ -4,7 +4,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import createMyRouter from './router/index';
 import axios from 'axios';
-import { toast } from 'vue3-toastify';
+import Vue3Toastify, { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
 import { useEcommerceStore } from '@/stores/ecommerce';
 
@@ -17,31 +17,33 @@ const initializeApp = (router, mountPoint) => {
 
   app.use(pinia);
   app.use(router);
-
-  const store = useEcommerceStore(pinia);
-  if (store.authToken && !store.apiInstance) {
-    store.initializeApiInstance();
-  }
-
-  app.use(toast, {
+  app.use(Vue3Toastify, {
     position: 'top-right',
     transition: 'bounce',
-    maxToasts: 5, // Reduced to avoid clutter
+    maxToasts: 5,
     newestOnTop: true,
     pauseOnFocusLoss: true,
     pauseOnHover: true,
     closeOnClick: true,
     theme: 'colored',
-    // Removed autoClose from global config
   });
+
+  const store = useEcommerceStore(pinia);
+  if (store.authToken && !store.apiInstance) {
+    console.log('Initializing apiInstance in main.js');
+    store.initializeApiInstance();
+  }
 
   app.config.errorHandler = (err, vm, info) => {
     console.error('Vue Error:', err);
     console.error('Component:', vm?.$options?.name || 'Unknown');
     console.error('Info:', info);
-    // Only show toast for network errors
+    console.error('Error stack:', err.stack);
     if (err.message.includes('Network Error') || err.message.includes('timeout')) {
-      app.config.globalProperties.$toast.error(`Network issue: ${err.message}`, { autoClose: 5000 });
+      console.log('Showing toast: Network issue:', err.message);
+      toast.error(`Network issue: ${err.message}`, { autoClose: 5000 });
+    } else {
+      console.log('Unhandled error, not showing toast:', err.message);
     }
   };
 

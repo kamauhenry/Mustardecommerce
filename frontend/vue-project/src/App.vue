@@ -17,7 +17,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
     created() {
     // If authenticated, fetch cart data
     if (this.store.isAuthenticated) {
-      this.store.fetchCartData();
+      this.store.fetchCart();
     }
   },
 

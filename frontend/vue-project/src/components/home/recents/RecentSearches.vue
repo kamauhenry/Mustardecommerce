@@ -1,7 +1,13 @@
 <template>
   <div class="recent-searches">
     <p class="searches-title">Latest Searches</p>
-    <div class="products-searches">
+    <div v-if="isLoading" class="skeleton-container">
+      <div v-for="n in 3" :key="n" class="skeleton-search">
+        <div class="skeleton-search-img"></div>
+        <div class="skeleton-search-text"></div>
+      </div>
+    </div>
+    <div v-else class="products-searches">
       <div
         v-for="(item, index) in displayItems"
         :key="index"
@@ -35,6 +41,7 @@ export default {
     const router = useRouter();
     const randomProducts = ref([]);
     const searchProducts = ref([]);
+    const isLoading = ref(true);
 
     // Access recent searches from the store (up to 3)
     const recentSearches = computed(() => ecommerceStore.recentSearches.slice(0, 3));
@@ -47,7 +54,7 @@ export default {
         const data = await response.json();
         randomProducts.value = (data.results || []).map((product) => ({
           ...product,
-          image: product.image || product.thumbnail, // Handle missing image
+          image: product.image || product.thumbnail,
         }));
         console.log('Random products:', randomProducts.value);
       } catch (error) {
@@ -68,7 +75,7 @@ export default {
         return product
           ? {
               ...product,
-              image: product.image || product.thumbnail, // Handle missing image
+              image: product.image || product.thumbnail,
             }
           : null;
       } catch (error) {
@@ -80,7 +87,6 @@ export default {
     // Combine recent searches (as products) and random products
     const displayItems = computed(() => {
       const items = [];
-      // Add products for recent searches
       for (const query of recentSearches.value) {
         const product = searchProducts.value.find((p) => p.query === query)?.data;
         if (product) {
@@ -94,7 +100,6 @@ export default {
           });
         }
       }
-      // Fill remaining slots with random products
       const needed = 3 - items.length;
       const randoms = randomProducts.value
         .filter((rp) => !items.some((item) => !item.isSearch && item.slug === rp.slug))
@@ -113,8 +118,8 @@ export default {
 
     // Fetch data on mount
     onMounted(async () => {
+      isLoading.value = true;
       await fetchRandomProducts();
-      // Fetch products for each recent search
       searchProducts.value = [];
       for (const query of recentSearches.value) {
         if (!searchProducts.value.some((p) => p.query === query)) {
@@ -122,6 +127,7 @@ export default {
           searchProducts.value.push({ query, data: product });
         }
       }
+      isLoading.value = false;
     });
 
     // Re-perform a search
@@ -143,6 +149,7 @@ export default {
       performSearch,
       viewProduct,
       placeholder,
+      isLoading,
     };
   },
 };
@@ -183,6 +190,44 @@ export default {
 
 .product-search-img {
   border-radius: 10px;
+}
+
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.skeleton-search {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  width: 100%;
+}
+
+.skeleton-search-img {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 10px;
+}
+
+.skeleton-search-text {
+  width: 60%;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @media (max-width: 768px) {

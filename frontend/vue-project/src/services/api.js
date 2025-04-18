@@ -427,7 +427,7 @@ export const checkoutCart = async (api, cartId, shippingMethod, shippingAddress,
   try {
     const response = await api.post(`carts/${cartId}/checkout/`, {
       shipping_method: shippingMethod,
-      shipping_address: shippingAddress,
+
     });
     return response.data;
   } catch (error) {
