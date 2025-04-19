@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin,AbstractBaseUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin, AbstractBaseUser
 import string
 import random
 from django.db import models
@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.core.files import File
 from PIL import Image
 from io import BytesIO
-from django.db.models import Sum 
+from django.db.models import Sum
 from django.conf import settings
 
 class UserManager(BaseUserManager):
@@ -46,7 +46,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
-
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -56,13 +55,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
 
     def save(self, *args, **kwargs):
-        # Generate affiliate code if none exists
         if not self.affiliate_code:
             self.affiliate_code = self.generate_affiliate_code()
         super().save(*args, **kwargs)
 
     def generate_affiliate_code(self):
-        """Generate a unique 8-character affiliate code."""
         length = 8
         characters = string.ascii_uppercase + string.digits
         max_attempts = 10
@@ -95,7 +92,7 @@ class DeliveryLocation(models.Model):
     name = models.CharField(max_length=150)
     address = models.CharField(max_length=255)
     is_default = models.BooleanField(default=False)
-    latitude = models.FloatField(null=True, blank=True)  # Add latitude field
+    latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -107,11 +104,9 @@ class DeliveryLocation(models.Model):
         return f"{self.name} ({self.user.username})"
 
     def save(self, *args, **kwargs):
-        # Ensure only one location is default per user
         if self.is_default:
             DeliveryLocation.objects.filter(user=self.user, is_default=True).exclude(id=self.id).update(is_default=False)
         super().save(*args, **kwargs)
-
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
@@ -125,8 +120,8 @@ class Supplier(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)
-    description = models.TextField(blank=True, null=True)  # Add description field
-    is_active = models.BooleanField(default=True)  # Added is_active field
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
     
     class Meta:
         ordering = ('name',)
@@ -150,11 +145,24 @@ class CategoryImage(models.Model):
         return ''
 
     def get_primary_image(self):
-        """Get the first image as a fallback"""
         first_image = self.category.images.first()
         return first_image.get_image() if first_image else ''
 
+class Attribute(models.Model):
+    name = models.CharField(max_length=100, unique=True)
 
+    def __str__(self):
+        return self.name
+
+class AttributeValue(models.Model):
+    attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE, related_name='values')
+    value = models.CharField(max_length=100)
+
+    class Meta:
+        unique_together = ('attribute', 'value')
+
+    def __str__(self):
+        return f"{self.attribute.name}: {self.value}"
 
 class Product(models.Model):
     MOQ_STATUS_CHOICES = (
@@ -172,53 +180,61 @@ class Product(models.Model):
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='active')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
+    attributes = models.ManyToManyField(Attribute, related_name='products', blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    class  Meta:
+    class Meta:
         ordering = ('-created_at',)
 
     def __str__(self):
         return self.name
 
     def current_moq_count(self):
-        """Calculate current ordered quantity towards MOQ completion"""
         if self.moq_status != 'active':
             return 0
-    
         order_items = OrderItem.objects.filter(
             product=self,
-             order__payment_status='paid'
-              )
+            order__payment_status='paid'
+        )
         return sum(item.quantity for item in order_items)
 
     def moq_progress_percentage(self):
-        """Calculate MOQ completion percentage"""
         if self.moq <= 1 or self.moq_status != 'active':
             return 100
-
         current = self.current_moq_count()
         return min(300, int((current / self.moq) * 100))
 
-
-    
     def get_absolute_url(self):
         return f'/{self.category.slug}/{self.slug}/'
 
     def get_primary_image(self):
-        """Get the first image as a fallback for compatibility"""
         first_image = self.images.first()
         return first_image.get_image() if first_image else ''
 
     def get_primary_thumbnail(self):
-        """Get the first thumbnail as a fallback for compatibility"""
         first_image = self.images.first()
         return first_image.get_thumbnail() if first_image else ''
 
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
 
-    
+    def __str__(self):
+        return f"Variant of {self.product.name}"
+
+class VariantAttributeValue(models.Model):
+    variant = models.ForeignKey('ProductVariant', on_delete=models.CASCADE, related_name='attribute_values')
+    attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE)
+    value = models.ForeignKey(AttributeValue, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('variant', 'attribute')
+
+    def __str__(self):
+        return f"{self.attribute.name}: {self.value.value}"
+
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='product_images/', blank=True, null=True)
@@ -231,12 +247,10 @@ class ProductImage(models.Model):
 
     def get_thumbnail(self):
         if self.thumbnail:
-            
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         elif self.image:
             self.thumbnail = self.make_thumbnail(self.image)
             self.save()
-            
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         return ''
 
@@ -244,32 +258,13 @@ class ProductImage(models.Model):
         img = Image.open(image)
         img.convert('RGB')
         img.thumbnail(size)
-
         thumb_io = BytesIO()
         img.save(thumb_io, 'JPEG', quality=85)
-        
         filename = os.path.basename(image.name)
         thumbnail = File(thumb_io, name=filename)
         return thumbnail
 
-
-class ProductVariant(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
-    color = models.CharField(max_length=50)
-    size = models.CharField(max_length=20)
-
-    class Meta:
-        unique_together = ('product', 'color', 'size')
-
-    def __str__(self):
-        return f"{self.product.name} - {self.color} - {self.size}"
-
-
-
 class Cart(models.Model):
-    """
-    Shopping cart to hold items before they become orders
-    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
@@ -285,11 +280,7 @@ class Cart(models.Model):
     def subtotal(self):
         return sum(item.line_total for item in self.items.all())
 
-
 class CartItem(models.Model):
-    """
-    Individual items in a shopping cart
-    """
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
@@ -300,14 +291,14 @@ class CartItem(models.Model):
         unique_together = ('cart', 'product', 'variant')
 
     def __str__(self):
-        return f"{self.quantity}x {self.product.name} ({self.variant.color}, {self.variant.size})"
-        
+        attributes = ", ".join(
+            f"{av.attribute.name}: {av.value.value}"
+            for av in self.variant.attribute_values.all()
+        )
+        return f"{self.quantity}x {self.product.name} ({attributes})"
+
     @property
     def price_per_piece(self):
-        """
-        Calculate the price per unit for this cart item based on its own quantity
-        compared to the product's moq_per_person.
-        """
         if self.product.moq_status == 'active':
             if self.quantity < self.product.moq_per_person:
                 price = self.product.below_moq_price if self.product.below_moq_price is not None else self.product.price
@@ -317,13 +308,8 @@ class CartItem(models.Model):
             price = self.product.price
         return price
 
-    
     @property
     def line_total(self):
-        """
-        Calculate the total price for this cart item based on its own quantity
-        compared to the product's moq_per_person.
-        """
         return self.price_per_piece * self.quantity
 
 class Order(models.Model):
@@ -355,46 +341,29 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
- 
-
     def save(self, *args, **kwargs):
-        if not self.pk:  # Only calculate on first save
+        if not self.pk:
             super().save(*args, **kwargs)
         self.total_price = self.calculate_total_price()
         super().save(*args, **kwargs)
 
     def calculate_total_price(self):
-        """
-        Calculate the total price of all items in the order
-        """
         total = sum(
-            item.quantity * item.price 
+            item.quantity * item.price
             for item in self.items.all()
         )
         return total
 
     def update_total_price(self):
-        """
-        Manually update total price (useful after adding/removing items)
-        """
         self.total_price = self.calculate_total_price()
         self.save()
 
-
     def remove_item(self, order_item):
-        """
-        Convenience method to remove an item and update total price
-        """
         order_item.delete()
         self.update_total_price()
 
-
     def mark_as_completed(self):
-        """
-        Method to handle order completion logic
-        """
         if self.delivery_status == 'delivered' and self.payment_status == 'paid':
-            # Create CompletedOrder if conditions are met
             try:
                 completed_order = CompletedOrder.objects.create(
                     order_number=f"ORD-{self.id}",
@@ -406,7 +375,6 @@ class Order(models.Model):
                 )
                 return completed_order
             except Exception as e:
-                # Log the error or handle it appropriately
                 print(f"Error creating completed order: {e}")
         return None
 
@@ -420,10 +388,9 @@ class OrderItem(models.Model):
     def __str__(self):
         return f"{self.quantity} x {self.product.name} in Order #{self.order.id}"
 
-
 class Payment(models.Model):
     PAYMENT_METHOD_CHOICES = (
-        ('mpesa', 'M-Pesa'),  # Updated to lowercase 'mpesa' for consistency
+        ('mpesa', 'M-Pesa'),
     )
 
     PAYMENT_STATUS_CHOICES = (
@@ -433,33 +400,31 @@ class Payment(models.Model):
     )
 
     order = models.OneToOneField(
-        Order, 
-        on_delete=models.CASCADE, 
+        Order,
+        on_delete=models.CASCADE,
         related_name='payment',
         primary_key=True
     )
     phone_number = models.CharField(
-        max_length=20, 
-        null=False, 
+        max_length=20,
+        null=False,
         blank=False
     )
     payment_method = models.CharField(
-        max_length=20, 
-        choices=PAYMENT_METHOD_CHOICES, 
-        default='mpesa'  # Changed default to 'mpesa' since this is M-Pesa focused
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        default='mpesa'
     )
     payment_status = models.CharField(
-        max_length=20, 
-        choices=PAYMENT_STATUS_CHOICES, 
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
         default='pending'
     )
     amount = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2
     )
     payment_date = models.DateTimeField(auto_now_add=True)
-    
-    # New fields for M-Pesa integration
     mpesa_checkout_request_id = models.CharField(
         max_length=50,
         null=True,
@@ -485,9 +450,6 @@ class Payment(models.Model):
         return f"Payment for Order #{self.order.id}"
 
     def save(self, *args, **kwargs):
-        """
-        Set amount from order total price if not already set
-        """
         if not self.amount:
             self.amount = self.order.total_price
         super().save(*args, **kwargs)
@@ -495,12 +457,9 @@ class Payment(models.Model):
     class Meta:
         verbose_name = "Payment"
         verbose_name_plural = "Payments"
+
 class CompletedOrder(models.Model):
-    """
-    Stores orders that have been fully processed and delivered.
-    This provides order history and keeps the main Order table focused on active orders.
-    """
-    original_order = models.OneToOneField(Order, on_delete=models.CASCADE, null =True,related_name='completed_order')
+    original_order = models.OneToOneField(Order, on_delete=models.CASCADE, null=True, related_name='completed_order')
     order_number = models.CharField(max_length=50, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='completed_orders')
     shipping_method = models.CharField(max_length=50)
@@ -509,28 +468,22 @@ class CompletedOrder(models.Model):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     completion_date = models.DateTimeField(auto_now_add=True)
     delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True)
+
     def __str__(self):
         return f"Completed Order #{self.order_number}"
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Add 1.5 points to user's points
-        self.user.points = int(self.user.points + Decimal('1.5'))
+        self.user.points = int(self.user.points + 1.5)
         self.user.save(update_fields=['points'])
 
     @property
     def items(self):
-        """
-        Returns the original order items
-        """
         return self.original_order.items.all()
 
     @property
     def total_price(self):
-       
-       
-       return self.original_order.total_price
-
+        return self.original_order.total_price
 
 class CustomerReview(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
@@ -544,14 +497,12 @@ class CustomerReview(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Update product rating when review is saved
         product = self.product
         avg_rating = CustomerReview.objects.filter(product=product).aggregate(
             models.Avg('rating')
         )['rating__avg'] or 0
         product.rating = round(avg_rating, 2)
         product.save(update_fields=['rating'])
-
 
 class MOQRequest(models.Model):
     STATUS_CHOICES = (
@@ -571,5 +522,3 @@ class MOQRequest(models.Model):
 
     def __str__(self):
         return f"MOQ Request: {self.product_name}"
-
-

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    .header {
+      text-align: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .header h1 {
+      margin: 0;
+      color: #ff9800;
+    }
+    .content {
+      padding: 20px 0;
+    }
+    .order-details {
+      margin-bottom: 20px;
+    }
+    .order-details h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .item {
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+    }
+    .footer {
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      font-size: 14px;
+      color: #666;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background: #f1f1f1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Order Confirmation</h1>
+    </div>
+    <div class="content">
+      <p>Dear {{ user_name }},</p>
+      <p>Thank you for your order! Below are the details of your purchase:</p>
+
+      <div class="order-details">
+        <h2>Order #{{ order_id }}</h2>
+        <p><strong>Placed on:</strong> {{ created_at }}</p>
+        <p><strong>Payment Status:</strong> {{ payment_status }}</p>
+        <p><strong>Delivery Status:</strong> {{ delivery_status }}</p>
+        <p><strong>Total:</strong> ${{ total_price }}</p>
+      </div>
+
+      <div class="order-details">
+        <h2>Items</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Quantity</th>
+              <th>Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+            <tr>
+              <td>{{ item.product_name }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>${{ item.price }}</td>
+              <td>${{ item.line_total }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="order-details">
+        <h2>Shipping Information</h2>
+        <p><strong>Method:</strong> {{ shipping_method }}</p>
+        <p><strong>Address:</strong> {{ delivery_location }}</p>
+      </div>
+    </div>
+    <div class="footer">
+      <p>Thank you for shopping with us!</p>
+      <p>Your Ecommerce Team</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,40 +1,26 @@
-/* eslint-disable vue/multi-word-component-names */
 import './assets/main.css';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import createMyRouter from './router/index';
 import axios from 'axios';
-import { toast } from 'vue3-toastify';
+import Vue3Toastify, { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
-import { useEcommerceStore } from '@/stores/ecommerce'; // Import here to define the store
+import { useEcommerceStore } from '@/stores/ecommerce';
 
-// Create Pinia instance
 const pinia = createPinia();
-
-// Create the router instance
 const router = createMyRouter(pinia);
 
-// Function to initialize and mount the app
 const initializeApp = (router, mountPoint) => {
   const app = createApp(App);
   app.config.globalProperties.$axios = axios;
 
-  // Use Pinia and router
   app.use(pinia);
   app.use(router);
-
-  // Access the store after Pinia is initialized
-  const store = useEcommerceStore(pinia); // Pass the pinia instance to ensure initialization
-  if (store.authToken && !store.apiInstance) {
-    store.initializeApiInstance();
-  }
-
-  app.use(toast, {
-    autoClose: 5000,
+  app.use(Vue3Toastify, {
     position: 'top-right',
     transition: 'bounce',
-    maxToasts: 20,
+    maxToasts: 5,
     newestOnTop: true,
     pauseOnFocusLoss: true,
     pauseOnHover: true,
@@ -42,20 +28,26 @@ const initializeApp = (router, mountPoint) => {
     theme: 'colored',
   });
 
+  const store = useEcommerceStore(pinia);
+  if (store.authToken && !store.apiInstance) {
+    console.log('Initializing apiInstance in main.js');
+    store.initializeApiInstance();
+  }
+
   app.config.errorHandler = (err, vm, info) => {
     console.error('Vue Error:', err);
     console.error('Component:', vm?.$options?.name || 'Unknown');
     console.error('Info:', info);
-    const errorMessage = err.message || 'An unexpected error occurred';
-    if (app.config.globalProperties.$toast) {
-      app.config.globalProperties.$toast.error(`App error: ${errorMessage}`);
+    console.error('Error stack:', err.stack);
+    if (err.message.includes('Network Error') || err.message.includes('timeout')) {
+      console.log('Showing toast: Network issue:', err.message);
+      toast.error(`Network issue: ${err.message}`, { autoClose: 5000 });
     } else {
-      console.error(`App error (toast unavailable): ${errorMessage}`);
+      console.log('Unhandled error, not showing toast:', err.message);
     }
   };
 
   app.mount(mountPoint);
 };
 
-// Mount the app
 initializeApp(router, '#app');

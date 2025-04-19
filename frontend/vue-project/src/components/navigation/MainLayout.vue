@@ -83,6 +83,7 @@
 <script>
 import { ref, onMounted, onUnmounted, computed, provide, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router';
+import { toast } from 'vue3-toastify';
 import TopRow from '@/components/navigation/TopRow.vue';
 import PagesRow from '@/components/navigation/PagesRow.vue';
 import CategoriesRow from '@/components/navigation/CategoriesRow.vue';
@@ -152,13 +153,7 @@ export default {
       console.log('Accept button clicked');
       localStorage.setItem('cookieConsent', 'accepted');
       showCookieConsentModal.value = false;
-      const toast = instance.appContext.config.globalProperties.$toast;
-      if (toast) {
-        toast.success('Cookies accepted!', { autoClose: 3000 });
-      } else {
-        console.warn('Toast unavailable: Cookies accepted');
-      }
-      // Load Google Analytics after accepting cookies
+      toast.success('Cookies accepted!', { autoClose: 3000 }); // Use toast directly
       loadGoogleAnalytics();
     };
 
@@ -166,24 +161,26 @@ export default {
       console.log('Decline button clicked');
       localStorage.setItem('cookieConsent', 'declined');
       showCookieConsentModal.value = false;
-      const toast = instance.appContext.config.globalProperties.$toast;
-      if (toast) {
-        toast.info('Cookies declined.', { autoClose: 3000 });
-      } else {
-        console.warn('Toast unavailable: Cookies declined');
-      }
+      toast.info('Cookies declined.', { autoClose: 3000 }); // Use toast directly
     };
 
     const showCookieConsent = () => {
-      const consent = localStorage.getItem('cookieConsent');
-      if (consent) {
-        console.log('Cookie consent already given:', consent);
-        return;
+      try {
+        const consent = localStorage.getItem('cookieConsent');
+        if (consent) {
+          console.log('Cookie consent already given:', consent);
+          if (consent === 'accepted') {
+            loadGoogleAnalytics();
+          }
+          return;
+        }
+        console.log('Showing cookie consent modal...');
+        showCookieConsentModal.value = true;
+      } catch (error) {
+        console.error('Error in showCookieConsent:', error);
       }
-
-      console.log('Showing cookie consent modal...');
-      showCookieConsentModal.value = true;
     };
+
 
     const manageCookies = () => {
       console.log('Managing cookies...');
@@ -191,7 +188,6 @@ export default {
       showCookieConsent();
     };
 
-    // Load Google Analytics if consent is already accepted
     const loadGoogleAnalytics = () => {
       if (localStorage.getItem('cookieConsent') === 'accepted') {
         console.log('Loading Google Analytics...');
@@ -220,7 +216,6 @@ export default {
       window.removeEventListener('resize', updateScreenSize);
     });
 
-    // Provide functions to child components
     provide('openTrackOrder', openTrackOrder);
     provide('openRequestMOQ', openRequestMOQ);
     provide('openLoginModal', openLoginModal);

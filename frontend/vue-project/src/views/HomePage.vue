@@ -66,10 +66,10 @@
                 <div class="moq-progress-container">
                   <div
                     class="moq-progress-bar"
-                    :style="{ width: Math.min(100, product.moq_progress?.percentage || 60) + '%' }"
+                    :style="{ width: Math.min(100, product.moq_progress?.percentage) + '%' }"
                   ></div>
                   <span class="moq-progress-text">
-                    {{ product.moq_progress?.percentage || 60 }}%
+                    {{ product.moq_progress?.percentage }}%
                   </span>
                 </div>
               </router-link>
@@ -97,7 +97,26 @@ export default {
     const store = useEcommerceStore();
 
     onMounted(() => {
-      if (!store.allCategoriesWithProducts.length) store.fetchAllCategoriesWithProducts();
+      if (!store.allCategoriesWithProducts.length) {
+        console.log('Fetching all categories with products');
+        store.fetchAllCategoriesWithProducts();
+      }
+      // Debug: Log product data
+      console.log('Categories with products:', store.allCategoriesWithProducts);
+      store.allCategoriesWithProducts.forEach(category => {
+        category.products.forEach(product => {
+          console.log('Product MOQ details:', {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            below_moq_price: product.below_moq_price,
+            moq: product.moq,
+            moq_per_person: product.moq_per_person,
+            moq_status: product.moq_status,
+            moq_progress: product.moq_progress
+          });
+        });
+      });
     });
 
     return { store };

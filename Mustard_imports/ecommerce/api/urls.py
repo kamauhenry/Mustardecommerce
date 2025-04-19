@@ -9,7 +9,7 @@ from .views import (CategoryViewSet,UserProfileView, search , OrderViewSet,
                    create_cart, get_user_cart, add_item_to_cart, 
                    update_cart_item_quantity, remove_cart_item, 
                    process_checkout, get_user_orders, test_image, 
-                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView,latest_products,random_products,AdminRegisterView, AdminLoginView, AdminLogoutView, AdminProfileView, admin_dashboard)
+                   process_payment, get_payment_details,DeliveryLocationView,autocomplete,place_details,logout_view,mpesa_callback, create_order_from_cart, update_order_shipping,GoogleAuthView,ChangePasswordView,latest_products,random_products,AdminRegisterView, AdminLoginView, AdminLogoutView, AdminProfileView, admin_dashboard, ProductReviewsView,RelatedProductsView)
 
 
 # Creating DRF router
@@ -44,9 +44,12 @@ urlpatterns = [
     path('products/random/', random_products, name='random-products'),
     path('products/latest/', latest_products, name='latest-products'),
     # Product and category-related URLs
+    path('products/<int:product_id>/reviews/', ProductReviewsView.as_view(), name='product-reviews'),
     path('products/<slug:category_slug>/<slug:product_slug>/', ProductDetail.as_view(), name='product-detail'),
-
     path('categories-with-products/', CategoriesWithProductsViewSet.as_view(), name='categories-with-products'),
+    path('category/<slug:category_slug>/products/<int:product_id>/related/',
+         RelatedProductsView.as_view(),
+         name='related-products'),
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
     path('test-image/', test_image, name='test-image'),

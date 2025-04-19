@@ -2,7 +2,7 @@
   <MainLayout>
     <div class="orders-container">
       <div class="breadcrumb">
-        <a href="/">Home</a> &gt; <a href="/account">Account Home</a> &gt; <span>Orders</span>
+        <a href="/">Home</a> > <a href="/account">Account Home</a> > <span>Orders</span>
       </div>
 
       <h1 class="page-title">Orders <span class="order-count">({{ store.orders.length }})</span></h1>
@@ -56,36 +56,44 @@
         </button>
       </div>
 
-      <div v-if="filteredOrders.length === 0" class="no-orders">
+      <div v-if="loading" class="orders-list">
+        <div v-for="n in 3" :key="n" class="order-item skeleton">
+          <div class="order-header">
+            <div class="order-info">
+              <div class="skeleton-text skeleton-order-number"></div>
+              <div class="skeleton-text skeleton-order-placed"></div>
+              <div class="skeleton-text skeleton-order-items"></div>
+              <div class="skeleton-text skeleton-order-total"></div>
+            </div>
+            <div class="order-actions">
+              <div class="skeleton-button"></div>
+            </div>
+          </div>
+          <div class="order-status-badge skeleton-badge"></div>
+        </div>
+      </div>
+
+      <div v-else-if="filteredOrders.length === 0" class="no-orders">
         No orders matching your current filters.
       </div>
 
       <div v-else class="orders-list">
-        <div
-          v-for="order in filteredOrders"
-          :key="order.id"
-          class="order-item"
-        >
+        <div v-for="order in filteredOrders" :key="order.id" class="order-item">
           <div class="order-header">
             <div class="order-info">
-              <div class="order-number">Order #: {{ order.id }}</div>
-              <div class="order-placed">Placed on: {{ order.date }}</div>
-              <div class="order-items-count">Included Items: {{ order.items }}</div>
-              <div class="order-total">Total: ${{ order.total }}</div>
+              <div class="order-number">Order : #MI{{ order.id }}</div>
+              <div class="order-placed">Placed on: {{ formatDate(order.created_at) }}</div>
+              <div class="order-items-count">Included Items: {{ order.items.length }}</div>
+              <div class="order-total">Total: KES{{ order.total_price }}</div>
             </div>
-
             <div class="order-actions">
-              <a href="" class="view-details-btn">View Details</a>
+              <router-link :to="{ name: 'OrderDetails', params: { orderId: order.id } }" class="view-details-btn">
+                View Details
+              </router-link>
             </div>
           </div>
-
-          <div class="order-status-badge" :class="order.status.toLowerCase()">
-            {{ order.status }}
-          </div>
-
-          <div class="order-notes">
-            <div class="notes-label">Order Notes:</div>
-            <div class="notes-content">{{ order.notes }}</div>
+          <div class="order-status-badge" :class="order.payment_status.toLowerCase()">
+            {{ order.payment_status }}
           </div>
         </div>
       </div>
@@ -94,16 +102,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useEcommerceStore } from '@/stores/ecommerce'
-import MainLayout from '@/components/navigation/MainLayout.vue'
+import { ref, computed, onMounted } from 'vue';
+import { useEcommerceStore } from '@/stores/ecommerce';
+import MainLayout from '@/components/navigation/MainLayout.vue';
+import { useRouter } from 'vue-router';
 
-const store = useEcommerceStore()
+const store = useEcommerceStore();
+const router = useRouter();
 
-const dateFilter = ref('last1month')
-const statusFilter = ref('all')
-const searchQuery = ref('')
-const activeTab = ref('all')
+const dateFilter = ref('last1month');
+const statusFilter = ref('all');
+const searchQuery = ref('');
+const activeTab = ref('all');
+const loading = ref(true);
 
 const statusTabs = [
   { label: 'All', value: 'all' },
@@ -111,96 +122,136 @@ const statusTabs = [
   { label: 'Unpaid', value: 'unpaid' },
   { label: 'Paid', value: 'paid' },
   { label: 'Completed', value: 'completed' },
-  { label: 'Cancelled', value: 'cancelled' }
-]
+  { label: 'Cancelled', value: 'cancelled' },
+];
 
-// Sample data based on screenshots
-const sampleOrders = [
-  {
-    id: '1290855',
-    date: 'March 19, 2024',
-    items: '1',
-    total: '14.55',
-    status: 'Unpaid',
-    notes: 'Lorem ipsum dolor sit amet consectetur. Tincidunt ornare morbi nulla ornare diam malesuada at enim vitae. Amet scelerisque rutrum arcu quis mauris molestie tellus adipiscing pulvinar.'
-  },
-  {
-    id: '1290855',
-    date: 'March 19, 2024',
-    items: '2',
-    total: '14.55',
-    status: 'Paid',
-    notes: 'Lorem ipsum dolor sit amet consectetur. Tincidunt ornare morbi nulla ornare diam malesuada at enim vitae. Amet scelerisque rutrum arcu quis mauris molestie tellus adipiscing pulvinar.'
-  },
-  {
-    id: '1290855',
-    date: 'March 19, 2024',
-    items: '2',
-    total: '14.55',
-    status: 'Cancelled',
-    notes: 'Lorem ipsum dolor sit amet consectetur. Tincidunt ornare morbi nulla ornare diam malesuada at enim vitae. Amet scelerisque rutrum arcu quis mauris molestie tellus adipiscing pulvinar.'
-  },
-  {
-    id: '09345657',
-    date: 'March 19, 2024',
-    items: '2',
-    total: '29.10',
-    status: 'Pending MOQ',
-    notes: 'Lorem ipsum dolor sit amet consectetur. Tincidunt ornare morbi nulla ornare diam malesuada at enim vitae. Amet scelerisque rutrum arcu quis mauris molestie tellus adipiscing pulvinar.'
-  },
-  {
-    id: '09345657',
-    date: 'March 19, 2024',
-    items: '2',
-    total: '29.10',
-    status: 'Completed',
-    notes: 'Lorem ipsum dolor sit amet consectetur. Tincidunt ornare morbi nulla ornare diam malesuada at enim vitae. Amet scelerisque rutrum arcu quis mauris molestie tellus adipiscing pulvinar.'
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+onMounted(async () => {
+  if (!store.isAuthenticated) {
+    router.push('/login');
+    return;
   }
-]
-
-// Initialize store with sample data
-onMounted(() => {
-  store.orders = sampleOrders
-})
+  try {
+    await store.fetchOrdersData();
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+  } finally {
+    loading.value = false;
+  }
+});
 
 const filteredOrders = computed(() => {
-  let result = store.orders
+  let result = store.orders;
+
+  // Apply date filter
+  const now = new Date();
+  result = result.filter((order) => {
+    const orderDate = new Date(order.created_at);
+    if (dateFilter.value === 'last1month') {
+      return orderDate >= new Date(now.setMonth(now.getMonth() - 1));
+    } else if (dateFilter.value === 'last3months') {
+      return orderDate >= new Date(now.setMonth(now.getMonth() - 3));
+    } else if (dateFilter.value === 'last6months') {
+      return orderDate >= new Date(now.setMonth(now.getMonth() - 6));
+    } else if (dateFilter.value === 'lastyear') {
+      return orderDate >= new Date(now.setFullYear(now.getFullYear() - 1));
+    }
+    return true; // 'all'
+  });
 
   // Filter by status tab
   if (activeTab.value !== 'all') {
-    result = result.filter(order => {
-      if (activeTab.value === 'pending') return order.status.toLowerCase().includes('pending')
-      if (activeTab.value === 'unpaid') return order.status.toLowerCase().includes('unpaid')
-      if (activeTab.value === 'paid') return order.status.toLowerCase().includes('paid')
-      if (activeTab.value === 'completed') return order.status.toLowerCase().includes('completed')
-      if (activeTab.value === 'cancelled') return order.status.toLowerCase().includes('cancelled')
-      if (activeTab.value === 'submitted') return order.status.toLowerCase().includes('submitted')
-      if (activeTab.value === 'paid') return order.status.toLowerCase().includes('paid')
-      return true
-    })
+    result = result.filter((order) => order.payment_status.toLowerCase() === activeTab.value);
   }
 
   // Filter by status dropdown
   if (statusFilter.value !== 'all') {
-    result = result.filter(order =>
-      order.status.toLowerCase().includes(statusFilter.value.toLowerCase())
-    )
+    result = result.filter((order) =>
+      order.payment_status.toLowerCase().includes(statusFilter.value.toLowerCase())
+    );
   }
 
   // Filter by search query
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(order =>
-      order.id.toLowerCase().includes(query) ||
-      order.notes.toLowerCase().includes(query)
-    )
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((order) => order.id.toString().includes(query));
   }
 
-  return result
-})
+  return result;
+});
 </script>
 
 <style scoped>
+/* Existing styles remain unchanged, only adding skeleton styles */
+.skeleton {
+  background: #f6f7f8;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-text {
+  background: #e0e0e0;
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeleton-order-number {
+  width: 100px;
+}
+
+.skeleton-order-placed {
+  width: 150px;
+}
+
+.skeleton-order-items {
+  width: 120px;
+}
+
+.skeleton-order-total {
+  width: 80px;
+}
+
+.skeleton-button {
+  width: 100px;
+  height: 30px;
+  background: #e0e0e0;
+  border-radius: 4px;
+}
+
+.skeleton-badge {
+  width: 80px;
+  height: 24px;
+  background: #e0e0e0;
+  border-radius: 20px;
+  margin: 15px;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Existing styles */
 .orders-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -221,16 +272,6 @@ const filteredOrders = computed(() => {
   text-decoration: underline;
 }
 
-/* .page-title {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 20px;
-} */
-
-.order-count {
-  font-size: 18px;
-}
-
 .filter-container {
   display: flex;
   align-items: flex-end;
@@ -242,7 +283,6 @@ const filteredOrders = computed(() => {
 .filter-group {
   display: flex;
   flex-direction: column;
-  /* width: 180px; */
 }
 
 .filter-group label {
@@ -282,16 +322,9 @@ const filteredOrders = computed(() => {
 .search-input {
   flex: 1;
   border: none;
-  padding: .8rem;
+  padding: 0.8rem;
   border-radius: 25px;
   outline: none;
-}
-
-.search-button {
-  border-left: none;
-  border-radius: 0 4px 4px 0;
-  padding: 0 12px;
-  cursor: pointer;
 }
 
 .status-tabs {
@@ -332,6 +365,8 @@ const filteredOrders = computed(() => {
 .order-item {
   border-radius: 8px;
   overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .order-header {
@@ -346,7 +381,10 @@ const filteredOrders = computed(() => {
   gap: 5px;
 }
 
-.order-number, .order-placed, .order-items-count, .order-total {
+.order-number,
+.order-placed,
+.order-items-count,
+.order-total {
   font-size: 14px;
 }
 
@@ -362,7 +400,7 @@ const filteredOrders = computed(() => {
   transform: translateY(-1px);
 }
 
-.view-details-btn::after{
+.view-details-btn::after {
   content: '';
   width: 0px;
   height: 1px;
@@ -381,10 +419,10 @@ const filteredOrders = computed(() => {
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
-  margin: 0 15px;
+  margin: 0 15px 15px;
 }
 
-.order-status-badge.submitted {
+.order-status-badge.pending {
   background-color: #ffb84d9a;
   color: #ffb74d;
 }
@@ -399,7 +437,7 @@ const filteredOrders = computed(() => {
   background-color: #f4433654;
 }
 
-.order-status-badge.pending {
+.order-status-badge.processing {
   color: #2196f3;
   background-color: #2195f350;
 }
@@ -412,27 +450,6 @@ const filteredOrders = computed(() => {
 .order-status-badge.unpaid {
   color: #ff9800;
   background-color: #ff990052;
-}
-
-.order-status-badge.paid {
-  color: #9c27b0;
-  background-color: #9b27b04f;
-}
-
-.order-notes {
-  padding: 15px;
-}
-
-.notes-label {
-  font-weight: bold;
-  margin-bottom: 5px;
-  font-size: 14px;
-}
-
-.notes-content {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.5;
 }
 
 @media (max-width: 768px) {

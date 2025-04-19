@@ -72,24 +72,119 @@ class LoginSerializer(serializers.Serializer):
 
 
 
+class AttributeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attribute
+        fields = ['id', 'name']
+        
+class VariantAttributeValueSerializer(serializers.ModelSerializer):
+    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+    value = serializers.CharField(source='value.value', read_only=True)
 
+    class Meta:
+        model = VariantAttributeValue
+        fields = ['attribute_name', 'value']
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    attribute_values = VariantAttributeValueSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'attribute_values']
+
+class CustomerReviewSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+
+    class Meta:
+        model = CustomerReview
+        fields = ['id', 'user', 'username', 'product', 'content',
+                  'rating', 'created_at']
+        read_only_fields = ['user','product']
+
+    
+
+
+
+class CategoryImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoryImage
+        fields = ['image']
+
+class CategorySerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'description', 'is_active', 'image']
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        image = obj.images.first()
+        if image and image.image:
+            return request.build_absolute_uri(image.image.url) if request else image.image.url
+        return None
+
+
+class ProductImageSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'image', 'thumbnail']
+
+    def get_image(self, obj):
+        return obj.get_image()
+
+    def get_thumbnail(self, obj):
+        return obj.get_thumbnail()
+
+class ProductSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
+    category_slug = serializers.SlugField(source='category.slug', read_only=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    moq_progress = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
+    rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
+    attributes = AttributeSerializer(many=True, read_only=True, default=[])
+    variants = ProductVariantSerializer(many=True, read_only=True, default=[])
+    class Meta:
+        model = Product
+        fields = [
+            'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
+            'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
+            'category_slug', 'created_at', 'variants', 'thumbnail', 'rating','attributes'
+        ]
+    read_only_fields = ['latest_reviews']
+
+    def get_latest_reviews(self, obj):
+        reviews = obj.reviews.order_by('-created_at')[:3]
+        serializer = CustomerReviewSerializer(reviews, many=True)
+        return serializer.data
+
+    def get_moq_progress(self, obj):
+        if obj.moq_status == 'active':
+            return {
+                'current': obj.current_moq_count(),
+                'target': obj.moq,
+                'percentage': obj.moq_progress_percentage()
+            }
+        return None
+
+    def get_thumbnail(self, obj):
+        return obj.get_primary_thumbnail()
+
+        
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
-    variant_info = serializers.SerializerMethodField()
+    variant_attributes = VariantAttributeValueSerializer(source='variant.attribute_values', many=True, read_only=True)
     line_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     price_per_piece = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    product = ProductSerializer(read_only=True)
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_name', 'variant',
-                  'variant_info', 'quantity', 'line_total', 'added_at','price_per_piece']
+        fields = ['id', 'product', 'product_name', 'variant', 'variant_attributes', 'quantity', 'line_total', 'added_at', 'price_per_piece']
         read_only_fields = ['line_total']
-
-    def get_variant_info(self, obj):
-        return {
-            'color': obj.variant.color,
-            'size': obj.variant.size
-        }
-
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -104,23 +199,17 @@ class CartSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'items', 'total_items', 'subtotal']
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
+    variant_attributes = VariantAttributeValueSerializer(source='variant.attribute_values', many=True, read_only=True)
     line_total = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = [
-            'id', 
-            'product', 
-            'product_name',   
-            'variant',
-            'quantity', 
-            'price', 
-            'line_total'
-        ]
+        fields = ['id', 'product', 'product_name', 'variant', 'variant_attributes', 'quantity', 'price', 'line_total']
 
     def get_line_total(self, obj):
         return obj.quantity * obj.price
 
+        
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -161,92 +250,6 @@ class CompletedOrderSerializer(serializers.ModelSerializer):
         Retrieve items from the original order
         """
         return OrderItemSerializer(obj.items, many=True).data
-class CustomerReviewSerializer(serializers.ModelSerializer):
-    username = serializers.ReadOnlyField(source='user.username')
-
-    class Meta:
-        model = CustomerReview
-        fields = ['id', 'user', 'username', 'product', 'content',
-                  'rating', 'created_at']
-        read_only_fields = ['user']
-
-    def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
-
-
-
-
-class CategoryImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CategoryImage
-        fields = ['image']
-
-class CategorySerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Category
-        fields = ['id', 'name', 'slug', 'description', 'is_active', 'image']
-
-    def get_image(self, obj):
-        request = self.context.get('request')
-        image = obj.images.first()
-        if image and image.image:
-            return request.build_absolute_uri(image.image.url) if request else image.image.url
-        return None
-
-class ProductVariantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductVariant
-        fields = ['id', 'color', 'size']
-
-class ProductImageSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-    thumbnail = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ProductImage
-        fields = ['id', 'image', 'thumbnail']
-
-    def get_image(self, obj):
-        return obj.get_image()
-
-    def get_thumbnail(self, obj):
-        return obj.get_thumbnail()
-
-class ProductSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    category_slug = serializers.SlugField(source='category.slug', read_only=True)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2)
-    moq_progress = serializers.SerializerMethodField()
-    # thumbnail = serializers.SerializerMethodField()
-    variants  = ProductVariantSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Product
-        fields = [
-            'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
-            'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_slug', 'created_at', 'variants'
-        ]
-
-    def get_moq_progress(self, obj):
-        if obj.moq_status == 'active':
-            return {
-                'current': obj.current_moq_count(),
-                'target': obj.moq,
-                'percentage': obj.moq_progress_percentage()
-            }
-        return None
-
-    # def get_thumbnail(self, obj):
-    #     if obj.thumbnail and hasattr(obj.thumbnail, 'url'):
-    #         return settings.SITE_URL + obj.thumbnail.url.lstrip('/')
-    #     elif obj.picture and hasattr(obj.picture, 'url'):
-    #         return settings.SITE_URL + obj.picture.url.lstrip('/')
-    #     return ''
-
 
 class CategoriesProductsSerializer(serializers.ModelSerializer):
     products = ProductSerializer(many=True)
