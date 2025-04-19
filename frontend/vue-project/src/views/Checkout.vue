@@ -426,7 +426,7 @@ label {
   font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
-  width: 100%;
+  width: 20%;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -447,6 +447,7 @@ label {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  margin-bottom: 1rem;
 }
 
 .add-location-button:hover {
