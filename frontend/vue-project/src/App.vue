@@ -158,7 +158,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 }
 
-.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li, .policy-section p, .policy-section li {
+.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li, .policy-section p, .policy-section li, .filter-p {
   color: var(--campaigns-bg);
 }
 

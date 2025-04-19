@@ -5,7 +5,7 @@
       <!-- Filters row -->
       <div class="filters-row flex flex-wrap gap-2 mb-6">
         <div class="filter-group flex items-center">
-          <span class="mr-2">Filter:</span>
+          <span class="filter-p">Filter:</span>
           <select
             id="category-filter"
             v-model="selectedCategorySlug"
@@ -190,8 +190,9 @@ export default {
 }
 
 .filter-group span {
-  color: #333;
+  /* color: #333; */
   font-weight: 500;
+  margin-right: 1rem;
 }
 
 .filter-group select {
