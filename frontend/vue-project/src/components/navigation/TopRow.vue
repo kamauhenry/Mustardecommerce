@@ -63,7 +63,7 @@ import CartAuth from '../auth/CartAuth.vue';
 }
 
 .logo-icon {
-  width: 90px;
+  width: 200px;
   height: auto;
   margin-right: 8px;
 }

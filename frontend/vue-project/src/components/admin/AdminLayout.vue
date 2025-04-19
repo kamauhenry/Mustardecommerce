@@ -173,7 +173,7 @@ export default {
 }
 
 .logo-icon {
-  width: 90px;
+  width: 160px;
   height: auto;
   margin-right: 8px;
 }

@@ -109,15 +109,19 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background-color: var(--categories-bg);
 }
 
-.product-card, .user-info, .delivery-locations, .product-right, .sidebar, .navbar, .search-group, .search-input, .search-container {
+.product-card, .user-info, .delivery-locations, .product-right, .sidebar, .navbar, .search-group, .search-input, .search-container, .order-item {
   background-color: var(--bg-color-category-card);
+}
+
+.quantity-controls, .quantity-button {
+  background: var(--bg-color-category-card);
 }
 
 .search-group, .search-container {
   border: 1px solid var(--tabs-bg);
 }
 
-.search-input {
+.search-input, .quantity-button, .quantity-controls span  {
   color: var(--campaigns-bg);
 }
 
@@ -129,16 +133,24 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   background: var(--sidebar-hover);
 }
 
-.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title, .policy-section h2 {
+.category-p, .about-h2, .category-title, .search-results-h1, .popup-title, .user-name, .info-label, .product-title, .description h3, .reviews h3, .related-products h3, .cart-title, .policy-section h2, .order-number, .order-section h2, .cart-summary h3 {
   color: var(--text-color-thirteen);
 }
 
-.tabs, .locations-list li, .status-tabs {
+.tabs, .locations-list li, .status-tabs, .order-section h2, .cart-summary h3 {
   border-bottom: 1px solid var(--tabs-bg);
+}
+
+.cart-summary, .loading-state, .error-state, .auth-prompt, .empty-cart {
+  border: 1px solid var(--tabs-bg);
 }
 
 .related-products {
   border-top: 1px solid var(--tabs-bg);
+}
+
+.summary-row.total{
+  border-top: 1px dashed var(--tabs-bg);
 }
 
 .tabs button, .tabs button.active {
@@ -158,7 +170,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 }
 
-.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li, .policy-section p, .policy-section li, .filter-p {
+.description ul, .description ul li, .description p, .description ul li strong, .quantity label, .attributes label, .shipping label, .promo-code label, .related-products p, .price, .profile-info p, .sidebar-nav li, .policy-section p, .policy-section li, .filter-p, .filter-group, .order-placed, .order-items-count, .order-total, .summary-row {
   color: var(--campaigns-bg);
 }
 
@@ -168,6 +180,10 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 .breadcrumb, .breadcrumb a, .breadcrumb span, .order-count {
   color: var(--breadcrumb-bg);
+}
+
+.breadcrumb a {
+  color: var(--text-color-thirteen);
 }
 
 
@@ -184,13 +200,13 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   font-weight: 700;
 }
 
-.info-value, .location-details h3, .location-details p, .no-locations {
+.info-value, .location-details h3, .location-details p, .no-locations, .item-details h3, .variant, .quantity, .price, .line-total {
   color: var(--campaigns-bg);
 }
 
-.page-title {
+.page-title, .cart-title {
   font-family:cursive;
-  color: var(--text-color-page-title);
+  color: var(--text-color-thirteen);
   font-size: 1.4rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -237,5 +253,12 @@ import { useEcommerceStore } from '@/stores/ecommerce';
   transition: background-color 0.3s, color 0.3s;
   display: flex;
   flex-direction: column;
+  /* Hide scrollbar while keeping functionality */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+#app::-webkit-scrollbar {
+  width: 0;
 }
 </style>

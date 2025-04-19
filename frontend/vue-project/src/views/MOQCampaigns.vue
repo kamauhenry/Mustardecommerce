@@ -175,6 +175,7 @@ export default {
 <style scoped>
 .all-products {
   font-family: 'Roboto', sans-serif;
+  padding: 1rem;
 }
 
 /* Filters row */

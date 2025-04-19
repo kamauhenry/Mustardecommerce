@@ -6,7 +6,6 @@ import Home from '@/views/HomePage.vue';
 import MOQCampaigns from '@/views/MOQCampaigns.vue';
 import Profile from '@/views/Profile.vue';
 import Orders from '@/views/Orders.vue';
-import OrderDetails from '@/views/OrderDetails.vue';
 import About from '@/views/About.vue';
 import Contact from '@/views/Contact.vue';
 import Cart from '@/views/Cart.vue';
@@ -51,11 +50,6 @@ const routes = [
     name: 'checkout-confirmation',
     component: Confirmation,
     meta: { requiresAuth: true },
-  },
-  {
-    path: '/orders/:orderId',
-    name: 'OrderDetails',
-    component: OrderDetails,
   },
   { path: '/category/:categorySlug', component: CategoryPage, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },

@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <MainLayout>
     <div class="cart-container">
@@ -10,49 +11,68 @@
 
       <div v-else-if="error" class="error-state">
         <p>{{ error }}</p>
-        <button @click="retryFetch" class="retry-button">Try Again</button>
+        <button @click="retryFetch" class="action-button retry-button">Try Again</button>
       </div>
 
       <div v-else-if="!isAuthenticated" class="auth-prompt">
         <p>Please login to view and manage your cart</p>
-        <button @click="goToLogin" class="login-button">Login</button>
+        <button @click="goToLogin" class="action-button login-button">Login</button>
       </div>
 
       <div v-else-if="cartItems.length === 0" class="empty-cart">
         <p>Your cart is empty</p>
-        <button @click="goToProducts" class="shop-button">Start Shopping</button>
+        <button @click="goToProducts" class="action-button shop-button">Start Shopping</button>
       </div>
 
-      <div v-else class="cart-items">
-        <div v-for="item in cartItems" :key="item.id" class="cart-item">
-          <div class="item-image">
-            <img :src="item.product?.thumbnail || grey" alt="Item image" />
-          </div>
-          <div class="item-details">
-            <h3>{{ item.product_name }}</h3>
-            <div v-for="attr in item.variant_attributes" :key="attr.attribute_name">
-              <p>{{ attr.attribute_name }}: {{ attr.value }}</p>
+      <div v-else class="cart-content">
+        <div class="cart-items">
+          <div v-for="item in cartItems" :key="item.id" class="cart-item">
+            <div class="item-image">
+              <img :src="item.product?.thumbnail || grey" alt="Item image" />
             </div>
-            <p>Quantity: {{ item.quantity }}</p>
-            <p>
-              Price per item: KES {{ formatPrice(item.price_per_piece || 0) }}
-              <span v-if="item.quantity < item.product.moq_per_person && item.product.moq_status === 'active'">
-                (Below MOQ Price)
-              </span>
-            </p>
-            <p>Total: KES {{ formatPrice(item.line_total) }}</p>
-          </div>
-          <div class="item-actions">
-            <button @click="updateQuantity(item.id, item.quantity - 1)" :disabled="item.quantity <= 1">-</button>
-            <span>{{ item.quantity }}</span>
-            <button @click="updateQuantity(item.id, item.quantity + 1)">+</button>
-            <button @click="removeItem(item.id)" class="remove-button">Remove</button>
+            <div class="item-details">
+              <h3>{{ item.product_name }}</h3>
+              <div v-for="attr in item.variant_attributes" :key="attr.attribute_name">
+                <p class="variant">{{ attr.attribute_name }}: {{ attr.value }}</p>
+              </div>
+              <p class="quantity">Qty: {{ item.quantity }}</p>
+              <p class="price">
+                KES {{ formatPrice(item.price_per_piece || 0) }} each
+                <span v-if="item.quantity < item.product.moq_per_person && item.product.moq_status === 'active'" class="moq-warning">
+                  (Below MOQ)
+                </span>
+              </p>
+              <p class="line-total">Total: KES {{ formatPrice(item.line_total) }}</p>
+            </div>
+            <div class="item-actions">
+              <div class="quantity-controls">
+                <button @click="updateQuantity(item.id, item.quantity - 1)" :disabled="item.quantity <= 1" class="quantity-button">-</button>
+                <span>{{ item.quantity }}</span>
+                <button @click="updateQuantity(item.id, item.quantity + 1)" class="quantity-button">+</button>
+              </div>
+              <button @click="removeItem(item.id)" class="remove-button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <div class="cart-summary">
-          <p>Subtotal: KES {{ formatPrice(cartSubtotal) }}</p>
-          <p>Shipping: KES {{ formatPrice(shippingCost) }}</p>
-          <p class="total">Total: KES {{ formatPrice(cartTotal) }}</p>
+          <h3>Order Summary</h3>
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span>KES {{ formatPrice(cartSubtotal) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping</span>
+            <span>KES {{ formatPrice(shippingCost) }}</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total</span>
+            <span>KES {{ formatPrice(cartTotal) }}</span>
+          </div>
           <button @click="proceedToCheckout" class="checkout-button">Proceed to Checkout</button>
         </div>
       </div>
@@ -100,8 +120,6 @@ export default {
         await store.fetchCurrentUserInfo();
         await store.fetchCart();
         error.value = null;
-        // Example: Fetch shipping cost (implement based on your backend)
-        // shippingCost.value = await fetchShippingCost();
       } catch (err) {
         error.value = 'Please login to view your cart';
         console.error(err);
@@ -184,55 +202,33 @@ export default {
   },
 };
 </script>
+
 <style scoped>
+/* Modern Cart Styling */
 .cart-container {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.cart-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 40px;
-  position: relative;
-}
-
-.cart-title::after {
-  content: '';
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60px;
-  height: 3px;
-  background-color: #f28c38;
-  border-radius: 2px;
-}
-
+/* Loading, Error, Auth, and Empty States */
 .loading-state, .error-state, .auth-prompt, .empty-cart {
+  border-radius: 12px;
+  padding: 2rem;
   text-align: center;
-  padding: 60px 0;
-  color: #666;
-  border-radius: 8px;
-  background-color: rgba(0, 0, 0, 0.02);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.empty-cart p {
-  margin-bottom: 1.5rem;
-  font-size: 1.1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  margin: 1rem 0;
 }
 
 .spinner {
-  border: 4px solid rgba(243, 166, 24, 0.1);
-  border-top: 4px solid #f28c38;
+  border: 4px solid #edf2f7;
+  border-top: 4px solid #f6ad55;
   border-radius: 50%;
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 25px;
+  margin: 0 auto 1rem;
 }
 
 @keyframes spin {
@@ -240,37 +236,66 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
-.cart-items {
-  margin-top: 30px;
+.loading-state p, .error-state p, .auth-prompt p, .empty-cart p {
+  font-size: 1rem;
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+}
+
+.action-button {
+  background: linear-gradient(135deg, #f6ad55, #ed8936);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border: none;
   border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.action-button:hover {
+  background: linear-gradient(135deg, #ed8936, #dd6b20);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Cart Content Layout */
+.cart-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .cart-item {
-  display: grid;
-  grid-template-columns: 100px 1fr auto;
-  gap: 20px;
+  display: flex;
   align-items: center;
-  padding: 24px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  transition: background-color 0.2s ease;
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .cart-item:hover {
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.cart-item:last-child {
-  border-bottom: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
 .item-image {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-right: 1rem;
+  border: 1px solid #e2e8f0;
 }
 
 .item-image img {
@@ -286,194 +311,238 @@ export default {
 
 .item-details {
   flex: 1;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   line-height: 1.4;
 }
 
 .item-details h3 {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  text-transform: capitalize;
 }
 
-.item-details p {
-  margin: 5px 0;
-  display: flex;
-  justify-content: space-between;
+.variant, .quantity, .price, .line-total {
+  margin: 0.25rem 0;
+}
+
+.moq-warning {
+  color: #e53e3e;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.line-total {
+  font-weight: 600;
 }
 
 .item-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 0.5rem;
 }
 
-.item-actions .quantity-controls {
+.quantity-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: rgba(0, 0, 0, 0.05);
+  gap: 0.5rem;
   border-radius: 20px;
-  padding: 5px 12px;
+  padding: 0.25rem;
+  border: 1px solid var(--tabs-bg);
 }
 
-.item-actions button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
+.quantity-button {
   border: none;
-  cursor: pointer;
-  font-size: 1.2rem;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
+  font-size: 1rem;
+  cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.item-actions button:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+.quantity-button:hover {
+  background: #edf2f7;
+  color: #2d3748;
 }
 
-.item-actions button:disabled {
+.quantity-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.item-actions span {
-  font-size: 1rem;
+.quantity-controls span {
+  font-size: 0.875rem;
   font-weight: 500;
   min-width: 20px;
   text-align: center;
 }
 
-.item-actions .remove-button {
-  font-size: 0.9rem;
-  background-color: #e74c3c;
-  color: white;
-  padding: 8px 15px;
-  border-radius: 20px;
+.remove-button {
+  background: none;
+  border: none;
+  color: #e53e3e;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.5rem;
   transition: all 0.2s ease;
-  width: auto;
-  height: auto;
 }
 
-.item-actions .remove-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.remove-button:hover {
+  color: #c53030;
+  transform: scale(1.1);
 }
 
+.remove-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Cart Summary */
 .cart-summary {
-  margin-top: 30px;
-  padding: 24px;
-  border-radius: 8px;
-  background-color: rgba(0, 0, 0, 0.02);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  background: var(--bg-color-category-card);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 1rem;
 }
 
-.cart-summary p {
+.cart-summary h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.summary-row {
   display: flex;
   justify-content: space-between;
-  font-size: 1.1rem;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
 }
 
-.cart-summary .total {
-  font-size: 1.5rem;
+.summary-row.total {
+  font-size: 1.25rem;
   font-weight: 700;
-  border-bottom: none;
-  margin-bottom: 25px;
+  margin-top: 1rem;
+  padding-top: 1rem;
 }
 
 .checkout-button {
-  background-color: #e74c3c;
-  color: white;
-  padding: 16px 24px;
+  background: linear-gradient(135deg, #f6ad55, #ed8936);
+  color: #fff;
+  width: 100%;
+  padding: 0.75rem;
   border: none;
-  border-radius: 30px;
-  font-size: 1.1rem;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+  margin-top: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .checkout-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 14px rgba(231, 76, 60, 0.4);
+  background: linear-gradient(135deg, #ed8936, #dd6b20);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .checkout-button:active {
-  transform: translateY(-1px);
+  transform: translateY(0);
 }
 
-.retry-button, .login-button, .shop-button {
-  background-color: #e74c3c;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 25px;
-  font-weight: 600;
-  font-size: 1rem;
-  transition: all 0.2s ease;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-}
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .cart-content {
+    grid-template-columns: 1fr;
+  }
 
-.retry-button:hover, .login-button:hover, .shop-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.3);
+  .cart-summary {
+    position: static;
+  }
 }
 
 @media (max-width: 768px) {
-  .cart-item {
-    grid-template-columns: 80px 1fr;
-  }
-
-  .item-actions {
-    grid-column: span 2;
-    flex-direction: row;
-    justify-content: space-between;
-    width: 100%;
-    margin-top: 15px;
-  }
-
-  .cart-summary .total {
-    font-size: 1.3rem;
-  }
-}
-
-@media (max-width: 480px) {
   .cart-container {
-    padding: 20px 15px;
+    padding: 15px;
   }
 
   .cart-title {
     font-size: 1.5rem;
   }
 
+  .cart-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
   .item-image {
-    width: 70px;
-    height: 70px;
+    width: 60px;
+    height: 60px;
+    margin-right: 0;
   }
 
   .item-details h3 {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
   .item-details p {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+  }
+
+  .item-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .cart-summary {
+    padding: 1rem;
+  }
+
+  .summary-row {
+    font-size: 0.75rem;
+  }
+
+  .summary-row.total {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .cart-container {
+    padding: 10px;
+  }
+
+  .cart-title {
+    font-size: 1.25rem;
+  }
+
+  .cart-item {
+    padding: 0.75rem;
+  }
+
+  .item-image {
+    width: 50px;
+    height: 50px;
+  }
+
+  .quantity-button {
+    width: 24px;
+    height: 24px;
+    font-size: 0.875rem;
+  }
+
+  .checkout-button {
+    padding: 0.5rem;
+    font-size: 0.875rem;
   }
 }
 </style>

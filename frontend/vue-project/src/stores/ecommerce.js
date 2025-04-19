@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import api from '@/services/api';
+import { toast } from 'vue3-toastify'; // Import toast from react-toastify
 
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
@@ -99,7 +100,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         }, 0);
       }
     }
-  
+
     return state;
   },
   getters: {
@@ -411,7 +412,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         throw error;
       }
     },
-    
+
     async addToCart(productId, variantId, quantity = 1) {
       if (!this.isAuthenticated || !this.userId) {
         console.warn('Adding to local cart: User is not authenticated or userId is missing');
@@ -714,7 +715,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.relatedProducts = false;
       }
     },
-    
+
 
     async searchProducts(query, page = 1, perPage = 10) {
       if (!this.apiInstance) {
