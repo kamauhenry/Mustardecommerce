@@ -197,6 +197,15 @@ class CartSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'items', 'total_items', 'subtotal',
                   'created_at', 'last_updated']
         read_only_fields = ['user', 'items', 'total_items', 'subtotal']
+        
+        
+
+class SimpleUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     variant_attributes = VariantAttributeValueSerializer(source='variant.attribute_values', many=True, read_only=True)
@@ -211,9 +220,10 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
         
 class OrderSerializer(serializers.ModelSerializer):
+    user = SimpleUserSerializer(read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
-    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    total_price = serializers.FloatField(read_only=True)
+
     delivery_location = serializers.PrimaryKeyRelatedField(
         queryset=DeliveryLocation.objects.all(), 
         allow_null=True  # Add this if nullable

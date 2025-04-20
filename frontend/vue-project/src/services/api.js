@@ -512,9 +512,9 @@ const fetchProfile = async (api) => {
   }
 };
 
-const updateProfile = async (api, userData) => {
+const updateProfile = async (apiInstance, userData) => {
   try {
-    const response = await api.put('admin-page/profile/', userData);
+    const response = await apiInstance.put('admin-page/profile/', userData);
     return response.data;
   } catch (error) {
     console.error('Error updating profile:', error.response?.data || error.message);
@@ -522,13 +522,13 @@ const updateProfile = async (api, userData) => {
   }
 };
 
-const fetchDashboardData = async (api) => {
-  if (!api) {
+const fetchDashboardData = async (apiInstance) => {
+  if (!apiInstance) {
     throw new Error('API instance is null');
   }
   try {
     console.log('Fetching dashboard data from /api/admin-page/dashboard/');
-    const response = await api.get('admin-page/dashboard/');
+    const response = await apiInstance.get('admin-page/dashboard/');
     console.log('Dashboard data fetched successfully:', response.data);
     return response.data;
   } catch (error) {
@@ -541,6 +541,64 @@ const fetchDashboardData = async (api) => {
   }
 };
 
+export const fetchAllOrdersAdmin = async (apiInstance, params = {}) => {
+  try {
+    const response = await apiInstance.get('admin/orders/', {
+      params: { ...params, _t: Date.now() }, // Cache-busting timestamp
+      timeout: 60000, // 10-second timeout
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching all orders:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const getMOQFulfilledProducts = async (apiInstance) => {
+  try {
+    const response = await apiInstance.get('admin/moq-fulfilled-products/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching MOQ fulfilled products:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const placeOrderForProduct = async (apiInstance, productId) => {
+  try {
+    const response = await apiInstance.post(`admin/products/${productId}/place-order/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error placing order for product:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const bulkUpdateOrderStatus = async (apiInstance, orderIds, deliveryStatus) => {
+  try {
+    const response = await apiInstance.post('admin/orders/bulk-update/', {
+      order_ids: orderIds,
+      delivery_status: deliveryStatus,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating orders:', error.response?.data || error.message);
+    throw error;
+  }
+};
+export const updateSingleOrderStatus = async (apiInstance, orderId, deliveryStatus) => {
+  try {
+    console.log('Sending single order update payload:', { order_id: orderId, deliveryStatus });
+    const response = await apiInstance.post(`admin/orders/${orderId}/update-status/`, {
+      delivery_status: deliveryStatus,
+    });
+    console.log('Single order update response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating order status:', error.response?.data || error.message);
+    throw error;
+  }
+};
 export default {
   createApiInstance,
   register,
@@ -584,4 +642,9 @@ export default {
   fetchDashboardData,
   fetchProductReviews, 
   submitProductReview,
+  bulkUpdateOrderStatus,
+  placeOrderForProduct,
+  getMOQFulfilledProducts,
+  fetchAllOrdersAdmin,
+  updateSingleOrderStatus,
 };

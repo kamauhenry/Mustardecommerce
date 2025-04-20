@@ -378,6 +378,14 @@ class Order(models.Model):
                 print(f"Error creating completed order: {e}")
         return None
 
+        class Meta:
+            indexes = [
+                models.Index(fields=['created_at']),
+                models.Index(fields=['payment_status']),
+                models.Index(fields=['delivery_status']),
+            ]
+            
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

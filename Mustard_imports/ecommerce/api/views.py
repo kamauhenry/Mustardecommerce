@@ -1,5 +1,5 @@
 
-from django.db.models import Q, Sum, Count, Max
+from django.db.models import Q, Sum, Count, Max , F
 from django.contrib.auth import login, logout, authenticate, get_user_model, update_session_auth_hash
 from django.core.paginator import Paginator
 from django_filters.rest_framework import DjangoFilterBackend
@@ -34,7 +34,10 @@ from google.auth.transport import requests
 import random
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
+import logging
 
+# Set up logging
+logger = logging.getLogger(__name__)
 User = get_user_model()
 load_dotenv()
 
@@ -153,7 +156,7 @@ def format_phone_number(phone_number):
         logger.error(f"Invalid phone number format: {phone_number}")
         raise ValueError("Invalid phone number format")
 
-# Views
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order_from_cart(request, cart_id):
@@ -162,42 +165,128 @@ def create_order_from_cart(request, cart_id):
     except Cart.DoesNotExist:
         return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
 
+    if cart.items.count() == 0:
+        return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-    
+    shipping_method = request.data.get('shipping_method', 'standard')
     logger.info(f"Cart contains {cart.items.count()} items")
-    highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
-    next_id = highest_id + 1
-    with transaction.atomic():
-        order = Order.objects.create(
-            user=request.user,
-            id=next_id,
-            shipping_method='standard',
-            
-            payment_status='pending',
-            delivery_status='processing',
-        )
-        for cart_item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                product=cart_item.product,
-                variant=cart_item.variant,
-                quantity=cart_item.quantity,
-                price=cart_item.price_per_piece,
-            )
-        order.update_total_price()
-        cart.items.all().delete()
 
-        # Invalidate orders cache
+    def create_order():
+        with transaction.atomic():
+            # Clean up incomplete orders
+            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+            for existing_order in existing_orders:
+                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
+                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
+                    existing_order.delete()
+
+            # Calculate next ID
+            highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
+            next_id = highest_id + 1
+
+            # Create order with explicit ID
+            order = Order.objects.create(
+                id=next_id,
+                user=request.user,
+                shipping_method=shipping_method,
+                payment_status='pending',
+                delivery_status='processing',
+            )
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.product,
+                    variant=cart_item.variant,
+                    quantity=cart_item.quantity,
+                    price=cart_item.price_per_piece,
+                )
+            order.update_total_price()
+            cart.items.all().delete()
+        return order
+
+    try:
+        order = create_order()
+        # Invalidate cache
         cache_key_orders = f'user_orders_{request.user.id}'
-        cache_key_order = f'user_order_{request.user.id}_{next_id}'
+        cache_key_order = f'user_order_{request.user.id}_{order.id}'
         try:
             cache.delete(cache_key_orders)
             cache.delete(cache_key_order)
         except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to invalidate cache: {e}")
+            logger.error(f"Failed to invalidate cache: {e}")
 
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    except IntegrityError as e:
+        logger.error(f"IntegrityError during order creation: {str(e)}, cart_id={cart_id}, user_id={request.user.id}", exc_info=True)
+        if "duplicate key value violates unique constraint" in str(e):
+            from django.db import connection
+            with connection.cursor() as cursor:
+                # Get next safe ID from database
+                cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM ecommerce_order")
+                next_id = cursor.fetchone()[0]
+                # Skip known problematic IDs (e.g., 47, 48)
+                if next_id in {47, 48}:
+                    next_id = max(next_id, 48) + 1
+                cursor.execute("ALTER SEQUENCE ecommerce_order_id_seq RESTART WITH %s", [next_id])
+                cursor.execute("SELECT last_value FROM ecommerce_order_id_seq")
+                new_seq_value = cursor.fetchone()[0]
+                logger.info(f"Sequence reset to {new_seq_value}")
+            # Retry order creation (without explicit ID to use sequence)
+            try:
+                # Temporarily switch to sequence-based creation for retry
+                def create_order_retry():
+                    with transaction.atomic():
+                        existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+                        for existing_order in existing_orders:
+                            if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
+                                logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
+                                existing_order.delete()
+
+                        order = Order.objects.create(
+                            user=request.user,
+                            shipping_method=shipping_method,
+                            payment_status='pending',
+                            delivery_status='processing',
+                        )
+                        for cart_item in cart.items.all():
+                            OrderItem.objects.create(
+                                order=order,
+                                product=cart_item.product,
+                                variant=cart_item.variant,
+                                quantity=cart_item.quantity,
+                                price=cart_item.price_per_piece,
+                            )
+                        order.update_total_price()
+                        cart.items.all().delete()
+                    return order
+
+                order = create_order_retry()
+                cache_key_orders = f'user_orders_{request.user.id}'
+                cache_key_order = f'user_order_{request.user.id}_{order.id}'
+                try:
+                    cache.delete(cache_key_orders)
+                    cache.delete(cache_key_order)
+                except (InvalidCacheBackendError, Exception) as e:
+                    logger.error(f"Failed to invalidate cache: {e}")
+
+                serializer = OrderSerializer(order)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except IntegrityError as retry_e:
+                logger.error(f"Retry failed: {str(retry_e)}", exc_info=True)
+                return Response(
+                    {"error": "Failed to create order after sequence adjustment."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        return Response(
+            {"error": "Failed to create order due to a database conflict."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during order creation: {str(e)}", exc_info=True)
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -1871,3 +1960,201 @@ def place_details(request):
     except requests.RequestException as e:
         print(f"Error fetching place details: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+@cache_page(60 * 15)  # Cache for 15 minutes
+def get_all_orders(request):
+    page = int(request.query_params.get('page', 1))
+    per_page = int(request.query_params.get('per_page', 10))
+    payment_status = request.query_params.get('payment_status')
+    delivery_status = request.query_params.get('delivery_status')
+
+    orders = Order.objects.all().select_related('user', 'delivery_location').prefetch_related('items').order_by('-created_at')
+    if payment_status:
+        orders = orders.filter(payment_status=payment_status)
+    if delivery_status:
+        orders = orders.filter(delivery_status=delivery_status)
+
+    paginator = Paginator(orders, per_page)
+    page_obj = paginator.get_page(page)
+    serializer = OrderSerializer(page_obj, many=True)
+    return Response({
+        'results': serializer.data,
+        'total': paginator.count,
+        'pages': paginator.num_pages,
+        'current_page': page
+    })
+
+
+    
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+@cache_page(60 * 15)  # Cache for 15 minutes
+def get_moq_fulfilled_products(request):
+    products = Product.objects.filter(moq_status='active').annotate(
+        current_moq=Sum('orderitem__quantity', filter=Q(orderitem__order__payment_status='paid'))
+    ).filter(current_moq__gte=F('moq'))
+    serializer = ProductSerializer(products, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def place_order_for_product(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    orders = Order.objects.filter(items__product=product, payment_status='paid')
+    if not orders.exists():
+        return Response({'error': 'No paid orders for this product'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    orders.update(delivery_status='processing')
+    cache_key = 'admin_orders'
+    try:
+        cache.delete(cache_key)
+    except (InvalidCacheBackendError, Exception) as e:
+        print(f"Failed to invalidate cache: {e}")
+    return Response({'message': 'Orders updated to processing'})
+
+def invalidate_order_caches(user_id, order_id=None):
+    """Centralized function to invalidate order-related caches."""
+    cache_keys = [f'user_orders_{user_id}']
+    if order_id:
+        cache_keys.append(f'user_order_{user_id}_{order_id}')
+    cache_keys.append('admin_orders')  # Invalidate admin cache as well
+    for key in cache_keys:
+        try:
+            cache.delete(key)
+            logger.info(f"Cache invalidated: {key}")
+        except (InvalidCacheBackendError, Exception) as e:
+            logger.error(f"Failed to invalidate cache {key}: {e}")
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def bulk_update_order_status(request):
+    order_ids = request.data.get('order_ids', [])
+    delivery_status = request.data.get('delivery_status')  # Match field name with Order model
+
+    logger.info(f"Bulk update requested: order_ids={order_ids}, delivery_status={delivery_status}")
+
+    # Validate input
+    if not order_ids or not delivery_status:
+        logger.error("Missing order_ids or delivery_status")
+        return Response(
+            {'error': 'Missing order_ids or delivery_status'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Validate delivery status against choices
+    valid_statuses = [choice[0] for choice in Order.DELIVERY_STATUS_CHOICES]
+    logger.info(f"Valid statuses: {valid_statuses}")
+    if delivery_status not in valid_statuses:
+        logger.error(f"Invalid delivery status: {delivery_status}")
+        return Response(
+            {'error': f"Invalid delivery status. Must be one of: {', '.join(valid_statuses)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        with transaction.atomic():
+            # Lock orders to prevent concurrent updates
+            orders = Order.objects.select_for_update().filter(id__in=order_ids)
+            if not orders.exists():
+                logger.error("No orders found for the provided IDs")
+                return Response(
+                    {'error': 'No orders found for the provided IDs'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            logger.info(f"Found {orders.count()} orders: {[o.id for o in orders]}")
+
+            # Update orders
+            updated_count = orders.update(delivery_status=delivery_status)
+            logger.info(f"Updated {updated_count} orders to {delivery_status}")
+
+            if updated_count == 0:
+                logger.error("No orders were updated")
+                return Response(
+                    {'error': 'No orders were updated'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Invalidate caches for affected orders
+            user_ids = set(orders.values_list('user_id', flat=True))
+            for user_id in user_ids:
+                # Invalidate user-specific caches
+                invalidate_order_caches(user_id)
+                # Invalidate individual order caches
+                for order in orders.filter(user_id=user_id):
+                    invalidate_order_caches(user_id, order.id)
+
+        return Response(
+            {'message': f'Successfully updated {updated_count} orders to {delivery_status}'},
+            status=status.HTTP_200_OK
+        )
+    except IntegrityError as e:
+        logger.error(f"IntegrityError in bulk_update_order_status: {str(e)}, order_ids={order_ids}", exc_info=True)
+        return Response(
+            {'error': 'Database conflict occurred. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        logger.error(f"Error in bulk_update_order_status: {str(e)}, order_ids={order_ids}", exc_info=True)
+        return Response(
+            {'error': f'Failed to update orders: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def update_single_order_status(request, order_id):
+    delivery_status = request.data.get('delivery_status')  # Updated field name
+
+    logger.info(f"Single update requested: order_id={order_id}, delivery_status={delivery_status}")
+
+    # Validate input
+    if not delivery_status:
+        logger.error("Missing delivery_status")
+        return Response({'error': 'Missing delivery_status'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate delivery status against choices
+    valid_statuses = [choice[0] for choice in Order.DELIVERY_STATUS_CHOICES]
+    if delivery_status not in valid_statuses:
+        logger.error(f"Invalid delivery status: {delivery_status}")
+        return Response({'error': 'Invalid delivery status'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Find the order
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order not found: {order_id}")
+        return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Update order
+    try:
+        with transaction.atomic():
+            order.delivery_status = delivery_status
+            order.save()
+            logger.info(f"Order {order_id} updated to {delivery_status}")
+            # Verify update
+            order.refresh_from_db()
+            if order.delivery_status != delivery_status:
+                logger.error(f"Order {order_id} status mismatch: expected {delivery_status}, got {order.delivery_status}")
+                return Response(
+                    {'error': f"Status update failed for order {order_id}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        # Invalidate cache
+        cache_key = 'admin_orders'
+        try:
+            cache.delete(cache_key)
+            logger.info(f"Cache invalidated: {cache_key}")
+        except (InvalidCacheBackendError, Exception) as e:
+            logger.error(f"Failed to invalidate cache: {e}")
+
+        return Response({'message': f'Order {order_id} updated to {delivery_status}'})
+    except Exception as e:
+        logger.error(f"Error updating order {order_id}: {str(e)}")
+        return Response({'error': f'Failed to update order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
