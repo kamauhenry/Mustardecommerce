@@ -110,6 +110,7 @@ export default {
 <style scoped>
 .search-results {
   padding: 20px;
+    margin: 0 auto;
   max-width: 1200px;
   margin: 0 auto;
 }

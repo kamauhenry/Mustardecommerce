@@ -270,6 +270,8 @@ const resetForm = () => {
 
 <style scoped>
 .contact-container {
+    margin: 0 auto;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }

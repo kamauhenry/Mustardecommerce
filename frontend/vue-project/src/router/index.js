@@ -9,7 +9,6 @@ import Orders from '@/views/Orders.vue';
 import About from '@/views/About.vue';
 import Contact from '@/views/Contact.vue';
 import Cart from '@/views/Cart.vue';
-import CategoryPage from '@/views/AllCategories.vue';
 import CategoriesPage from '@/views/CategoryProducts.vue';
 import ProductDetails from '@/views/ProductDetails.vue';
 import CompletedOrders from '@/views/CompletedOrders.vue';
@@ -51,7 +50,7 @@ const routes = [
     component: Confirmation,
     meta: { requiresAuth: true },
   },
-  { path: '/category/:categorySlug', component: CategoryPage, props: true },
+  { path: '/category/:categorySlug', component: MOQCampaigns, props: true },
   { path: '/category/:categorySlug/products', component: CategoriesPage, props: true },
   { path: '/product/:categorySlug/:productSlug', name: 'product-detail', component: ProductDetails, props: true },
   {

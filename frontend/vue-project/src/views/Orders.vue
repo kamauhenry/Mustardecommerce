@@ -482,6 +482,7 @@ const printReceipt = () => {
 
 <style scoped>
 .orders-container {
+    margin: 0 auto;
   max-width: 1200px;
   margin: 0 auto;
   padding: 30px 20px;

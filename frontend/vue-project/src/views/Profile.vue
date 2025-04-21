@@ -1,7 +1,7 @@
 <template>
   <MainLayout>
     <div class="profile-page">
-      <h1 class="page-title">Profile</h1>
+      <h1 class="profile-title">Profile</h1>
       <div v-if="isLoading" class="skeleton-container">
         <div class="skeleton-sidebar">
           <div v-for="n in 4" :key="n" class="skeleton-sidebar-item"></div>
@@ -626,8 +626,13 @@ export default {
     margin: 0 1rem;
   }
 }
-.page-title {
-  margin-bottom: 1.5rem;
+.profile-title {
+  font-family: cursive;
+  color: var(--text-color-thirteen);
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: left;
+  margin: 2rem;
 }
 
 .loading {
@@ -637,7 +642,10 @@ export default {
 }
 
 .profile-container {
+  margin: 0 auto;
+  max-width: 1200px;
   display: flex;
+  justify-content: center;
   gap: 2rem;
 }
 

@@ -206,6 +206,7 @@ export default {
 <style scoped>
 /* Modern Cart Styling */
 .cart-container {
+    margin: 0 auto;
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
@@ -214,11 +215,10 @@ export default {
 
 /* Loading, Error, Auth, and Empty States */
 .loading-state, .error-state, .auth-prompt, .empty-cart {
-  border-radius: 12px;
   padding: 2rem;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   margin: 1rem 0;
+  border: none;
 }
 
 .spinner {

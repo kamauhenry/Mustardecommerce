@@ -202,6 +202,7 @@ onUnmounted(() => {
   max-width: 1200px;
   margin: auto;
   padding: 2rem;
+  text-align: left;
 }
 
 .hero-content {

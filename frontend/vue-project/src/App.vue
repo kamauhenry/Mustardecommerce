@@ -207,10 +207,10 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 .page-title, .cart-title {
   font-family:cursive;
   color: var(--text-color-thirteen);
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  text-transform: uppercase;
   margin-bottom: 2rem;
+  position: relative;
   text-align: left;
 }
 

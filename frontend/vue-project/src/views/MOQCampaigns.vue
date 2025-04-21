@@ -174,6 +174,8 @@ export default {
 
 <style scoped>
 .all-products {
+  margin: 0 auto;
+  max-width: 1200px;
   font-family: 'Roboto', sans-serif;
   padding: 1rem;
 }

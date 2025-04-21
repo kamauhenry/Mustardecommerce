@@ -146,8 +146,16 @@ const closeModals = () => {
   margin-bottom: 1rem;
 }
 
+.logo {
+  width: 200px;
+  height: auto;
+  display: flex;
+  justify-content: center;
+  margin: 1rem;
+}
+
 .logo-image {
-  width: 120px;
+  width: 200px;
   height: auto;
   margin-bottom: 0.5rem;
 }
