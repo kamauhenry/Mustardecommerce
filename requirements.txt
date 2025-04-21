@@ -36,7 +36,7 @@ sqlparse
 tomlkit
 tzdata
 urllib3
-
+google-auth
 django-redis
 dotenv
 django-redis

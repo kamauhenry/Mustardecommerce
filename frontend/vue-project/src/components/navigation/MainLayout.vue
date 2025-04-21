@@ -55,6 +55,7 @@
     <!-- Cookie Consent Modal -->
     <Modal :isOpen="showCookieConsentModal" @close="declineCookies">
       <div class="cookie-consent">
+        <h1 class="accept-cookie-h1">Accept Our Cookies</h1>
         <p>
           We use cookies to enhance your experience on our website. By continuing to use our site, you agree to our use of cookies as described in our <router-link to="/cookie-policy">Cookie Policy</router-link>.
         </p>
@@ -344,42 +345,103 @@ h3 {
 
 /* Cookie Consent Modal */
 .cookie-consent {
-  text-align: center;
-  padding: 1rem;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: justify;
+  font-family: 'Inter', sans-serif;
+  animation: slideIn 0.3s ease-out;
+}
+
+.accept-cookie-h1 {
+  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
 .cookie-consent p {
-  margin-bottom: 10px;
+  color: #333;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.cookie-consent a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.cookie-consent a:hover {
+  text-decoration: underline;
 }
 
 .cookie-buttons {
   display: flex;
-  gap: 10px;
+  gap: 1rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .cookie-buttons button {
-  padding: 5px 10px;
-  cursor: pointer;
-  color: white;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 #accept-cookies {
   background-color: #28a745;
+  color: white;
 }
 
 #accept-cookies:hover {
   background-color: #218838;
+  transform: translateY(-2px);
 }
 
 #decline-cookies {
-  background-color: #dc3545;
+  background-color: #6c757d;
+  color: white;
 }
 
 #decline-cookies:hover {
-  background-color: #c82333;
+  background-color: #5a6268;
+  transform: translateY(-2px);
+}
+
+/* Animation for modal entrance */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 540px) {
+  .cookie-consent {
+    padding: 1.5rem;
+    max-width: 90%;
+  }
+
+  .cookie-consent p {
+    font-size: 0.9rem;
+  }
+
+  .cookie-buttons button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
 }
 
 /* Responsive Design */
