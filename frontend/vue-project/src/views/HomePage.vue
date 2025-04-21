@@ -97,13 +97,13 @@ export default {
     const store = useEcommerceStore();
 
     onMounted(() => {
-      if (!store.allCategoriesWithProducts.length) {
-        console.log('Fetching all categories with products');
-        store.fetchAllCategoriesWithProducts();
+      if (!store.allhomeCategoriesWithProducts.length) {
+        console.log('Fetching home categories');
+        store.fetchHomeCategories();
       }
       // Debug: Log product data
       console.log('Categories with products:', store.allCategoriesWithProducts);
-      store.allCategoriesWithProducts.forEach(category => {
+      store.allhomeCategoriesWithProducts.forEach(category => {
         category.products.forEach(product => {
           console.log('Product MOQ details:', {
             id: product.id,
@@ -113,7 +113,7 @@ export default {
             moq: product.moq,
             moq_per_person: product.moq_per_person,
             moq_status: product.moq_status,
-            moq_progress: product.moq_progress
+            moq_progress: product.moq_progress,
           });
         });
       });
@@ -129,6 +129,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 .top-row-home {

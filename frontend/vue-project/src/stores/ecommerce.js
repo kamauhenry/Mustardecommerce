@@ -24,6 +24,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       relatedProducts: {},
       categoryProducts: {},
       allCategoriesWithProducts: [],
+      allhomeCategoriesWithProducts: [],
       deliveryLocations: [],
       productDetails: {},
       orders: [],
@@ -35,6 +36,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         productDetails: false,
         relatedProducts: false,
         allCategoriesWithProducts: false,
+        allhomeCategoriesWithProducts: false,
         cart: false,
         orders: false,
         completedOrders: false,
@@ -50,6 +52,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         relatedProducts: {},
         productDetails: null,
         allCategoriesWithProducts: null,
+        allhomeCategoriesWithProducts: null,
         cart: null,
         orders: null,
         completedOrders: null,
@@ -642,6 +645,24 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
+
+    async fetchHomeCategories() {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+      this.loading.allhomeCategoriesWithProducts = true;
+      this.error.allhomeCategoriesWithProducts = null;
+      try {
+        const data = await api.fetchHomeCategories(this.apiInstance);
+        this.allhomeCategoriesWithProducts = data;
+      } catch (error) {
+        this.error.allhomeCategoriesWithProducts = error.message || 'Failed to load home categories';
+        console.error('Fetch Home Categories Error:', error);
+        toast.error(this.error.allhomeCategoriesWithProducts);
+      } finally {
+        this.loading.allhomeCategoriesWithProducts = false;
+      }
+    },
 
 
     async fetchAllCategoriesWithProducts() {

@@ -254,7 +254,9 @@ const deleteCategory = async (api, categoryId) => {
 // Product APIs
 export const fetchProducts = async (api) => {
   try {
-    const response = await api.get('all-categories-with-products/');
+    const response = await api.get('all-categories-with-products/', {
+      timeout: 120000,
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching products:', error.response?.data || error.message);
@@ -262,9 +264,51 @@ export const fetchProducts = async (api) => {
   }
 };
 
+export const fetchSuppliers = async (api) => {
+  try {
+    const response = await api.get('admin/suppliers/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching suppliers:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const createSupplier = async (api, supplierData) => {
+  try {
+    const response = await api.post('admin/suppliers/', supplierData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating supplier:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Attribute APIs
+export const fetchAttributes = async (api) => {
+  try {
+    const response = await api.get('admin/attribute-values/');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching attributes:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const createAttribute = async (api, attributeData) => {
+  try {
+    const response = await api.post('admin/attribute-values/', attributeData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating attribute:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Modified Product APIs
 export const createProduct = async (api, productData) => {
   try {
-    const response = await api.post('products/', productData, {
+    const response = await api.post('admin/products/', productData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -276,7 +320,7 @@ export const createProduct = async (api, productData) => {
 
 export const updateProduct = async (api, productId, productData) => {
   try {
-    const response = await api.put(`products/${productId}/`, productData, {
+    const response = await api.put(`admin/products/${productId}/`, productData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -288,7 +332,7 @@ export const updateProduct = async (api, productId, productData) => {
 
 export const deleteProduct = async (api, productId) => {
   try {
-    const response = await api.delete(`products/${productId}/`);
+    const response = await api.delete(`admin/products/${productId}/`);
     return response.data;
   } catch (error) {
     console.error('Error deleting product:', error.response?.data || error.message);
@@ -337,9 +381,9 @@ export const fetchProductDetails = async (apiInstance, categorySlug, productSlug
   return response.data;
 };
 
-export const fetchAllCategoriesWithProducts = async (api) => {
+export const fetchAllCategoriesWithProducts = async (apiInstance) => {
   try {
-    const response = await api.get('all-categories-with-products/', {
+    const response = await apiInstance.get('all-categories-with-products/', {
       timeout: 120000,
     });
     return response.data;
@@ -348,6 +392,21 @@ export const fetchAllCategoriesWithProducts = async (api) => {
     throw error;
   }
 };
+
+
+export const fetchHomeCategories = async (apiInstance) => {
+  try {
+    console.log('Fetching home categories');
+    const response = await apiInstance.get('home-categories/', {
+      timeout: 60000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching home categories:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 
 export const fetchCart = async (api, userId) => {
   try {
@@ -599,6 +658,9 @@ export const updateSingleOrderStatus = async (apiInstance, orderId, deliveryStat
     throw error;
   }
 };
+
+
+
 export default {
   createApiInstance,
   register,
@@ -647,4 +709,9 @@ export default {
   getMOQFulfilledProducts,
   fetchAllOrdersAdmin,
   updateSingleOrderStatus,
+  fetchSuppliers,
+  createSupplier,
+  fetchAttributes,
+  createAttribute,
+  fetchHomeCategories,
 };

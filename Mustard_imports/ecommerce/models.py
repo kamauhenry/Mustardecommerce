@@ -8,6 +8,12 @@ from PIL import Image
 from io import BytesIO
 from django.db.models import Sum
 from django.conf import settings
+from django.utils.text import slugify
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
@@ -60,7 +66,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         super().save(*args, **kwargs)
 
     def generate_affiliate_code(self):
-        length = 8
+        length = 4
         characters = string.ascii_uppercase + string.digits
         max_attempts = 10
         for _ in range(max_attempts):
@@ -108,10 +114,12 @@ class DeliveryLocation(models.Model):
             DeliveryLocation.objects.filter(user=self.user, is_default=True).exclude(id=self.id).update(is_default=False)
         super().save(*args, **kwargs)
 
+
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
     contact_email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)  
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -173,7 +181,7 @@ class Product(models.Model):
     )
 
     name = models.CharField(max_length=255, db_index=True)
-    slug = models.SlugField(null=True, blank=True)
+    slug = models.SlugField(max_length=255, unique=True, null=True, blank=True)
     description = models.TextField(db_index=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     below_moq_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -185,12 +193,25 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
-    
+    meta_title = models.CharField(max_length=255, blank=True, null=True)
+    meta_description = models.TextField(blank=True, null=True)
+
     class Meta:
         ordering = ('-created_at',)
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug and self.name:
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exclude(id=self.id).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
 
     def current_moq_count(self):
         if self.moq_status != 'active':
@@ -217,7 +238,6 @@ class Product(models.Model):
     def get_primary_thumbnail(self):
         first_image = self.images.first()
         return first_image.get_thumbnail() if first_image else ''
-
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
 
@@ -235,6 +255,7 @@ class VariantAttributeValue(models.Model):
     def __str__(self):
         return f"{self.attribute.name}: {self.value.value}"
 
+
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='product_images/', blank=True, null=True)
@@ -242,27 +263,38 @@ class ProductImage(models.Model):
 
     def get_image(self):
         if self.image:
-            return 'http://127.0.0.1:8000/' + self.image.url
+            return settings.SITE_URL + self.image.url.lstrip('/')
         return ''
 
     def get_thumbnail(self):
         if self.thumbnail:
             return settings.SITE_URL + self.thumbnail.url.lstrip('/')
         elif self.image:
-            self.thumbnail = self.make_thumbnail(self.image)
-            self.save()
-            return settings.SITE_URL + self.thumbnail.url.lstrip('/')
+            try:
+                self.thumbnail = self.make_thumbnail(self.image)
+                self.save()
+                return settings.SITE_URL + self.thumbnail.url.lstrip('/')
+            except Exception as e:
+                logger.error(f"Failed to generate thumbnail for image {self.image}: {str(e)}")
+                return self.get_image()  # Fallback to main image
         return ''
 
     def make_thumbnail(self, image, size=(200, 100)):
-        img = Image.open(image)
-        img.convert('RGB')
-        img.thumbnail(size)
-        thumb_io = BytesIO()
-        img.save(thumb_io, 'JPEG', quality=85)
-        filename = os.path.basename(image.name)
-        thumbnail = File(thumb_io, name=filename)
-        return thumbnail
+        try:
+            img = Image.open(image)
+            img.verify()  # Verify image integrity
+            img = Image.open(image)  # Reopen after verify
+            img = img.convert('RGB')
+            img.thumbnail(size)
+            thumb_io = BytesIO()
+            img.save(thumb_io, 'JPEG', quality=85)
+            filename = os.path.splitext(os.path.basename(image.name))[0] + '.jpg'
+            thumbnail = File(thumb_io, name=filename)
+            return thumbnail
+        except Exception as e:
+            logger.error(f"Error creating thumbnail for {image.name}: {str(e)}")
+            raise
+
 
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')

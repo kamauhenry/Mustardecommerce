@@ -2,6 +2,10 @@ from rest_framework import serializers
 from ecommerce.models import *
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -70,6 +74,17 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid credentials')
         return {'user': user}
 
+class SupplierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Supplier
+        fields = ['id', 'name', 'contact_email', 'phone', 'address']
+
+class AttributeValueSerializer(serializers.ModelSerializer):
+    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+
+    class Meta:
+        model = AttributeValue
+        fields = ['id', 'attribute_name', 'value']
 
 
 class AttributeSerializer(serializers.ModelSerializer):
@@ -141,26 +156,34 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
-    category_slug = serializers.SlugField(source='category.slug', read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), source='category', write_only=True
+    )
+    supplier = SupplierSerializer(read_only=True)
+    supplier_id = serializers.PrimaryKeyRelatedField(
+        queryset=Supplier.objects.all(), source='supplier', write_only=True, allow_null=True
+    )
+    images = ProductImageSerializer(many=True, read_only=True)
+    attributes = AttributeSerializer(many=True, read_only=True)
+    attribute_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Attribute.objects.all(), source='attributes', many=True, write_only=True
+    )
+    variants = ProductVariantSerializer(many=True, read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
-    attributes = AttributeSerializer(many=True, read_only=True, default=[])
-    variants = ProductVariantSerializer(many=True, read_only=True, default=[])
+
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_slug', 'created_at', 'variants', 'thumbnail', 'rating','attributes'
+            'category_id', 'created_at', 'variants', 'thumbnail',
+            'rating', 'attributes', 'attribute_ids', 'supplier', 'supplier_id',
+            'images', 'meta_title', 'meta_description'
         ]
-    read_only_fields = ['latest_reviews']
-
-    def get_latest_reviews(self, obj):
-        reviews = obj.reviews.order_by('-created_at')[:3]
-        serializer = CustomerReviewSerializer(reviews, many=True)
-        return serializer.data
+        read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images', 'variants']
 
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
@@ -173,7 +196,12 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_thumbnail(self, obj):
         return obj.get_primary_thumbnail()
-
+    
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        logger.info(f"Product {instance.name} images: {representation['images']}")
+        logger.info(f"Product {instance.name} thumbnail: {representation['thumbnail']}")
+        return representation
         
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
@@ -204,6 +232,20 @@ class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
+
+# Serializer definition
+class HomeCategorySerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'products']
+
+    def get_products(self, obj):
+        # Fetch only 3 products per category, ordered by '-created_at'
+        products = obj.products.order_by('-created_at')[:6]
+        return ProductSerializer(products, many=True, context=self.context).data
+
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

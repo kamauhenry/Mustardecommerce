@@ -214,8 +214,11 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-STATIC_URL = '/static/'
+
 MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'ecommerce' / 'media'
+
+STATIC_URL = '/static/'
 
 VUE_APP_DIR = BASE_DIR.parent / 'frontend' / 'vue-project' / 'dist'
 
@@ -225,7 +228,7 @@ if VUE_APP_DIR.exists():
 else:
     STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_ROOT = BASE_DIR / 'ecommerce' / 'media'
+
 
 
 # Token-based authentication specific
@@ -268,6 +271,16 @@ LOGGING = {
         'ecommerce': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': True,
+        },
+        'ecommerce.api': { 
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
             'propagate': True,
         },
     },

@@ -17,14 +17,15 @@ from .views import (
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierListView, AttributeListView, AttributeValueListView,HomeCategoriesView,
 )
 
 router = routers.DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'admin/products', ProductViewSet, basename='product') 
 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    path('', include(router.urls)),
     
     # Admin endpoints
     path('admin-page/register/', AdminRegisterView.as_view(), name='admin_register'),
@@ -37,6 +38,10 @@ urlpatterns = [
     path('admin/products/<int:product_id>/place-order/', place_order_for_product, name='place_order_for_product'),
     path('admin/orders/bulk-update/', bulk_update_order_status, name='bulk_update_order_status'),
     path('admin/orders/<int:order_id>/update-status/', update_single_order_status, name='update_single_order_status'),
+    path('admin/suppliers/', SupplierListView.as_view(), name='supplier-list'),
+    path('admin/attributes/', AttributeListView.as_view(), name='attribute-list'),
+    path('admin/attribute-values/', AttributeValueListView.as_view(), name='attribute-value-list'),
+
     # Authentication
     path('auth/logout/', logout_view, name='logout'),
     path('auth/register/', RegisterView.as_view(), name='register'),
@@ -56,6 +61,7 @@ urlpatterns = [
     path('category/<slug:category_slug>/products/', CategoryProductsView.as_view(), name='category-products'),
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
     path('test-image/', test_image, name='test-image'),
+    path('home-categories/', HomeCategoriesView.as_view(), name='home-categories'),
 
     # Cart and orders
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),

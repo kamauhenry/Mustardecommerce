@@ -1,6 +1,7 @@
 import './assets/main.css';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import { createHead } from '@vueuse/head';
 import App from './App.vue';
 import createMyRouter from './router/index';
 import axios from 'axios';
@@ -10,6 +11,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 
 const pinia = createPinia();
 const router = createMyRouter(pinia);
+const head = createHead();
 
 const initializeApp = (router, mountPoint) => {
   const app = createApp(App);
@@ -17,6 +19,7 @@ const initializeApp = (router, mountPoint) => {
 
   app.use(pinia);
   app.use(router);
+  app.use(head); // Add vueuse/head
   app.use(Vue3Toastify, {
     position: 'top-right',
     transition: 'bounce',

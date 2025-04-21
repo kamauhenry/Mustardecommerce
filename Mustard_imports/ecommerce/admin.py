@@ -29,3 +29,10 @@ admin.site.register(OrderItem)
 admin.site.register(Supplier)
 
     # Register your models here.
+
+
+@admin.register(ProductImage)
+class ProductImageAdmin(admin.ModelAdmin):
+    list_display = ['product', 'image', 'thumbnail']
+    list_filter = ['product']
+    readonly_fields = ['thumbnail']

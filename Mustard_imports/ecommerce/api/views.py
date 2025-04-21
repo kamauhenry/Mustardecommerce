@@ -1424,7 +1424,7 @@ class CategoryListView(APIView):
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            categories = Category.objects.all()
+            categories = Category.objects.all().order_by('id')
             serializer = CategorySerializer(categories, many=True, context={'request': request})
             response_data = serializer.data
 
@@ -1989,7 +1989,7 @@ def get_all_orders(request):
     })
 
 
-    
+
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 @cache_page(60 * 15)  # Cache for 15 minutes
@@ -2158,3 +2158,130 @@ def update_single_order_status(request, order_id):
     except Exception as e:
         logger.error(f"Error updating order {order_id}: {str(e)}")
         return Response({'error': f'Failed to update order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+        
+        # Handle multiple images
+        images = request.FILES.getlist('images')
+        logger.info(f"Creating product {product.name} with {len(images)} images: {[img.name for img in images]}")
+        for image in images:
+            try:
+                ProductImage.objects.create(product=product, image=image)
+                logger.info(f"Created ProductImage for {product.name}: {image.name}")
+            except Exception as e:
+                logger.error(f"Failed to create ProductImage for {product.name}: {image.name}, error: {str(e)}")
+        
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+        
+        # Handle multiple images
+        images = request.FILES.getlist('images')
+        logger.info(f"Updating product {product.name} with {len(images)} images: {[img.name for img in images]}")
+        if images:
+            for image in images:
+                try:
+                    ProductImage.objects.create(product=product, image=image)
+                    logger.info(f"Created ProductImage for {product.name}: {image.name}")
+                except Exception as e:
+                    logger.error(f"Failed to create ProductImage for {product.name}: {image.name}, error: {str(e)}")
+        else:
+            logger.warning(f"No images provided for product {product.name} update")
+        
+        return Response(serializer.data)
+
+class SupplierListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        suppliers = Supplier.objects.all()
+        serializer = SupplierSerializer(suppliers, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = SupplierSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AttributeListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        attributes = Attribute.objects.all()
+        serializer = AttributeSerializer(attributes, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = AttributeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AttributeValueListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        attribute_values = AttributeValue.objects.select_related('attribute').all()
+        serializer = AttributeValueSerializer(attribute_values, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        attribute_name = request.data.get('attribute_name')
+        value = request.data.get('value')
+        if not attribute_name or not value:
+            return Response({'error': 'Both attribute_name and value are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        attribute, _ = Attribute.objects.get_or_create(name=attribute_name)
+        attribute_value = AttributeValue.objects.create(attribute=attribute, value=value)
+        serializer = AttributeValueSerializer(attribute_value)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+
+class HomeCategoriesView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        cache_key = 'home_categories_with_products'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        try:
+            # Fetch all active categories ordered by id
+            categories = Category.objects.filter(is_active=True).order_by('id')
+            # Serialize categories with only 3 products each
+            serializer = HomeCategorySerializer(categories, many=True, context={'request': request})
+            response_data = serializer.data
+
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to cache response: {e}")
+
+            return Response(response_data)
+        except Exception as e:
+            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
