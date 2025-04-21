@@ -25,6 +25,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
       categoryProducts: {},
       allCategoriesWithProducts: [],
       allhomeCategoriesWithProducts: [],
+      homeCategoriesPagination: {
+        nextPage: 1, // Track the next page to load
+        hasMore: true, // Track if more pages are available
+        totalCount: 0, // Total number of categories
+      },
       deliveryLocations: [],
       productDetails: {},
       orders: [],
@@ -645,19 +650,47 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
 
-
-    async fetchHomeCategories() {
+    async fetchHomeCategories(page = 1, retryCount = 0) {
       if (!this.apiInstance) {
         this.initializeApiInstance();
       }
       this.loading.allhomeCategoriesWithProducts = true;
       this.error.allhomeCategoriesWithProducts = null;
       try {
-        const data = await api.fetchHomeCategories(this.apiInstance);
-        this.allhomeCategoriesWithProducts = data;
+        const data = await api.fetchHomeCategories(this.apiInstance, page);
+        console.log(`Page ${page} - Fetched home categories:`, JSON.stringify(data, null, 2));
+
+        if (!data.results || !Array.isArray(data.results)) {
+          throw new Error('Expected data.results to be an array');
+        }
+
+        this.allhomeCategoriesWithProducts = [
+          ...this.allhomeCategoriesWithProducts,
+          ...data.results,
+        ];
+        this.homeCategoriesPagination = {
+          nextPage: data.next ? page + 1 : null,
+          hasMore: !!data.next,
+          totalCount: data.count || 0,
+        };
+        console.log(
+          `Page ${page} - Updated categories:`,
+          this.allhomeCategoriesWithProducts.length,
+          'hasMore:',
+          this.homeCategoriesPagination.hasMore,
+          'nextPage:',
+          this.homeCategoriesPagination.nextPage,
+          'totalCount:',
+          this.homeCategoriesPagination.totalCount
+        );
       } catch (error) {
+        if (retryCount < 3) {
+          console.warn(`Page ${page} - Retrying fetch, attempt ${retryCount + 1}`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return this.fetchHomeCategories(page, retryCount + 1);
+        }
         this.error.allhomeCategoriesWithProducts = error.message || 'Failed to load home categories';
-        console.error('Fetch Home Categories Error:', error);
+        console.error(`Page ${page} - Fetch Home Categories Error:`, error);
         toast.error(this.error.allhomeCategoriesWithProducts);
       } finally {
         this.loading.allhomeCategoriesWithProducts = false;

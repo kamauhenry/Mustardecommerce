@@ -1,6 +1,6 @@
 <template>
-  <div class="recent-searches">
-    <p class="searches-title">Latest Searches</p>
+  <section class="recent-searches" aria-labelledby="recent-searches-title">
+    <h2 id="recent-searches-title" class="searches-title">Latest Searches</h2>
     <div v-if="isLoading" class="skeleton-container">
       <div v-for="n in 3" :key="n" class="skeleton-search">
         <div class="skeleton-search-img"></div>
@@ -8,32 +8,50 @@
       </div>
     </div>
     <div v-else class="products-searches">
-      <div
+      <article
         v-for="(item, index) in displayItems"
         :key="index"
         class="product-searches"
         @click="item.isSearch ? performSearch(item.query) : viewProduct(item)"
+        itemscope
+        itemtype="http://schema.org/Product"
       >
         <img
-          :src="item.image || placeholder"
+          :src="item.image || item.thumbnail || placeholder"
           :alt="item.name"
           class="product-search-img"
           width="50"
           height="50"
+          itemprop="image"
+          loading="lazy"
         />
         <div class="slide-content">
-          <p class="search-p">{{ item.name }}</p>
+          <h3 class="search-p" itemprop="name">{{ item.name }}</h3>
+          <p class="search-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+            KES {{ formatPrice(item.price) }}
+            <meta itemprop="priceCurrency" content="KES" />
+            <meta itemprop="price" :content="item.price.toString()" />
+          </p>
+          <div v-if="item.moq_progress && item.moq_progress.percentage != null" class="moq-progress-container">
+            <div
+              class="moq-progress-bar"
+              :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
+            ></div>
+            <span class="moq-progress-text">
+              {{ item.moq_progress.percentage }}%
+            </span>
+          </div>
         </div>
-      </div>
+      </article>
     </div>
-  </div>
+  </section>
 </template>
 
 <script>
 import { computed, onMounted, ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { useRouter } from 'vue-router';
-import placeholder from '@/assets/images/placeholder.png'; // Ensure this exists or use a URL
+import placeholder from '@/assets/images/placeholder.png';
 
 export default {
   setup() {
@@ -43,10 +61,8 @@ export default {
     const searchProducts = ref([]);
     const isLoading = ref(true);
 
-    // Access recent searches from the store (up to 3)
     const recentSearches = computed(() => ecommerceStore.recentSearches.slice(0, 3));
 
-    // Fetch random products
     const fetchRandomProducts = async () => {
       try {
         const response = await fetch('http://localhost:8000/api/products/random/?limit=3');
@@ -55,15 +71,14 @@ export default {
         randomProducts.value = (data.results || []).map((product) => ({
           ...product,
           image: product.image || product.thumbnail,
+          moq_progress: product.moq_progress || null, // Fallback to null
         }));
-        console.log('Random products:', randomProducts.value);
       } catch (error) {
         console.error('Error fetching random products:', error);
         randomProducts.value = [];
       }
     };
 
-    // Fetch product for a search query (first match)
     const fetchProductForSearch = async (query) => {
       try {
         const response = await fetch(
@@ -76,6 +91,7 @@ export default {
           ? {
               ...product,
               image: product.image || product.thumbnail,
+              moq_progress: product.moq_progress || null, // Fallback to null
             }
           : null;
       } catch (error) {
@@ -84,17 +100,19 @@ export default {
       }
     };
 
-    // Combine recent searches (as products) and random products
     const displayItems = computed(() => {
       const items = [];
       for (const query of recentSearches.value) {
         const product = searchProducts.value.find((p) => p.query === query)?.data;
         if (product) {
+          console.log('Search Product:', product); // Debug
           items.push({
             isSearch: true,
             query,
             name: product.name,
-            image: product.image,
+            image: product.image || product.thumbnail,
+            price: product.price,
+            moq_progress: product.moq_progress,
             category_slug: product.category_slug,
             slug: product.slug,
           });
@@ -104,19 +122,27 @@ export default {
       const randoms = randomProducts.value
         .filter((rp) => !items.some((item) => !item.isSearch && item.slug === rp.slug))
         .slice(0, needed)
-        .map((product) => ({
-          isSearch: false,
-          name: product.name,
-          image: product.image,
-          category_slug: product.category_slug,
-          slug: product.slug,
-        }));
-      const result = [...items, ...randoms].slice(0, 3);
-      console.log('Display items:', result);
-      return result;
+        .map((product) => {
+          console.log('Random Product:', product); // Debug
+          return {
+            isSearch: false,
+            name: product.name,
+            image: product.image || product.thumbnail,
+            price: product.price,
+            moq_progress: product.moq_progress,
+            category_slug: product.category_slug,
+            slug: product.slug,
+          };
+        });
+      console.log('Display Items:', [...items, ...randoms].slice(0, 3)); // Debug
+      return [...items, ...randoms].slice(0, 3);
     });
 
-    // Fetch data on mount
+    const formatPrice = (value) => {
+      if (value == null) return '0.00';
+      return parseFloat(value).toFixed(2);
+    };
+
     onMounted(async () => {
       isLoading.value = true;
       await fetchRandomProducts();
@@ -130,13 +156,11 @@ export default {
       isLoading.value = false;
     });
 
-    // Re-perform a search
     const performSearch = (query) => {
       ecommerceStore.addRecentSearch(query);
       router.push({ name: 'search-results', query: { q: query } });
     };
 
-    // Navigate to product details
     const viewProduct = (product) => {
       router.push({
         name: 'product-detail',
@@ -150,12 +174,44 @@ export default {
       viewProduct,
       placeholder,
       isLoading,
+      formatPrice,
     };
   },
 };
 </script>
 
 <style scoped>
+.moq-progress-container {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background-color: #e6f4ea;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: auto;
+}
+
+.moq-progress-bar {
+  height: 100%;
+  background: linear-gradient(45deg, #28a745, #5fd778);
+  transition: width 0.5s ease;
+}
+
+.moq-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-size: 0.65rem;
+  font-weight: bold;
+  text-shadow: 0 0 2px #fff;
+}
+
 .recent-searches {
   padding: 0 1rem;
   display: flex;
@@ -190,6 +246,19 @@ export default {
 
 .product-search-img {
   border-radius: 10px;
+  object-fit: cover;
+}
+
+.search-p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.search-price {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #f28c38;
+  font-weight: 600;
 }
 
 .skeleton-container {
@@ -226,8 +295,12 @@ export default {
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (max-width: 768px) {

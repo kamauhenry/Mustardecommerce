@@ -1,29 +1,33 @@
 <template>
   <MainLayout>
-    <div class="top-row-home">
+    <section class="top-row-home" aria-label="Featured Content">
       <RecentCampaigns />
       <HomeCarousel />
       <RecentSearches />
-    </div>
-    <div id="homePage">
-      <div v-if="store.loading.allCategoriesWithProducts" class="skeleton-container">
+    </section>
+    <main id="homePage" aria-label="Product Categories">
+      <!-- Initial loading skeleton -->
+      <div v-if="store.loading.allhomeCategoriesWithProducts && !store.allhomeCategoriesWithProducts.length" class="skeleton-container">
         <div v-for="n in 2" :key="n" class="skeleton-category">
           <div class="skeleton-title"></div>
           <div class="skeleton-products">
-            <div v-for="i in 3" :key="i" class="skeleton-product"></div>
+            <div v-for="i in 4" :key="i" class="skeleton-product"></div>
           </div>
         </div>
       </div>
-      <div v-else-if="store.error.allCategoriesWithProducts" class="error">
-        {{ store.error.allCategoriesWithProducts }}
+      <!-- Error state -->
+      <div v-else-if="store.error.allhomeCategoriesWithProducts" class="error">
+        {{ store.error.allhomeCategoriesWithProducts }}
+        <button @click="retryFetch" class="retry-button">Retry</button>
       </div>
-      <div v-else class="categories-container">
-        <div
-          v-for="category in store.allCategoriesWithProducts"
+      <!-- Categories and lazy loading -->
+      <section v-else class="categories-container" aria-label="Browse Categories">
+        <article
+          v-for="category in store.allhomeCategoriesWithProducts"
           :key="category.id"
           class="category-card"
         >
-          <div class="category-top">
+          <header class="category-top">
             <h2 class="category-title">{{ category.name }}</h2>
             <router-link
               v-if="category.products && category.products.length > 0"
@@ -32,10 +36,10 @@
             >
               See More
             </router-link>
-          </div>
+          </header>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
-            <div
-              v-for="product in category.products.slice(0, 3)"
+            <article
+              v-for="product in category.products.slice(0, 4)"
               :key="product.id"
               class="product-card"
             >
@@ -47,8 +51,8 @@
                 class="product-link"
               >
                 <img
-                  :src="product.thumbnail || 'data:image/jpeg;base64,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'"
-                  alt=""
+                  :src="product.thumbnail || 'https://yourdomain.com/images/default-product.jpg'"
+                  :alt="product.name"
                   class="product-image"
                   loading="lazy"
                 />
@@ -61,32 +65,58 @@
                   <span v-else class="below-moq-price">Below MOQ Price: NA</span>
                 </div>
                 <p class="moq-info">MOQ: {{ product.moq }} items</p>
-
-                <!-- Progress bar container -->
-                <div class="moq-progress-container">
+                <div v-if="product.moq_progress" class="moq-progress-container">
                   <div
                     class="moq-progress-bar"
-                    :style="{ width: Math.min(100, product.moq_progress?.percentage) + '%' }"
+                    :style="{ width: Math.min(100, product.moq_progress.percentage) + '%' }"
                   ></div>
                   <span class="moq-progress-text">
-                    {{ product.moq_progress?.percentage }}%
+                    {{ product.moq_progress.percentage }}%
                   </span>
                 </div>
               </router-link>
-            </div>
+            </article>
           </div>
           <div v-else class="no-products">
             No products available
           </div>
+        </article>
+        <!-- Lazy loading skeleton -->
+        <div
+          v-if="store.loading.allhomeCategoriesWithProducts && store.allhomeCategoriesWithProducts.length"
+          class="skeleton-container lazy-loading-skeleton"
+        >
+          <div v-for="n in 1" :key="'lazy-' + n" class="skeleton-category">
+            <div class="skeleton-title"></div>
+            <div class="skeleton-products">
+              <div v-for="i in 4" :key="'lazy-product-' + i" class="skeleton-product"></div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+        <!-- Sentinel for lazy loading -->
+        <div
+          v-if="store.homeCategoriesPagination.hasMore"
+          ref="loadMoreSentinel"
+          class="load-more-sentinel"
+          aria-hidden="true"
+        ></div>
+        <!-- Loading more text (optional, kept for clarity) -->
+        <div
+          v-if="store.loading.allhomeCategoriesWithProducts && store.allhomeCategoriesWithProducts.length"
+          class="loading-more"
+        >
+          Loading more categories...
+        </div>
+      </section>
+    </main>
   </MainLayout>
 </template>
 
 <script>
-import { onMounted } from 'vue';
+import { onMounted, ref, onUnmounted, nextTick } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { useHead } from '@vueuse/head';
+import { computed } from 'vue';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import RecentCampaigns from '@/components/home/recents/RecentCampaigns.vue';
 import RecentSearches from '@/components/home/recents/RecentSearches.vue';
@@ -95,31 +125,157 @@ import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
 export default {
   setup() {
     const store = useEcommerceStore();
+    const loadMoreSentinel = ref(null);
+    let observer = null;
+    const maxRetries = 5; // Limit retry attempts
+    let retryCount = 0;
+
+    const initialCategories = computed(() => store.allhomeCategoriesWithProducts.slice(0, 4));
+    useHead({
+      title: 'MustardImports - Buy Quality Products Online',
+      meta: [
+        {
+          name: 'description',
+          content: 'Shop a wide range of quality products at MustardImports. Discover top categories, exclusive deals, and fast delivery across Kenya.',
+        },
+        {
+          name: 'keywords',
+          content: 'e-commerce, online shopping, Kenya, electronics, home appliances, clothing, footwear',
+        },
+        {
+          property: 'og:title',
+          content: 'MustardImports - Buy Quality Products Online',
+        },
+        {
+          property: 'og:description',
+          content: 'Explore top categories and exclusive deals at MustardImports. Shop now for fast delivery across Kenya!',
+        },
+        {
+          property: 'og:type',
+          content: 'website',
+        },
+        {
+          property: 'og:url',
+          content: window.location.href,
+        },
+        {
+          property: 'og:image',
+          content: 'https://yourdomain.com/images/og-image.jpg',
+        },
+        {
+          name: 'twitter:card',
+          content: 'summary_large_image',
+        },
+        {
+          name: 'twitter:title',
+          content: 'MustardImports - Buy Quality Products Online',
+        },
+        {
+          name: 'twitter:description',
+          content: 'Shop quality products with fast delivery at MustardImports. Explore now!',
+        },
+        {
+          name: 'twitter:image',
+          content: 'https://yourdomain.com/images/twitter-image.jpg',
+        },
+      ],
+      link: [
+        {
+          rel: 'canonical',
+          href: window.location.href,
+        },
+      ],
+      script: [
+        {
+          type: 'application/ld+json',
+          innerHTML: computed(() => JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: 'MustardImports Home',
+            description: 'Shop a wide range of quality products at MustardImports.',
+            url: window.location.href,
+            publisher: {
+              '@type': 'Organization',
+              name: 'MustardImports',
+              logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+            },
+            hasPart: initialCategories.value.map(category => ({
+              '@type': 'Collection',
+              name: category.name,
+              url: `${window.location.origin}/category/${category.slug}/products`,
+            })),
+          })),
+        },
+      ],
+    });
+
+    const debounce = (func, wait) => {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+      };
+    };
+
+    const retryFetch = () => {
+      console.log('Retrying fetch for page 1');
+      store.allhomeCategoriesWithProducts = [];
+      store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
+      store.fetchHomeCategories(1);
+    };
+
+    const setupObserver = () => {
+      if (loadMoreSentinel.value && retryCount < maxRetries) {
+        console.log('Setting up IntersectionObserver for sentinel');
+        observer = new IntersectionObserver(
+          debounce((entries) => {
+            console.log('IntersectionObserver triggered, isIntersecting:', entries[0].isIntersecting);
+            console.log('Current state - hasMore:', store.homeCategoriesPagination.hasMore, 'loading:', store.loading.allhomeCategoriesWithProducts);
+            if (
+              entries[0].isIntersecting &&
+              store.homeCategoriesPagination.hasMore &&
+              !store.loading.allhomeCategoriesWithProducts
+            ) {
+              console.log('Fetching next page:', store.homeCategoriesPagination.nextPage);
+              store.fetchHomeCategories(store.homeCategoriesPagination.nextPage);
+            }
+          }, 300),
+          {
+            root: null,
+            rootMargin: '100px',
+            threshold: 0.1,
+          }
+        );
+        observer.observe(loadMoreSentinel.value);
+        console.log('Observer set up successfully');
+      } else if (retryCount < maxRetries) {
+        console.warn('loadMoreSentinel is null, retrying setup');
+        retryCount++;
+        setTimeout(setupObserver, 100);
+      } else {
+        console.error('Max retries reached for setting up IntersectionObserver');
+      }
+    };
 
     onMounted(() => {
       if (!store.allhomeCategoriesWithProducts.length) {
-        console.log('Fetching home categories');
-        store.fetchHomeCategories();
+        console.log('Fetching initial home categories');
+        store.fetchHomeCategories(1);
       }
-      // Debug: Log product data
-      console.log('Categories with products:', store.allCategoriesWithProducts);
-      store.allhomeCategoriesWithProducts.forEach(category => {
-        category.products.forEach(product => {
-          console.log('Product MOQ details:', {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            below_moq_price: product.below_moq_price,
-            moq: product.moq,
-            moq_per_person: product.moq_per_person,
-            moq_status: product.moq_status,
-            moq_progress: product.moq_progress,
-          });
-        });
+
+      nextTick(() => {
+        setupObserver();
       });
     });
 
-    return { store };
+    onUnmounted(() => {
+      if (observer && loadMoreSentinel.value) {
+        console.log('Cleaning up IntersectionObserver');
+        observer.unobserve(loadMoreSentinel.value);
+      }
+    });
+
+    return { store, loadMoreSentinel, retryFetch };
   },
   components: {
     MainLayout,
@@ -132,6 +288,37 @@ export default {
 
 
 <style scoped>
+/* Base styles */
+.load-more-sentinel {
+  height: 50px;
+  width: 100%;
+  margin-top: 20px;
+  background: transparent;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 1rem;
+  color: #f28c38;
+}
+
+.retry-button {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #f28c38;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  touch-action: manipulation;
+}
+
+.retry-button:hover {
+  background-color: #e67d21;
+}
+
 .top-row-home {
   display: flex;
   flex-direction: row;
@@ -139,26 +326,27 @@ export default {
   margin: 1.5rem 3%;
 }
 
-/* Container for all categories */
 .categories-container {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   gap: 2rem;
   padding: 1.5rem 3%;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: space-between;
 }
 
-/* Individual category card */
 .category-card {
-  flex: 1 1 100%; /* Full width by default */
-  max-width: 100%;
+  flex: 1 1 calc(50% - 1rem);
+  max-width: calc(50% - 1rem);
   min-width: 300px;
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .category-card:hover {
@@ -166,7 +354,6 @@ export default {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Category header styling */
 .category-top {
   display: flex;
   justify-content: space-between;
@@ -175,7 +362,6 @@ export default {
   padding-bottom: 0.75rem;
 }
 
-/* Category title */
 .category-title {
   font-size: 1.25rem;
   font-weight: 700;
@@ -197,18 +383,18 @@ export default {
   border-radius: 3px;
 }
 
-/* See More link styling */
 .see-more-link {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #fff;
   background-color: #f28c38;
-  padding: 6px 12px;
+  padding: 8px 16px;
   border-radius: 20px;
   text-transform: uppercase;
   text-decoration: none;
   transition: all 0.3s ease;
   box-shadow: 0 2px 10px rgba(242, 140, 56, 0.3);
+  touch-action: manipulation;
 }
 
 .see-more-link:hover {
@@ -217,14 +403,13 @@ export default {
   transform: translateY(-2px);
 }
 
-/* Products grid inside each category */
 .products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+ 
 
-/* Individual product card */
 .product-card {
   display: flex;
   flex-direction: column;
@@ -233,7 +418,7 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   height: 100%;
-  min-height: 300px; /* Ensure consistent height */
+  min-height: 300px;
 }
 
 .product-card:hover {
@@ -241,7 +426,6 @@ export default {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
-/* Product link */
 .product-link {
   text-decoration: none;
   color: inherit;
@@ -252,7 +436,6 @@ export default {
   transition: all 0.3s ease;
 }
 
-/* Product image styling */
 .product-image {
   width: 100%;
   height: 160px;
@@ -266,7 +449,6 @@ export default {
   transform: scale(1.03);
 }
 
-/* Product name styling */
 .product-name {
   font-size: 0.95rem;
   font-weight: 600;
@@ -279,10 +461,9 @@ export default {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-grow: 1; /* Ensure name takes available space */
+  flex-grow: 1;
 }
 
-/* Product price styling */
 .product-price {
   display: flex;
   flex-direction: column;
@@ -299,7 +480,6 @@ export default {
   font-size: 0.75rem;
 }
 
-/* MOQ info styling */
 .moq-info {
   font-size: 0.8rem;
   margin: 0.5rem 0;
@@ -308,7 +488,6 @@ export default {
   display: inline-block;
 }
 
-/* MOQ progress container */
 .moq-progress-container {
   position: relative;
   width: 100%;
@@ -316,7 +495,7 @@ export default {
   background-color: #e6f4ea;
   border-radius: 20px;
   overflow: hidden;
-  margin-top: auto; /* Push to bottom of card */
+  margin-top: auto;
 }
 
 .moq-progress-bar {
@@ -340,7 +519,6 @@ export default {
   text-shadow: 0 0 2px #fff;
 }
 
-/* No products messaging */
 .no-products {
   display: flex;
   justify-content: center;
@@ -353,7 +531,6 @@ export default {
   height: 150px;
 }
 
-/* Loading and error states */
 .loading,
 .error {
   text-align: center;
@@ -365,15 +542,21 @@ export default {
 
 .skeleton-container {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   gap: 2rem;
   padding: 1.5rem 3%;
+  justify-content: space-between;
+}
+
+.lazy-loading-skeleton {
+  margin-top: 1rem;
+  width: 100%;
 }
 
 .skeleton-category {
   flex: 1 1 calc(50% - 1rem);
   max-width: calc(50% - 1rem);
-  min-width: 300px;
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -390,7 +573,7 @@ export default {
 
 .skeleton-products {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
 }
 
@@ -411,32 +594,43 @@ export default {
   }
 }
 
-@media (max-width: 767px) {
-  .skeleton-category {
-    flex: 1 1 100%;
-    max-width: 100%;
-  }
-
-  .skeleton-products {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 480px) {
-  .skeleton-products {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Responsive adjustments */
-@media (min-width: 1200px) {
+@media (min-width: 1500px) {
+  .categories-container {
+    gap: 2.5rem;
+  }
   .category-card {
-    flex: 1 1 calc(50% - 1rem); /* Two categories per row */
+    flex: 1 1 calc(33.333% - 1.667rem);
+    max-width: calc(33.333% - 1.667rem);
+  }
+  .products-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+  .skeleton-category {
+    flex: 1 1 calc(33.333% - 1.667rem);
+    max-width: calc(33.333% - 1.667rem);
+  }
+  .skeleton-products {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1499px) {
+  .category-card {
+    flex: 1 1 calc(50% - 1rem);
     max-width: calc(50% - 1rem);
   }
-
   .products-grid {
-    grid-template-columns: repeat(3, 1fr);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .skeleton-products {
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
   }
 }
 
@@ -445,134 +639,165 @@ export default {
     flex: 1 1 calc(50% - 1rem);
     max-width: calc(50% - 1rem);
   }
-
   .products-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .product-image {
-    height: 150px;
-  }
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);  /* Changed to 2 columns */
+  gap: 1.5rem;
 }
-
-@media (min-width: 450px) and (max-width: 600px) {
-  .top-row-home {
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .category-card {
-    flex: 1 1 100%;
-    max-width: 100%;
-  }
-
-  .products-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .skeleton-products {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); 
     gap: 1rem;
   }
-
   .product-image {
     height: 140px;
   }
+  .product-card {
+    min-height: 280px;
+  }
 }
 
-@media (max-width: 500px) {
+@media (min-width: 651px) and (max-width: 991px) {
+  .category-card {
+    flex: 1 1 calc(50% - 1rem);
+    max-width: calc(50% - 1rem);
+  }
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .skeleton-products {
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+/* Mobile adjustments for <650px */
+@media (max-width: 650px) {
   .top-row-home {
     flex-direction: column;
     gap: 1rem;
-    margin: 1rem 3%;
+    margin: 1rem 2%;
   }
-
   .categories-container {
-    padding: 1rem 3%;
-    gap: 1.5rem;
+    padding: 1rem 2%;
+    gap: 1rem;
+    flex-direction: column;
   }
-
   .category-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: 1rem;
     margin-bottom: 1rem;
   }
-
   .category-top {
     margin-bottom: 1rem;
   }
-
+  .category-title {
+    font-size: 1.1rem;
+  }
+  .see-more-link {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
   .products-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
-
+  .skeleton-container {
+    padding: 1rem 2%;
+    gap: 1rem;
+    flex-direction: column;
+  }
+  .skeleton-category {
+    flex: 1 1 100%;
+    max-width: 100%;
+    padding: 1rem;
+  }
+  .skeleton-products {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .skeleton-product {
+    height: 280px;
+  }
   .product-card {
     min-height: 280px;
     padding: 0.75rem;
   }
-
   .product-image {
-    height: 130px;
+    height: 140px;
   }
-
   .product-name {
     font-size: 0.9rem;
   }
-
   .product-price {
     font-size: 0.9rem;
   }
-
+  .price-highlight {
+    font-size: 0.9rem;
+  }
+  .below-moq-price {
+    font-size: 0.7rem;
+  }
   .moq-info {
     font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .categories-container {
-    padding: 1rem 2%;
-    gap: 1rem;
-  }
-
-  .products-grid {
-    grid-template-columns: 1fr; /* Single column */
-    gap: 0.75rem;
-  }
-
-  .product-card {
-    min-height: 300px;
-    padding: 0.75rem;
-  }
-
-  .product-image {
-    height: 150px;
-  }
-
-  .product-name {
-    font-size: 0.85rem;
-  }
-
-  .product-price {
-    font-size: 0.85rem;
-  }
-
-  .moq-info {
-    font-size: 0.7rem;
     padding: 2px 6px;
   }
-
   .moq-progress-container {
-    height: 8px;
+    height: 16px;
+  }
+  .moq-progress-text {
+    font-size: 0.6rem;
+  }
+  .retry-button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
+  .loading-more {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+  .load-more-sentinel {
+    height: 40px;
+    margin-top: 15px;
   }
 }
 
 @media (max-width: 360px) {
+  .category-title {
+    font-size: 1rem;
+  }
   .product-card {
-    min-height: 280px;
+    min-height: 260px;
   }
-
   .product-image {
-    height: 140px;
+    height: 130px;
   }
-
   .product-name {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+  }
+  .product-price {
+    font-size: 0.85rem;
+  }
+  .moq-info {
+    font-size: 0.7rem;
+  }
+  .skeleton-product {
+    height: 260px;
+  }
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .skeleton-products {
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
   }
 }
 </style>

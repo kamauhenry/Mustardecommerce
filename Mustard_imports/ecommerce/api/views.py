@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
@@ -2256,32 +2257,43 @@ class AttributeValueListView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class HomeCategoriesPagination(PageNumberPagination):
+    page_size = 4  # Load 4 categories per page
+    page_size_query_param = 'page_size'
+    max_page_size = 20
 
 class HomeCategoriesView(APIView):
     permission_classes = [permissions.AllowAny]
+    pagination_class = HomeCategoriesPagination
 
     def get(self, request, *args, **kwargs):
-        cache_key = 'home_categories_with_products'
+        cache_key = f'home_categories_with_products_page_{request.query_params.get("page", 1)}'
         try:
             cached_data = cache.get(cache_key)
             if cached_data:
+                print(f"Returning cached data for page {request.query_params.get('page', 1)}")
                 return Response(cached_data)
-        except (InvalidCacheBackendError, Exception) as e:
+        except Exception as e:
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
             # Fetch all active categories ordered by id
             categories = Category.objects.filter(is_active=True).order_by('id')
-            # Serialize categories with only 3 products each
-            serializer = HomeCategorySerializer(categories, many=True, context={'request': request})
-            response_data = serializer.data
-
+            print(f"Total categories: {categories.count()}")  # Debug
+            # Apply pagination
+            paginator = self.pagination_class()
+            paginated_categories = paginator.paginate_queryset(categories, request)
+            print(f"Paginated categories: {len(paginated_categories)}")  # Debug
+            # Serialize the paginated queryset
+            serializer = HomeCategorySerializer(paginated_categories, many=True, context={'request': request})
+            # Return paginated response
+            response_data = paginator.get_paginated_response(serializer.data).data
             try:
                 cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
-            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Cached response for page {request.query_params.get('page', 1)}")
+            except Exception as e:
                 print(f"Failed to cache response: {e}")
-
             return Response(response_data)
         except Exception as e:
+            print(f"Server error: {str(e)}")
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

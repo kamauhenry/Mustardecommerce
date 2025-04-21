@@ -12,7 +12,7 @@
       <!-- Error Message -->
       <div v-if="error" class="error-message">
         {{ error }}
-        <button @click="fetchCategories" class="retry-button">Retry</button>
+        <button @click="ffetchAllCategoriesWithProducts" class="retry-button">Retry</button>
       </div>
 
       <!-- Form to Add/Edit Category -->
@@ -85,7 +85,7 @@ export default {
     const formLoading = ref(false);
     const error = ref(null);
 
-    const fetchCategories = async () => {
+    const fetchAllCategoriesWithProducts = async () => {
       try {
         loading.value = true;
         error.value = null;
@@ -116,7 +116,7 @@ export default {
         }
         form.value = { name: '', slug: '' };
         editingCategory.value = null;
-        await fetchCategories();
+        await fetchAllCategoriesWithProducts();
       } catch (err) {
         error.value = err.response?.data?.error || 'Failed to save category. Please try again.';
         console.error('Failed to save category:', err);
@@ -143,7 +143,7 @@ export default {
           const apiInstance = api.createApiInstance(store);
           await api.deleteCategory(apiInstance, categoryId);
           alert('Category deleted successfully');
-          await fetchCategories();
+          await fetchAllCategoriesWithProducts();
         } catch (err) {
           error.value = err.response?.data?.error || 'Failed to delete category. Please try again.';
           console.error('Failed to delete category:', err);
@@ -154,7 +154,7 @@ export default {
     };
 
     onMounted(() => {
-      fetchCategories();
+      fetchAllCategoriesWithProducts();
     });
 
     return {
@@ -164,7 +164,7 @@ export default {
       loading,
       formLoading,
       error,
-      fetchCategories,
+      fetchAllCategoriesWithProducts,
       saveCategory,
       editCategory,
       cancelEdit,

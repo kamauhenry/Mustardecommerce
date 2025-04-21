@@ -211,7 +211,7 @@ export const deleteDeliveryLocation = async (api, locationId) => {
 // Category APIs
 export const fetchCategories = async (api) => {
   try {
-    const response = await api.get('categories-with-products/', {
+    const response = await api.get('categories/', {
       timeout: 60000,
     });
     return response.data;
@@ -394,12 +394,14 @@ export const fetchAllCategoriesWithProducts = async (apiInstance) => {
 };
 
 
-export const fetchHomeCategories = async (apiInstance) => {
+
+export const fetchHomeCategories = async (apiInstance, page = 1) => {
   try {
-    console.log('Fetching home categories');
-    const response = await apiInstance.get('home-categories/', {
+    console.log(`Fetching home categories for page ${page}`);
+    const response = await apiInstance.get(`home-categories/?page=${page}`, {
       timeout: 60000,
     });
+    console.log('API response:', response.data); // Debug log
     return response.data;
   } catch (error) {
     console.error('Error fetching home categories:', error.response?.data || error.message);
@@ -482,7 +484,7 @@ export const removeFromCart = async (api, cartId, itemId) => {
   }
 };
 
-export const checkoutCart = async (api, cartId, shippingMethod, shippingAddress, paymentMethod) => {
+export const checkoutCart = async (api, cartId, shippingMethod, ) => {
   try {
     const response = await api.post(`carts/${cartId}/checkout/`, {
       shipping_method: shippingMethod,

@@ -1,6 +1,6 @@
 <template>
-  <div class="recent-campaigns">
-    <p class="campaigns-title">Recent Campaigns</p>
+  <section class="recent-campaigns" aria-labelledby="recent-campaigns-title">
+    <h2 id="recent-campaigns-title" class="campaigns-title">Recent Campaigns</h2>
     <div v-if="isLoading" class="skeleton-container">
       <div v-for="n in 3" :key="n" class="skeleton-campaign">
         <div class="skeleton-campaign-img"></div>
@@ -8,30 +8,54 @@
       </div>
     </div>
     <div v-else class="products-campaigns">
-      <div
+      <article
         v-for="(item, index) in latestProducts"
         :key="index"
         class="product-campaigns"
         @click="viewProduct(item)"
+        itemscope
+        itemtype="http://schema.org/Product"
       >
+        <!-- Image: itemprop="image" -->
         <img
-          :src="item.image"
+          :src="item.image || item.thumbnail || placeholder"
           :alt="item.name"
           class="product-campaign-img"
           width="50"
           height="50"
+          itemprop="image"
+          loading="lazy"
         />
         <div class="slide-content">
-          <p class="campaign-p">{{ item.name }}</p>
+          <!-- Product Name: itemprop="name" -->
+          <h3 class="campaign-p" itemprop="name">{{ item.name }}</h3>
+          <!-- Price: itemprop="offers" with nested Offer schema -->
+          <p class="campaign-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+            KES {{ formatPrice(item.price) }}
+            <meta itemprop="priceCurrency" content="KES" />
+            <meta itemprop="price" :content="item.price.toString()" />
+          </p>
+          <div v-if="item.moq_progress" class="moq-progress-container">
+            <div
+              class="moq-progress-bar"
+              :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
+            ></div>
+            <span class="moq-progress-text">
+              {{ item.moq_progress.percentage }}%
+            </span>
+          </div>
         </div>
-      </div>
+      </article>
     </div>
-  </div>
+  </section>
 </template>
+
+
 
 <script>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import placeholder from '@/assets/images/placeholder.png';
 
 export default {
   setup() {
@@ -39,14 +63,17 @@ export default {
     const latestProducts = ref([]);
     const isLoading = ref(true);
 
-    // Fetch the 3 latest products from the backend
     const fetchLatestProducts = async () => {
       try {
         isLoading.value = true;
         const response = await fetch('http://localhost:8000/api/products/latest/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch latest products');
         const data = await response.json();
-        latestProducts.value = data.results || [];
+        latestProducts.value = (data.results || []).map(product => ({
+          ...product,
+          image: product.image || product.thumbnail,
+          moq_progress: product.moq_progress, // Include moq_progress
+        }));
       } catch (error) {
         console.error('Error fetching latest products:', error);
         latestProducts.value = [];
@@ -55,7 +82,11 @@ export default {
       }
     };
 
-    // Navigate to product detail page
+    const formatPrice = (value) => {
+      if (value == null) return '0.00';
+      return parseFloat(value).toFixed(2);
+    };
+
     const viewProduct = (product) => {
       router.push({
         name: 'product-detail',
@@ -63,7 +94,6 @@ export default {
       });
     };
 
-    // Fetch products on component mount
     onMounted(() => {
       fetchLatestProducts();
     });
@@ -72,12 +102,44 @@ export default {
       latestProducts,
       viewProduct,
       isLoading,
+      placeholder,
+      formatPrice,
     };
   },
 };
 </script>
-
 <style scoped>
+.moq-progress-container {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background-color: #e6f4ea;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: auto;
+}
+
+.moq-progress-bar {
+  height: 100%;
+  background: linear-gradient(45deg, #28a745, #5fd778);
+  transition: width 0.5s ease;
+}
+
+.moq-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-size: 0.65rem;
+  font-weight: bold;
+  text-shadow: 0 0 2px #fff;
+}
+
 .recent-campaigns {
   padding: 0 1rem;
   display: flex;
@@ -90,6 +152,7 @@ export default {
 .campaigns-title {
   text-transform: uppercase;
   font-weight: 700;
+  margin: 0;
 }
 
 .products-campaigns {
@@ -108,10 +171,28 @@ export default {
   align-items: center;
   width: 100%;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.product-campaigns:hover {
+  background-color: #f5f5f5;
 }
 
 .product-campaign-img {
   border-radius: 10px;
+  object-fit: cover;
+}
+
+.campaign-p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.campaign-price {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #f28c38;
+  font-weight: 600;
 }
 
 .skeleton-container {
