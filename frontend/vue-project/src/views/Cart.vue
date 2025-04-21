@@ -86,7 +86,7 @@ import { useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
-import grey from '@/assets/images/placeholder.png';
+import grey from '@/assets/images/placeholder.jpeg';
 
 export default {
   components: { MainLayout },

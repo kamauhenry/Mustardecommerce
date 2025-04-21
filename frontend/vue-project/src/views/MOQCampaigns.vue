@@ -334,7 +334,8 @@ export default {
 
 .progress-bar {
   height: 100%;
-  background-color: #8BC34A;
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   border-radius: 10px;
 }
 

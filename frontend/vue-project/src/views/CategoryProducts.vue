@@ -422,7 +422,7 @@ export default {
 
 .progress-container {
   position: relative;
-  height: 10px;
+  height: 16px;
   width: 100%;
   background-color: #e0e0e0;
   border-radius: 5px;
@@ -431,7 +431,8 @@ export default {
 
 .progress-bar {
   height: 100%;
-  background: linear-gradient(45deg, #28a745, #5fd778);
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   border-radius: 5px;
   transition: width 0.5s ease;
 }

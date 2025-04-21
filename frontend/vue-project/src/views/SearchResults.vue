@@ -173,7 +173,8 @@ h1 {
 
 .moq-progress-bar {
   height: 100%;
-  background-color: #28a745;
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   transition: width 0.3s ease;
 }
 

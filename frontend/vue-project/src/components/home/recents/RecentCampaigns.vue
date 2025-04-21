@@ -55,7 +55,7 @@
 <script>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import placeholder from '@/assets/images/placeholder.png';
+import placeholder from '@/assets/images/placeholder.jpeg';
 
 export default {
   setup() {
@@ -120,8 +120,9 @@ export default {
 }
 
 .moq-progress-bar {
+  padding: 2px;
   height: 100%;
-  background: linear-gradient(45deg, #28a745, #5fd778);
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   transition: width 0.5s ease;
 }
 

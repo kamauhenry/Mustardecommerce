@@ -715,6 +715,7 @@ tbody td {
 
 .moq-progress-bar {
   height: 100%;
+  padding: 2px;
   background: linear-gradient(45deg, #28a745, #5fd778);
   transition: width 0.5s ease;
 }

@@ -51,7 +51,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { useRouter } from 'vue-router';
-import placeholder from '@/assets/images/placeholder.png';
+import placeholder from '@/assets/images/placeholder.jpeg';
 
 export default {
   setup() {
@@ -193,7 +193,8 @@ export default {
 
 .moq-progress-bar {
   height: 100%;
-  background: linear-gradient(45deg, #28a745, #5fd778);
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   transition: width 0.5s ease;
 }
 

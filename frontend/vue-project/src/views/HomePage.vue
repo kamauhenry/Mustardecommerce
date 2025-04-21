@@ -39,7 +39,7 @@
           </header>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
             <article
-              v-for="product in category.products.slice(0, 4)"
+              v-for="product in category.products.slice(0, 3)"
               :key="product.id"
               class="product-card"
             >
@@ -72,6 +72,15 @@
                   ></div>
                   <span class="moq-progress-text">
                     {{ product.moq_progress.percentage }}%
+                  </span>
+                </div>
+                <div v-else class="moq-progress-container">
+                  <div
+                    class="moq-progress-bar"
+                    :style="{ width: 0 + '%' }"
+                  ></div>
+                  <span class="moq-progress-text">
+                    0%
                   </span>
                 </div>
               </router-link>
@@ -405,7 +414,7 @@ export default {
 
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
   }
  
@@ -418,7 +427,8 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   height: 100%;
-  min-height: 300px;
+  min-height: 400px;
+  width: auto;
 }
 
 .product-card:hover {
@@ -500,7 +510,8 @@ export default {
 
 .moq-progress-bar {
   height: 100%;
-  background: linear-gradient(45deg, #28a745, #5fd778);
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
   transition: width 0.5s ease;
 }
 
@@ -604,7 +615,7 @@ export default {
     max-width: calc(33.333% - 1.667rem);
   }
   .products-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
   }
   .skeleton-category {
@@ -612,7 +623,7 @@ export default {
     max-width: calc(33.333% - 1.667rem);
   }
   .skeleton-products {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
   }
 }
