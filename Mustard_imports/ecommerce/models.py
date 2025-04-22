@@ -10,9 +10,10 @@ from django.db.models import Sum
 from django.conf import settings
 from django.utils.text import slugify
 import logging
+import os
 
-# Set up logging
-logger = logging.getLogger(__name__)
+
+
 
 
 class UserManager(BaseUserManager):
@@ -275,7 +276,7 @@ class ProductImage(models.Model):
                 self.save()
                 return settings.SITE_URL + self.thumbnail.url.lstrip('/')
             except Exception as e:
-                logger.error(f"Failed to generate thumbnail for image {self.image}: {str(e)}")
+
                 return self.get_image()  # Fallback to main image
         return ''
 
@@ -292,7 +293,7 @@ class ProductImage(models.Model):
             thumbnail = File(thumb_io, name=filename)
             return thumbnail
         except Exception as e:
-            logger.error(f"Error creating thumbnail for {image.name}: {str(e)}")
+
             raise
 
 

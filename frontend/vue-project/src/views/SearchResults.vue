@@ -3,14 +3,27 @@
     <div class="search-results">
       <h1 class="search-results-h1">Search Results for "{{ searchQuery }}"</h1>
 
-      <div v-if="isLoading" class="loading">
-        Loading results...
+      <!-- Skeleton Loader with Shimmer -->
+      <div v-if="isLoading" class="products">
+        <div v-for="n in 4" :key="'skeleton-' + n" class="product-card skeleton">
+          <div class="product-content">
+            <div class="product-image skeleton-shimmer"></div>
+            <div class="product-details">
+              <div class="skeleton-text skeleton-shimmer short"></div>
+              <div class="skeleton-text skeleton-shimmer medium"></div>
+              <div class="skeleton-text skeleton-shimmer short"></div>
+              <div class="skeleton-text skeleton-shimmer long"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
+      <!-- No Results -->
       <div v-else-if="!searchResults || searchResults.length === 0" class="no-results">
         No results found for "{{ searchQuery }}"
       </div>
 
+      <!-- Search Results -->
       <div v-else class="products">
         <div v-for="product in searchResults" :key="product.id" class="product-card">
           <router-link
@@ -24,20 +37,20 @@
               <img
                 v-if="product.thumbnail || product.image"
                 :src="product.thumbnail || product.image"
-                :alt="product.name"
+                :alt="`${product.name} - Product Image`"
                 class="product-image"
+                loading="lazy"
               />
               <div class="product-details">
                 <h3 class="product-name">{{ product.name }}</h3>
                 <p class="product-price">KES {{ product.price }}</p>
                 <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
-                <!-- Progress bar container -->
                 <div class="moq-progress-container">
-                    <div
-                      class="moq-progress-bar"
-                      :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
-                    ></div>
-                    <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
+                  <div
+                    class="moq-progress-bar"
+                    :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
+                  ></div>
+                  <span class="moq-progress-text">{{ product.moq_progress?.percentage || 0 }}%</span>
                 </div>
               </div>
             </div>
@@ -49,10 +62,10 @@
 </template>
 
 <script>
-import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useEcommerceStore } from '@/stores/ecommerce'
-import MainLayout from '@/components/navigation/MainLayout.vue'
+import { computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useEcommerceStore } from '@/stores/ecommerce';
+import MainLayout from '@/components/navigation/MainLayout.vue';
 
 export default {
   name: 'SearchResults',
@@ -60,59 +73,68 @@ export default {
     MainLayout,
   },
   setup() {
-    const route = useRoute()
-    const router = useRouter()
-    const ecommerceStore = useEcommerceStore()
+    const route = useRoute();
+    const router = useRouter();
+    const ecommerceStore = useEcommerceStore();
 
-    const searchQuery = computed(() => route.query.q || '')
-    const searchResults = computed(() => ecommerceStore.searchResults)
-    const isLoading = computed(() => ecommerceStore.searchLoading)
-    const totalResults = computed(() => ecommerceStore.totalSearchResults)
+    const searchQuery = computed(() => route.query.q || '');
+    const searchResults = computed(() => ecommerceStore.searchResults);
+    const isLoading = computed(() => ecommerceStore.searchLoading);
+    const totalResults = computed(() => ecommerceStore.totalSearchResults);
 
     const fetchSearchResults = async (query) => {
-      ecommerceStore.setSearchLoading(true)
-      try {
-        const response = await fetch(`http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}`)
-        if (!response.ok) throw new Error('Failed to fetch products')
-        const data = await response.json()
-        ecommerceStore.setSearchResults(data.results || [])
-        ecommerceStore.setTotalResults(data.count || 0)
-      } catch (error) {
-        console.error('Error fetching search results:', error)
-        ecommerceStore.setSearchResults([])
-        ecommerceStore.setTotalResults(0)
-      } finally {
-        ecommerceStore.setSearchLoading(false)
-      }
-    }
+      if (!query.trim()) return;
 
+      ecommerceStore.setSearchLoading(true);
+      try {
+        const response = await fetch(`http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error('Failed to fetch products');
+        const data = await response.json();
+        ecommerceStore.setSearchResults(data.results || []);
+        ecommerceStore.setTotalResults(data.count || 0);
+      } catch (error) {
+        console.error('Error fetching search results:', error);
+        ecommerceStore.setSearchResults([]);
+        ecommerceStore.setTotalResults(0);
+      } finally {
+        ecommerceStore.setSearchLoading(false);
+      }
+    };
+
+    // Fetch results on mount if no results exist
     onMounted(() => {
       if (searchQuery.value && (!searchResults.value || searchResults.value.length === 0)) {
-        fetchSearchResults(searchQuery.value)
+        fetchSearchResults(searchQuery.value);
       }
-    })
+    });
+
+    // Watch for changes in searchQuery to fetch new results
+    watch(searchQuery, (newQuery) => {
+      if (newQuery) {
+        fetchSearchResults(newQuery);
+      }
+    });
 
     const viewProduct = (slug) => {
-      router.push({ name: 'product-detail', params: { slug } })
-    }
+      router.push({ name: 'product-detail', params: { slug } });
+    };
 
     return {
       searchQuery,
       searchResults,
       isLoading,
       totalResults,
-      viewProduct
-    }
-  }
-}
+      viewProduct,
+    };
+  },
+};
 </script>
 
 <style scoped>
 .search-results {
   padding: 20px;
-    margin: 0 auto;
-  max-width: 1200px;
   margin: 0 auto;
+  max-width: 1200px;
 }
 
 h1 {
@@ -123,7 +145,6 @@ h1 {
   color: #333;
 }
 
-.loading,
 .no-results {
   text-align: center;
   padding: 2rem;
@@ -131,11 +152,66 @@ h1 {
   color: #666;
 }
 
-/* Products container */
+/* Skeleton Loader */
 .products {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.skeleton {
+  background-color: #f0f0f0;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton .product-image {
+  width: 100px;
+  height: 100px;
+  border-radius: 4px;
+  margin-left: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.skeleton .product-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-text {
+  height: 12px;
+  margin: 4px 0;
+  border-radius: 4px;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+.skeleton-text.medium {
+  width: 80%;
+}
+
+.skeleton-text.long {
+  width: 100%;
 }
 
 /* Individual product card */
@@ -152,15 +228,7 @@ h1 {
   transform: translateY(-5px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-/* MOQ status (e.g., "Active: X items") */
-.moq-status {
-  font-size: 0.7rem; /* Smaller font to match the second page */
-  color: #28a745; /* Green for active status */
-  background-color: #e6f4ea;
-  padding: 0.2rem 0.4rem; /* Reduced padding */
-  border-radius: 12px;
-  margin: 0.25rem 0;
-}
+
 .moq-progress-container {
   position: relative;
   width: 100%;
@@ -252,20 +320,16 @@ h1 {
   margin: 0.25rem 0;
 }
 
-.moq-status {
-  font-size: 0.75rem;
-  color: #28a745;
-  background-color: #e6f4ea;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  margin: 0.25rem 0;
-}
-
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .product-card {
     flex: 0 0 calc(33.33% - 0.75rem);
     max-width: calc(33.33% - 0.75rem);
+  }
+
+  .skeleton .product-image {
+    width: 100px;
+    height: 100px;
   }
 }
 
@@ -280,6 +344,11 @@ h1 {
     height: 120px;
   }
 
+  .skeleton .product-image {
+    width: 120px;
+    height: 120px;
+  }
+
   .product-name {
     font-size: 0.85rem;
   }
@@ -288,8 +357,7 @@ h1 {
     font-size: 0.8rem;
   }
 
-  .moq-info,
-  .moq-status {
+  .moq-info {
     font-size: 0.7rem;
   }
 }
@@ -301,20 +369,22 @@ h1 {
   }
 
   .product-image {
-    width: 100px;
-    height: 100px;
+    width: 100%;
+    height: 150px;
+    margin-left: 0;
+    margin-top: 0.75rem;
+  }
+
+  .skeleton .product-image {
+    width: 100%;
+    height: 150px;
+    margin-left: 0;
+    margin-top: 0.75rem;
   }
 
   .product-content {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .product-image {
-    margin-left: 0;
-    margin-top: 0.75rem;
-    width: 100%;
-    height: 150px;
   }
 }
 </style>

@@ -40,6 +40,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 </template>
 
 <style>
+
 [data-theme="dark"] {
   --top-row-bg: var(--vt-c-black-mute);
   --categories-bg: var(--vt-c-black-mute);

@@ -115,10 +115,8 @@ export default {
   },
   methods: {
     selectRandomCategories() {
-      const shuffled = [...this.categories].sort(() => 0.5 - Math.random()); // Shuffle array
-
-      this.slides = shuffled.slice(0, 3); // Get first 3 elements
-
+      const shuffled = [...this.categories].sort(() => 0.5 - Math.random());
+      this.slides = shuffled.slice(0, 3);
     },
     startAutoSlide() {
       setInterval(() => {
@@ -135,10 +133,11 @@ export default {
 
 <style scoped>
 .carousel {
-  /* width: 80%; */
+  flex: 1; /* Take remaining space */
   height: inherit;
   overflow: hidden;
   position: relative;
+  min-width: 300px; /* Prevent becoming too small */
 }
 
 .carousel-slides {
@@ -149,7 +148,6 @@ export default {
 
 .slide {
   min-width: 100%;
-  /* height: 100%; */
   background-size: cover;
   background-position: center;
   display: flex;
@@ -167,7 +165,7 @@ export default {
   font-size: 1.5rem;
   font-weight: 900;
   color: var(--vt-c-category-carousel);
-  padding-bottom: .1rem;
+  padding-bottom: 0.1rem;
 }
 
 .slide-description {
@@ -176,12 +174,6 @@ export default {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--vt-c-category-carousel);
-}
-
-@media (min-width: 768px) {
-  .carousel {
-    max-width: 35vw;
-  }
 }
 
 @media (max-width: 768px) {

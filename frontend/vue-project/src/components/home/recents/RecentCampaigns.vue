@@ -12,54 +12,54 @@
         v-for="(item, index) in latestProducts"
         :key="index"
         class="product-campaigns"
-        @click="viewProduct(item)"
         itemscope
         itemtype="http://schema.org/Product"
       >
-        <!-- Image: itemprop="image" -->
-        <img
-          :src="item.image || item.thumbnail || placeholder"
-          :alt="item.name"
-          class="product-campaign-img"
-          width="50"
-          height="50"
-          itemprop="image"
-          loading="lazy"
-        />
-        <div class="slide-content">
-          <!-- Product Name: itemprop="name" -->
-          <h3 class="campaign-p" itemprop="name">{{ item.name }}</h3>
-          <!-- Price: itemprop="offers" with nested Offer schema -->
-          <p class="campaign-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
-            KES {{ formatPrice(item.price) }}
-            <meta itemprop="priceCurrency" content="KES" />
-            <meta itemprop="price" :content="item.price.toString()" />
-          </p>
-          <div v-if="item.moq_progress" class="moq-progress-container">
-            <div
-              class="moq-progress-bar"
-              :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
-            ></div>
-            <span class="moq-progress-text">
-              {{ item.moq_progress.percentage }}%
-            </span>
+        <router-link
+          :to="{
+            name: 'product-detail',
+            params: { categorySlug: item.category?.slug, productSlug: item.slug }
+          }"
+          class="product-link"
+        >
+          <img
+            :src="item.image || item.thumbnail || placeholder"
+            :alt="item.name"
+            class="product-campaign-img"
+            width="50"
+            height="50"
+            itemprop="image"
+            loading="lazy"
+          />
+          <div class="slide-content">
+            <h3 class="campaign-p" itemprop="name">{{ item.name }}</h3>
+            <p class="campaign-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+              KES {{ formatPrice(item.price) }}
+              <meta itemprop="priceCurrency" content="KES" />
+              <meta itemprop="price" :content="item.price.toString()" />
+            </p>
+            <div v-if="item.moq_progress" class="moq-progress-container">
+              <div
+                class="moq-progress-bar"
+                :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
+              ></div>
+              <span class="moq-progress-text">
+                {{ item.moq_progress.percentage }}%
+              </span>
+            </div>
           </div>
-        </div>
+        </router-link>
       </article>
     </div>
   </section>
 </template>
 
-
-
 <script>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import placeholder from '@/assets/images/placeholder.jpeg';
 
 export default {
   setup() {
-    const router = useRouter();
     const latestProducts = ref([]);
     const isLoading = ref(true);
 
@@ -69,11 +69,13 @@ export default {
         const response = await fetch('http://localhost:8000/api/products/latest/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch latest products');
         const data = await response.json();
-        latestProducts.value = (data.results || []).map(product => ({
-          ...product,
-          image: product.image || product.thumbnail,
-          moq_progress: product.moq_progress, // Include moq_progress
-        }));
+        latestProducts.value = (data.results || [])
+          .map(product => ({
+            ...product,
+            image: product.image || product.thumbnail,
+            moq_progress: product.moq_progress,
+          }))
+          .filter(product => product.category && product.category.slug); // Ensure valid category
       } catch (error) {
         console.error('Error fetching latest products:', error);
         latestProducts.value = [];
@@ -87,20 +89,12 @@ export default {
       return parseFloat(value).toFixed(2);
     };
 
-    const viewProduct = (product) => {
-      router.push({
-        name: 'product-detail',
-        params: { categorySlug: product.category_slug, productSlug: product.slug },
-      });
-    };
-
     onMounted(() => {
       fetchLatestProducts();
     });
 
     return {
       latestProducts,
-      viewProduct,
       isLoading,
       placeholder,
       formatPrice,
@@ -108,7 +102,43 @@ export default {
   },
 };
 </script>
+
 <style scoped>
+.product-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.product-campaigns {
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.product-campaigns:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.product-campaigns:hover .product-campaign-img {
+  transform: scale(1.03);
+}
+
 .moq-progress-container {
   position: relative;
   width: 100%;
@@ -146,8 +176,9 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  width: 35%;
-  min-width: 20vw;
+  width: 250px; /* Fixed width for consistency */
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .campaigns-title {
@@ -160,23 +191,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.product-campaigns {
-  border-radius: 10px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: row;
-  gap: 1rem;
-  justify-content: flex-start;
-  align-items: center;
-  width: 100%;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.product-campaigns:hover {
-  background-color: #f5f5f5;
 }
 
 .product-campaign-img {
@@ -209,6 +223,8 @@ export default {
   align-items: center;
   padding: 1rem;
   width: 100%;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .skeleton-campaign-img {

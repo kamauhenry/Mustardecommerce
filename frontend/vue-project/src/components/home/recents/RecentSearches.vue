@@ -12,36 +12,45 @@
         v-for="(item, index) in displayItems"
         :key="index"
         class="product-searches"
-        @click="item.isSearch ? performSearch(item.query) : viewProduct(item)"
         itemscope
         itemtype="http://schema.org/Product"
       >
-        <img
-          :src="item.image || item.thumbnail || placeholder"
-          :alt="item.name"
-          class="product-search-img"
-          width="50"
-          height="50"
-          itemprop="image"
-          loading="lazy"
-        />
-        <div class="slide-content">
-          <h3 class="search-p" itemprop="name">{{ item.name }}</h3>
-          <p class="search-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
-            KES {{ formatPrice(item.price) }}
-            <meta itemprop="priceCurrency" content="KES" />
-            <meta itemprop="price" :content="item.price.toString()" />
-          </p>
-          <div v-if="item.moq_progress && item.moq_progress.percentage != null" class="moq-progress-container">
-            <div
-              class="moq-progress-bar"
-              :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
-            ></div>
-            <span class="moq-progress-text">
-              {{ item.moq_progress.percentage }}%
-            </span>
+        <component
+          :is="item.isSearch ? 'button' : 'router-link'"
+          :to="item.isSearch ? null : {
+            name: 'product-detail',
+            params: { categorySlug: item.category?.slug, productSlug: item.slug }
+          }"
+          @click="item.isSearch ? performSearch(item.query) : null"
+          class="product-link"
+        >
+          <img
+            :src="item.image || item.thumbnail || placeholder"
+            :alt="item.name"
+            class="product-search-img"
+            width="50"
+            height="50"
+            itemprop="image"
+            loading="lazy"
+          />
+          <div class="slide-content">
+            <h3 class="search-p" itemprop="name">{{ item.name }}</h3>
+            <p class="search-price" itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+              KES {{ formatPrice(item.price) }}
+              <meta itemprop="priceCurrency" content="KES" />
+              <meta itemprop="price" :content="item.price.toString()" />
+            </p>
+            <div v-if="item.moq_progress && item.moq_progress.percentage != null" class="moq-progress-container">
+              <div
+                class="moq-progress-bar"
+                :style="{ width: Math.min(100, item.moq_progress.percentage) + '%' }"
+              ></div>
+              <span class="moq-progress-text">
+                {{ item.moq_progress.percentage }}%
+              </span>
+            </div>
           </div>
-        </div>
+        </component>
       </article>
     </div>
   </section>
@@ -68,11 +77,13 @@ export default {
         const response = await fetch('http://localhost:8000/api/products/random/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch random products');
         const data = await response.json();
-        randomProducts.value = (data.results || []).map((product) => ({
-          ...product,
-          image: product.image || product.thumbnail,
-          moq_progress: product.moq_progress || null, // Fallback to null
-        }));
+        randomProducts.value = (data.results || [])
+          .map(product => ({
+            ...product,
+            image: product.image || product.thumbnail,
+            moq_progress: product.moq_progress || null,
+          }))
+          .filter(product => product.category && product.category.slug); // Ensure valid category
       } catch (error) {
         console.error('Error fetching random products:', error);
         randomProducts.value = [];
@@ -91,7 +102,7 @@ export default {
           ? {
               ...product,
               image: product.image || product.thumbnail,
-              moq_progress: product.moq_progress || null, // Fallback to null
+              moq_progress: product.moq_progress || null,
             }
           : null;
       } catch (error) {
@@ -105,7 +116,6 @@ export default {
       for (const query of recentSearches.value) {
         const product = searchProducts.value.find((p) => p.query === query)?.data;
         if (product) {
-          console.log('Search Product:', product); // Debug
           items.push({
             isSearch: true,
             query,
@@ -113,7 +123,7 @@ export default {
             image: product.image || product.thumbnail,
             price: product.price,
             moq_progress: product.moq_progress,
-            category_slug: product.category_slug,
+            category: product.category, // Use nested category object
             slug: product.slug,
           });
         }
@@ -122,25 +132,26 @@ export default {
       const randoms = randomProducts.value
         .filter((rp) => !items.some((item) => !item.isSearch && item.slug === rp.slug))
         .slice(0, needed)
-        .map((product) => {
-          console.log('Random Product:', product); // Debug
-          return {
-            isSearch: false,
-            name: product.name,
-            image: product.image || product.thumbnail,
-            price: product.price,
-            moq_progress: product.moq_progress,
-            category_slug: product.category_slug,
-            slug: product.slug,
-          };
-        });
-      console.log('Display Items:', [...items, ...randoms].slice(0, 3)); // Debug
+        .map(product => ({
+          isSearch: false,
+          name: product.name,
+          image: product.image || product.thumbnail,
+          price: product.price,
+          moq_progress: product.moq_progress,
+          category: product.category, // Use nested category object
+          slug: product.slug,
+        }));
       return [...items, ...randoms].slice(0, 3);
     });
 
     const formatPrice = (value) => {
       if (value == null) return '0.00';
       return parseFloat(value).toFixed(2);
+    };
+
+    const performSearch = (query) => {
+      ecommerceStore.addRecentSearch(query);
+      router.push({ name: 'search-results', query: { q: query } });
     };
 
     onMounted(async () => {
@@ -156,22 +167,9 @@ export default {
       isLoading.value = false;
     });
 
-    const performSearch = (query) => {
-      ecommerceStore.addRecentSearch(query);
-      router.push({ name: 'search-results', query: { q: query } });
-    };
-
-    const viewProduct = (product) => {
-      router.push({
-        name: 'product-detail',
-        params: { categorySlug: product.category_slug, productSlug: product.slug },
-      });
-    };
-
     return {
       displayItems,
       performSearch,
-      viewProduct,
       placeholder,
       isLoading,
       formatPrice,
@@ -181,6 +179,45 @@ export default {
 </script>
 
 <style scoped>
+.product-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.product-searches {
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.product-searches:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.product-searches:hover .product-search-img {
+  transform: scale(1.03);
+}
+
 .moq-progress-container {
   position: relative;
   width: 100%;
@@ -189,6 +226,8 @@ export default {
   border-radius: 20px;
   overflow: hidden;
   margin-top: auto;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .moq-progress-bar {
@@ -218,8 +257,9 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  width: 35%;
-  min-width: 20vw;
+  width: 250px; /* Fixed width for consistency */
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .searches-title {
@@ -231,18 +271,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.product-searches {
-  border-radius: 10px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: row;
-  gap: 1rem;
-  justify-content: flex-start;
-  align-items: center;
-  width: 100%;
-  cursor: pointer;
 }
 
 .product-search-img {
@@ -266,6 +294,8 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .skeleton-search {
@@ -296,12 +326,8 @@ export default {
 }
 
 @keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @media (max-width: 768px) {

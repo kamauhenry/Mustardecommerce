@@ -37,8 +37,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 import logging
 
-# Set up logging
-logger = logging.getLogger(__name__)
+
 User = get_user_model()
 load_dotenv()
 
@@ -2257,6 +2256,7 @@ class AttributeValueListView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+
 class HomeCategoriesPagination(PageNumberPagination):
     page_size = 4  # Load 4 categories per page
     page_size_query_param = 'page_size'
@@ -2271,7 +2271,6 @@ class HomeCategoriesView(APIView):
         try:
             cached_data = cache.get(cache_key)
             if cached_data:
-                print(f"Returning cached data for page {request.query_params.get('page', 1)}")
                 return Response(cached_data)
         except Exception as e:
             print(f"Cache error: {e}. Falling back to direct query.")
@@ -2279,21 +2278,12 @@ class HomeCategoriesView(APIView):
         try:
             # Fetch all active categories ordered by id
             categories = Category.objects.filter(is_active=True).order_by('id')
-            print(f"Total categories: {categories.count()}")  # Debug
             # Apply pagination
             paginator = self.pagination_class()
             paginated_categories = paginator.paginate_queryset(categories, request)
-            print(f"Paginated categories: {len(paginated_categories)}")  # Debug
             # Serialize the paginated queryset
             serializer = HomeCategorySerializer(paginated_categories, many=True, context={'request': request})
             # Return paginated response
-            response_data = paginator.get_paginated_response(serializer.data).data
-            try:
-                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
-                print(f"Cached response for page {request.query_params.get('page', 1)}")
-            except Exception as e:
-                print(f"Failed to cache response: {e}")
-            return Response(response_data)
+            return paginator.get_paginated_response(serializer.data)
         except Exception as e:
-            print(f"Server error: {str(e)}")
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,7 +1,7 @@
 <template>
-  <header class="navbar" aria-label="Main Navigation">
+  <header class="navbar" ref="navbar" aria-label="Main Navigation">
     <div class="nav-bar-one">
-      <button class="hamburger" @click="isSidebarOpen = !isSidebarOpen" aria-label="Toggle Menu">
+      <button class="hamburger" @click="toggleSidebar" aria-label="Toggle Menu">
         <IconHamburger />
       </button>
       <div class="logo">
@@ -14,6 +14,13 @@
     </div>
 
     <div class="nav-icons">
+      <div class="icon search-toggle" v-if="isMobile && !isSearchOpen" @click="toggleSearch">
+        <img
+          src="@/assets/images/211817_search_strong_icon.png"
+          alt="Search Icon"
+          class="search-icon"
+        />
+      </div>
       <div class="icon">
         <IconLightMode aria-label="Toggle Light Mode" />
       </div>
@@ -30,33 +37,66 @@
     </div>
   </header>
 
-  <div class="search-container">
+  <div class="search-container" :class="{ 'is-open': isSearchOpen || !isMobile }" ref="searchContainer">
     <input
       type="text"
       v-model="query"
       placeholder="Search products..."
       class="search-input"
       @keyup.enter="performSearch"
+      @input="showSuggestions = true"
       aria-label="Search Products"
     />
     <img
       src="@/assets/images/211817_search_strong_icon.png"
       alt="Search Icon"
       class="search-icon"
+      @click="performSearch"
     />
+    <!-- Suggestions Dropdown -->
+    <div v-if="showSuggestions && suggestions.length > 0" class="suggestions-dropdown">
+      <ul>
+        <li
+          v-for="suggestion in suggestions"
+          :key="suggestion.id"
+          @click="selectSuggestion(suggestion)"
+          class="suggestion-item"
+        >
+          {{ suggestion.name }}
+        </li>
+      </ul>
+    </div>
   </div>
 
   <aside :class="['sidebar', { open: isSidebarOpen }]" aria-label="Sidebar Navigation">
     <button class="close-btn" @click="closeSidebar" aria-label="Close Menu">×</button>
 
     <nav>
-      <div class="logo-image">
-        <img
-          src="@/assets/images/mustard-imports.png"
-          alt="Mustard Imports Logo"
-          class="main-logo"
-        />
+      <div class="categories-section">
+        <button class="category-toggle" @click="toggleCategories" :aria-expanded="isCategoriesOpen" aria-controls="categories-dropdown">
+          Our Categories
+          <span class="toggle-icon">{{ isCategoriesOpen ? '−' : '+' }}</span>
+        </button>
+
+        <div v-if="isCategoriesOpen" id="categories-dropdown" class="categories-dropdown">
+          <div v-if="store.loading.categories" class="loading">
+            Loading categories...
+          </div>
+          <div v-else-if="store.error.categories" class="error">
+            {{ store.error.categories }}
+            <button @click="store.fetchCategories" class="retry-button">Retry</button>
+          </div>
+          <ul v-else class="category-list" itemscope itemtype="http://schema.org/ItemList">
+            <li v-for="category in categories" :key="category.id" itemprop="itemListElement" itemscope itemtype="http://schema.org/Thing">
+              <router-link :to="`/category/${category.slug}/products`" class="category-link" itemprop="url">
+                <span itemprop="name">{{ category.name }}</span>
+              </router-link>
+            </li>
+          </ul>
+        </div>
       </div>
+
+      <hr />
 
       <ul class="page-list" itemscope itemtype="http://schema.org/SiteNavigationElement">
         <li><router-link to="/" :class="isActive('/')" itemprop="url"><span itemprop="name">Home</span></router-link></li>
@@ -70,32 +110,13 @@
         <li><router-link to="/about" :class="isActive('/about')" itemprop="url"><span itemprop="name">About Us</span></router-link></li>
         <li><router-link to="/contact" :class="isActive('/contact')" itemprop="url"><span itemprop="name">Contact Us</span></router-link></li>
       </ul>
-
-      <hr />
-
-      <h2 class="category-title">Our Categories</h2>
-
-      <div v-if="store.loading.categories" class="loading">
-        Loading categories...
-      </div>
-      <div v-else-if="store.error.categories" class="error">
-        {{ store.error.categories }}
-        <button @click="store.fetchCategories" class="retry-button">Retry</button>
-      </div>
-      <ul v-else class="category-list" itemscope itemtype="http://schema.org/ItemList">
-        <li v-for="category in categories" :key="category.id" itemprop="itemListElement" itemscope itemtype="http://schema.org/Thing">
-          <router-link :to="`/category/${category.slug}/products`" class="category-link" itemprop="url">
-            <span itemprop="name">{{ category.name }}</span>
-          </router-link>
-        </li>
-      </ul>
     </nav>
   </aside>
   <div v-if="isSidebarOpen" class="overlay" @click="closeSidebar"></div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, inject } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'; // Explicitly import inject
 import { useRoute, useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import IconHamburger from '../icons/IconHamburger.vue';
@@ -108,47 +129,189 @@ const route = useRoute();
 const router = useRouter();
 const store = useEcommerceStore();
 
-const openTrackOrder = inject('openTrackOrder');
-const openRequestMOQ = inject('openRequestMOQ');
-const openLoginModal = inject('openLoginModal');
+// Use inject with fallbacks to prevent errors
+const openTrackOrder = inject('openTrackOrder', () => {
+  console.warn('openTrackOrder not provided, using fallback');
+  return () => {};
+});
+const openRequestMOQ = inject('openRequestMOQ', () => {
+  console.warn('openRequestMOQ not provided, using fallback');
+  return () => {};
+});
+const openLoginModal = inject('openLoginModal', () => {
+  console.warn('openLoginModal not provided, using fallback');
+  return () => {};
+});
 
 const isActive = (path) => {
   return route.path === path ? 'active-link' : '';
 };
 
 const isSidebarOpen = ref(false);
-const isMobile = ref(window.innerWidth <= 768);
+const isCategoriesOpen = ref(false);
+const isMobile = ref(window.innerWidth <= 500);
+const isSearchOpen = ref(false);
 const query = ref('');
+const showSuggestions = ref(false);
+const navbar = ref(null);
+const searchContainer = ref(null);
+let debounceTimeout = null;
+let hideTimeout = null;
 
-const updateScreenSize = () => {
-  isMobile.value = window.innerWidth <= 768;
+// Computed property to access search suggestions from the store
+const suggestions = computed(() => {
+  console.log('Computed suggestions:', store.searchSuggestions);
+  return store.searchSuggestions;
+});
+
+// Fetch suggestions with debounce
+watch(query, (newQuery) => {
+  if (debounceTimeout) {
+    clearTimeout(debounceTimeout);
+  }
+  if (hideTimeout) {
+    clearTimeout(hideTimeout);
+  }
+  debounceTimeout = setTimeout(() => {
+    if (newQuery.trim()) {
+      console.log('Fetching suggestions for:', newQuery);
+      store.fetchSearchSuggestions(newQuery);
+      showSuggestions.value = true;
+      hideTimeout = setTimeout(() => {
+        showSuggestions.value = false;
+        console.log('Suggestions hidden after 3s timeout');
+      }, 6000);
+    } else {
+      store.searchSuggestions = [];
+      showSuggestions.value = false;
+    }
+  }, 200);
+});
+
+const toggleSidebar = () => {
+  isSidebarOpen.value = !isSidebarOpen.value;
+  if (!isSidebarOpen.value) {
+    isSearchOpen.value = false;
+    showSuggestions.value = false;
+    document.body.style.overflow = '';
+  } else {
+    document.body.style.overflow = 'hidden';
+  }
 };
 
 const closeSidebar = () => {
   isSidebarOpen.value = false;
+  isCategoriesOpen.value = false;
+  isSearchOpen.value = false;
+  showSuggestions.value = false;
+  document.body.style.overflow = '';
 };
 
-const performSearch = () => {
-  if (query.value.trim()) {
+const toggleCategories = () => {
+  isCategoriesOpen.value = !isCategoriesOpen.value;
+};
+
+const toggleSearch = () => {
+  isSearchOpen.value = !isSearchOpen.value;
+  showSuggestions.value = false;
+  updateContentOffset();
+};
+
+const performSearch = async () => {
+  if (!query.value.trim()) return;
+
+  store.setSearchLoading(true);
+  try {
+    const response = await fetch(
+      `http://localhost:8000/api/products/search/?search=${encodeURIComponent(query.value)}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch products');
+    const data = await response.json();
+
+    store.setSearchResults(data.results || []);
+    store.setTotalResults(data.count || 0);
     store.addRecentSearch(query.value);
-    router.push({ name: 'search-results', query: { q: query.value } });
+
+    router.push({
+      name: 'search-results',
+      query: { q: query.value },
+    });
+
+    showSuggestions.value = false;
+    if (hideTimeout) {
+      clearTimeout(hideTimeout);
+    }
     query.value = '';
     closeSidebar();
+    isSearchOpen.value = false;
+    updateContentOffset();
+  } catch (error) {
+    console.error('Error searching products:', error);
+    store.setSearchResults([]);
+    store.setTotalResults(0);
+  } finally {
+    store.setSearchLoading(false);
   }
 };
+
+const selectSuggestion = (suggestion) => {
+  query.value = suggestion.name;
+  showSuggestions.value = false;
+  performSearch();
+};
+
+const handleOutsideClick = (event) => {
+  if (
+    isSearchOpen.value &&
+    searchContainer.value &&
+    !searchContainer.value.contains(event.target) &&
+    !event.target.closest('.search-toggle')
+  ) {
+    isSearchOpen.value = false;
+    showSuggestions.value = false;
+    updateContentOffset();
+  }
+};
+
+const updateContentOffset = () => {
+  const mainContent = document.querySelector('main.main-content');
+  if (mainContent && navbar.value && searchContainer.value) {
+    const navbarHeight = navbar.value.offsetHeight;
+    const searchHeight = isMobile.value && !isSearchOpen.value ? 0 : searchContainer.value.offsetHeight;
+    const totalHeight = navbarHeight + searchHeight;
+    mainContent.style.marginTop = `${totalHeight}px`;
+  }
+};
+
+const updateScreenSize = () => {
+  isMobile.value = window.innerWidth <= 500;
+  if (!isMobile.value) {
+    isSearchOpen.value = false;
+    showSuggestions.value = false;
+  }
+  updateContentOffset();
+};
+
+const categories = computed(() => store.categories);
 
 onMounted(() => {
   window.addEventListener('resize', updateScreenSize);
+  document.addEventListener('click', handleOutsideClick);
   if (!store.categories.length) {
     store.fetchCategories();
   }
+  updateContentOffset();
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateScreenSize);
+  document.removeEventListener('click', handleOutsideClick);
+  document.body.style.overflow = '';
+  const mainContent = document.querySelector('main.main-content');
+  if (mainContent) {
+    mainContent.style.marginTop = '';
+  }
 });
-
-const categories = computed(() => store.categories);
 </script>
 
 <style scoped>
@@ -156,40 +319,129 @@ const categories = computed(() => store.categories);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   background-color: #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  z-index: 99;
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 
 .nav-bar-one {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
 }
 
 .main-logo {
-  height: 40px;
+  height: 80px;
   width: auto;
+  max-width: 200px;
 }
 
 .nav-icons {
   display: flex;
-  gap: 0.8rem;
+  align-items: center;
+  gap: 1rem;
 }
 
 .nav-icons .icon {
   background-color: #f5f5f5;
-  padding: 0.5rem;
+  padding: 0.6rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s;
+  cursor: pointer;
 }
 
 .nav-icons .icon:hover {
   background-color: #e0e0e0;
+}
+
+.search-toggle .search-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  z-index: 999;
+  position: fixed;
+  top: 90px;
+  left: 0;
+  width: calc(100% - 2rem);
+  margin: 0 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.search-container.is-open {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.search-container:not(.is-open) {
+  display: none;
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+  outline: none;
+  font-size: 0.9rem;
+}
+
+.search-icon {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggestions-dropdown ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background-color: #f0f0f0;
 }
 
 .overlay {
@@ -205,7 +457,7 @@ const categories = computed(() => store.categories);
 .hamburger {
   background-color: #f5f5f5;
   border: none;
-  padding: 0.5rem;
+  padding: 0.6rem;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
@@ -243,11 +495,13 @@ const categories = computed(() => store.categories);
 }
 
 .logo-image {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .logo-image .main-logo {
-  height: 50px;
+  height: 90px;
+  width: auto;
+  max-width: 220px;
 }
 
 .page-list,
@@ -286,12 +540,44 @@ const categories = computed(() => store.categories);
   cursor: pointer;
 }
 
-.category-title {
+.categories-section {
+  margin: 0.5rem 0;
+  margin-top: 55px;
+}
+
+.category-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 0;
+  background: none;
+  border: none;
   font-size: 1.1rem;
   font-weight: 700;
   color: #f28c38;
-  margin: 1.5rem 0 1rem;
   text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.category-toggle:hover {
+  color: #e67d21;
+}
+
+.toggle-icon {
+  font-size: 1.2rem;
+}
+
+.categories-dropdown {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.category-list {
+  padding: 0;
 }
 
 .retry-button {
@@ -309,32 +595,9 @@ const categories = computed(() => store.categories);
 }
 
 hr {
-  margin: 1.5rem 0;
+  margin: 1rem 0;
   border: 0;
   border-top: 1px solid #e0e0e0;
-}
-
-.search-container {
-  display: flex;
-  align-items: center;
-  background-color: #f5f5f5;
-  padding: 0.5rem 1rem;
-  border-radius: 25px;
-  margin: 0.5rem 1rem;
-}
-
-.search-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0.5rem;
-  outline: none;
-  font-size: 0.9rem;
-}
-
-.search-icon {
-  width: 24px;
-  height: 24px;
 }
 
 .loading,
@@ -364,17 +627,27 @@ hr {
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 500px) {
   .navbar {
-    padding: 0.5rem;
+    padding: 0.6rem;
   }
 
   .main-logo {
-    height: 35px;
+    height: 60px;
+    max-width: 160px;
   }
 
   .nav-icons .icon {
-    padding: 0.4rem;
+    padding: 0.5rem;
+  }
+
+  .hamburger {
+    padding: 0.5rem;
+  }
+
+  .search-toggle .search-icon {
+    width: 22px;
+    height: 22px;
   }
 
   .sidebar {
@@ -382,21 +655,51 @@ hr {
   }
 
   .search-container {
-    margin: 0.5rem;
+    top: 80px;
+    padding: 0.5rem;
+  }
+
+  .search-input {
+    font-size: 0.85rem;
+  }
+
+  .search-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .suggestions-dropdown {
+    border-radius: 10px;
+    max-height: 150px;
+  }
+
+  .suggestion-item {
+    padding: 8px;
+    font-size: 0.85rem;
   }
 }
 
 @media (max-width: 480px) {
   .navbar {
-    padding: 0.4rem;
+    padding: 0.5rem;
   }
 
   .main-logo {
-    height: 30px;
+    height: 50px;
+    max-width: 140px;
   }
 
   .nav-icons .icon {
-    padding: 0.3rem;
+    padding: 0.4rem;
+  }
+
+  .hamburger {
+    padding: 0.4rem;
+  }
+
+  .search-toggle .search-icon {
+    width: 20px;
+    height: 20px;
   }
 
   .sidebar {
@@ -408,21 +711,17 @@ hr {
     font-size: 1.8rem;
   }
 
-  .logo-image .main-logo {
-    height: 40px;
-  }
-
   .page-list li,
   .category-list li {
     margin-bottom: 0.6rem;
   }
 
-  .category-title {
+  .category-toggle {
     font-size: 1rem;
   }
 
   .search-container {
-    margin: 0.4rem;
+    top: 70px;
   }
 
   .search-input {

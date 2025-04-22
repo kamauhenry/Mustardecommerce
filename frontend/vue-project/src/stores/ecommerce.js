@@ -659,11 +659,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
       try {
         const data = await api.fetchHomeCategories(this.apiInstance, page);
         console.log(`Page ${page} - Fetched home categories:`, JSON.stringify(data, null, 2));
-
+    
         if (!data.results || !Array.isArray(data.results)) {
           throw new Error('Expected data.results to be an array');
         }
-
+    
         this.allhomeCategoriesWithProducts = [
           ...this.allhomeCategoriesWithProducts,
           ...data.results,
@@ -673,6 +673,12 @@ export const useEcommerceStore = defineStore('ecommerce', {
           hasMore: !!data.next,
           totalCount: data.count || 0,
         };
+    
+        // Handle unexpected empty or single-page response on page 1
+        if (page === 1 && !this.homeCategoriesPagination.hasMore && this.allhomeCategoriesWithProducts.length === 0) {
+          throw new Error('No categories found on page 1');
+        }
+    
         console.log(
           `Page ${page} - Updated categories:`,
           this.allhomeCategoriesWithProducts.length,
@@ -696,8 +702,6 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.allhomeCategoriesWithProducts = false;
       }
     },
-
-
     async fetchAllCategoriesWithProducts() {
       if (!this.apiInstance) {
         this.initializeApiInstance();

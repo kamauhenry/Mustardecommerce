@@ -6,10 +6,10 @@
       <PagesRow />
       <CategoriesRow v-if="!isExcludedRoute" />
     </template>
-    <HamburgerMenu v-if="isMobile" :isOpen="isSidebarOpen" @close-menu="isSidebarOpen = false" />
+    <HamburgerMenu v-if="isMobile" />
 
     <!-- Main Content -->
-    <main>
+    <main class="main-content">
       <slot></slot>
     </main>
 
@@ -82,7 +82,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, computed, provide, getCurrentInstance } from 'vue';
+import { ref, onMounted, onUnmounted, computed, provide } from 'vue';
 import { useRoute } from 'vue-router';
 import { toast } from 'vue3-toastify';
 import TopRow from '@/components/navigation/TopRow.vue';
@@ -107,9 +107,7 @@ export default {
     LoginModal,
   },
   setup() {
-    const instance = getCurrentInstance();
     const isMobile = ref(window.innerWidth <= 500);
-    const isSidebarOpen = ref(false);
     const showTrackOrder = ref(false);
     const showRequestMOQ = ref(false);
     const showLoginModal = ref(false);
@@ -154,7 +152,7 @@ export default {
       console.log('Accept button clicked');
       localStorage.setItem('cookieConsent', 'accepted');
       showCookieConsentModal.value = false;
-      toast.success('Cookies accepted!', { autoClose: 3000 }); // Use toast directly
+      toast.success('Cookies accepted!', { autoClose: 3000 });
       loadGoogleAnalytics();
     };
 
@@ -162,7 +160,7 @@ export default {
       console.log('Decline button clicked');
       localStorage.setItem('cookieConsent', 'declined');
       showCookieConsentModal.value = false;
-      toast.info('Cookies declined.', { autoClose: 3000 }); // Use toast directly
+      toast.info('Cookies declined.', { autoClose: 3000 });
     };
 
     const showCookieConsent = () => {
@@ -181,7 +179,6 @@ export default {
         console.error('Error in showCookieConsent:', error);
       }
     };
-
 
     const manageCookies = () => {
       console.log('Managing cookies...');
@@ -224,7 +221,6 @@ export default {
 
     return {
       isMobile,
-      isSidebarOpen,
       showTrackOrder,
       showRequestMOQ,
       showLoginModal,
@@ -248,7 +244,7 @@ export default {
   min-height: 100vh;
 }
 
-main {
+main.main-content {
   flex: 1;
   margin: 1% 3%;
 }

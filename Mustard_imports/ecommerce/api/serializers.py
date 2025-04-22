@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model, authenticate
 import logging
 
 
-logger = logging.getLogger(__name__)
+
 
 User = get_user_model()
 
@@ -173,13 +173,13 @@ class ProductSerializer(serializers.ModelSerializer):
     moq_progress = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
-
+    category_slug = serializers.CharField(source='category.slug', read_only=True)
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_id', 'created_at', 'variants', 'thumbnail',
+            'category_id','category_slug' ,'created_at', 'variants', 'thumbnail',
             'rating', 'attributes', 'attribute_ids', 'supplier', 'supplier_id',
             'images', 'meta_title', 'meta_description'
         ]
@@ -199,8 +199,7 @@ class ProductSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        logger.info(f"Product {instance.name} images: {representation['images']}")
-        logger.info(f"Product {instance.name} thumbnail: {representation['thumbnail']}")
+
         return representation
         
 class CartItemSerializer(serializers.ModelSerializer):

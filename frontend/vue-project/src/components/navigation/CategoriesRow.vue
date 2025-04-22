@@ -1,29 +1,30 @@
 <template>
-  <div class="categories">
-    <div class="category category-list">
-      <p class="category-p">Categories</p>
+  <section class="categories" aria-labelledby="categories-title">
+    <div class="category-list">
+      <p id="categories-title" class="category-p">Categories</p>
     </div>
-    <div v-if="store.loading.allCategoriesWithProducts" class="skeleton-container">
+    <div v-if="store.loading.categories" class="skeleton-container">
       <div v-for="n in 3" :key="n" class="skeleton-category">
         <div v-for="i in 4" :key="i" class="skeleton-category-item"></div>
       </div>
     </div>
-    <div v-else-if="store.error.allCategoriesWithProducts" class="error">
-      Error: {{ store.error.allCategoriesWithProducts }}
+    <div v-else-if="store.error.categories" class="error">
+      Error: {{ store.error.categories }}
+      <button @click="store.fetchCategories" class="retry-button">Retry</button>
     </div>
-    <div v-else v-for="(group, index) in categoryGroupsComputed" :key="index" class="category-list">
-      <p v-for="(category, i) in group" :key="i" class="category-list-p">
+    <div v-else v-for="(group, index) in categoryGroupsComputed" :key="index" class="category-list" itemscope itemtype="http://schema.org/ItemList">
+      <p v-for="(category, i) in group" :key="i" class="category-list-p" itemprop="itemListElement" itemscope itemtype="http://schema.org/Thing">
         <router-link
           :to="`/category/${category.slug}/products`"
           class="category-link"
+          itemprop="url"
         >
-          {{ category.name }}
+          <span itemprop="name">{{ category.name }}</span>
         </router-link>
       </p>
     </div>
-  </div>
+  </section>
 </template>
-
 <script setup>
 import { onMounted, computed } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
@@ -31,12 +32,12 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 const store = useEcommerceStore();
 
 onMounted(() => {
-  if (!store.allCategoriesWithProducts.length) {
-    store.fetchAllCategoriesWithProducts();
+  if (!store.categories.length) {
+    store.fetchCategories();
   }
 });
 
-const categories = computed(() => store.allCategoriesWithProducts);
+const categories = computed(() => store.categories);
 
 const categoryGroupsComputed = computed(() => {
   const grouped = [];
@@ -76,11 +77,26 @@ const categoryGroupsComputed = computed(() => {
 .category-link {
   font-size: 1rem;
   text-decoration: none;
+  
   transition: color 0.3s ease-in-out;
 }
 
 .category-link:hover {
-  color: #f28c38;
+  color: #f28c38; /* Hover color preserved from both versions */
+}
+
+.retry-button {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #f28c38;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.retry-button:hover {
+  background-color: #e67d21;
 }
 
 .loading,

@@ -230,50 +230,60 @@ export default {
       console.log('Retrying fetch for page 1');
       store.allhomeCategoriesWithProducts = [];
       store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
-      store.fetchHomeCategories(1);
+      store.fetchHomeCategories(1).then(() => {
+        if (store.homeCategoriesPagination.hasMore) {
+          nextTick(() => setupObserver());
+        }
+      });
     };
 
     const setupObserver = () => {
-      if (loadMoreSentinel.value && retryCount < maxRetries) {
-        console.log('Setting up IntersectionObserver for sentinel');
-        observer = new IntersectionObserver(
-          debounce((entries) => {
-            console.log('IntersectionObserver triggered, isIntersecting:', entries[0].isIntersecting);
-            console.log('Current state - hasMore:', store.homeCategoriesPagination.hasMore, 'loading:', store.loading.allhomeCategoriesWithProducts);
-            if (
-              entries[0].isIntersecting &&
-              store.homeCategoriesPagination.hasMore &&
-              !store.loading.allhomeCategoriesWithProducts
-            ) {
-              console.log('Fetching next page:', store.homeCategoriesPagination.nextPage);
-              store.fetchHomeCategories(store.homeCategoriesPagination.nextPage);
+      retryCount = 0; // Reset retry count for each attempt
+      const trySetup = () => {
+        if (loadMoreSentinel.value) {
+          console.log('Setting up IntersectionObserver for sentinel');
+          observer = new IntersectionObserver(
+            debounce((entries) => {
+              console.log('IntersectionObserver triggered, isIntersecting:', entries[0].isIntersecting);
+              console.log('Current state - hasMore:', store.homeCategoriesPagination.hasMore, 'loading:', store.loading.allhomeCategoriesWithProducts);
+              if (
+                entries[0].isIntersecting &&
+                store.homeCategoriesPagination.hasMore &&
+                !store.loading.allhomeCategoriesWithProducts
+              ) {
+                console.log('Fetching next page:', store.homeCategoriesPagination.nextPage);
+                store.fetchHomeCategories(store.homeCategoriesPagination.nextPage);
+              }
+            }, 300),
+            {
+              root: null,
+              rootMargin: '100px',
+              threshold: 0.1,
             }
-          }, 300),
-          {
-            root: null,
-            rootMargin: '100px',
-            threshold: 0.1,
-          }
-        );
-        observer.observe(loadMoreSentinel.value);
-        console.log('Observer set up successfully');
-      } else if (retryCount < maxRetries) {
-        console.warn('loadMoreSentinel is null, retrying setup');
-        retryCount++;
-        setTimeout(setupObserver, 100);
-      } else {
-        console.error('Max retries reached for setting up IntersectionObserver');
-      }
+          );
+          observer.observe(loadMoreSentinel.value);
+          console.log('Observer set up successfully');
+        } else if (retryCount < maxRetries) {
+          console.warn('loadMoreSentinel is null, retrying setup');
+          retryCount++;
+          setTimeout(trySetup, 100); // Retry after 100ms
+        } else {
+          console.error('Max retries reached for setting up IntersectionObserver');
+        }
+      };
+      trySetup();
     };
 
     onMounted(() => {
-      if (!store.allhomeCategoriesWithProducts.length) {
-        console.log('Fetching initial home categories');
-        store.fetchHomeCategories(1);
-      }
-
-      nextTick(() => {
-        setupObserver();
+      store.allhomeCategoriesWithProducts = [];
+      store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
+      store.fetchHomeCategories(1).then(() => {
+        // After fetch completes, check if more pages exist and set up observer
+        if (store.homeCategoriesPagination.hasMore) {
+          nextTick(() => {
+            setupObserver();
+          });
+        }
       });
     });
 
@@ -281,6 +291,7 @@ export default {
       if (observer && loadMoreSentinel.value) {
         console.log('Cleaning up IntersectionObserver');
         observer.unobserve(loadMoreSentinel.value);
+        observer = null; // Clear reference to prevent leaks
       }
     });
 
@@ -328,12 +339,7 @@ export default {
   background-color: #e67d21;
 }
 
-.top-row-home {
-  display: flex;
-  flex-direction: row;
-  gap: 1.5rem;
-  margin: 1.5rem 3%;
-}
+
 
 .categories-container {
   display: flex;
@@ -595,6 +601,20 @@ export default {
   animation: shimmer 1.5s infinite;
   border-radius: 10px;
 }
+/* In HomePage.vue or a shared stylesheet */
+.top-row-home {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem; /* Reduced gap */
+  margin: 1rem 2%; /* Reduced margin */
+  align-items: stretch;
+  max-width: 100%; /* Prevent overflow */
+  box-sizing: border-box;
+  flex-wrap: nowrap; /* Ensure components stay in one row */
+}
+
+
+
 
 @keyframes shimmer {
   0% {
