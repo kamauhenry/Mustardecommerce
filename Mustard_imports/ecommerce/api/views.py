@@ -36,7 +36,9 @@ import random
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 import logging
-
+from django.core.files.base import ContentFile
+import pandas as pd
+import io
 
 User = get_user_model()
 load_dotenv()
@@ -2166,9 +2168,11 @@ class ProductViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
 
     def create(self, request, *args, **kwargs):
+        logger.info(f"Create request data: {request.data}")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
+        logger.info(f"Created product {product.id} with attribute_values: {list(product.attribute_values.all())}")
         
         # Handle multiple images
         images = request.FILES.getlist('images')
@@ -2180,16 +2184,17 @@ class ProductViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f"Failed to create ProductImage for {product.name}: {image.name}, error: {str(e)}")
         
-        
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
+        logger.info(f"Update request data: {request.data}")
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
+        logger.info(f"Updated product {product.id} with attribute_values: {list(product.attribute_values.all())}")
         
         # Handle multiple images
         images = request.FILES.getlist('images')
@@ -2206,10 +2211,18 @@ class ProductViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.data)
 
-class SupplierListView(APIView):
+
+class SupplierView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
-    def get(self, request):
+    def get(self, request, pk=None):
+        if pk:
+            try:
+                supplier = Supplier.objects.get(pk=pk)
+                serializer = SupplierSerializer(supplier)
+                return Response(serializer.data)
+            except Supplier.DoesNotExist:
+                return Response({"error": "Supplier not found"}, status=status.HTTP_404_NOT_FOUND)
         suppliers = Supplier.objects.all()
         serializer = SupplierSerializer(suppliers, many=True)
         return Response(serializer.data)
@@ -2221,10 +2234,36 @@ class SupplierListView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class AttributeListView(APIView):
+    def put(self, request, pk):
+        try:
+            supplier = Supplier.objects.get(pk=pk)
+        except Supplier.DoesNotExist:
+            return Response({"error": "Supplier not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SupplierSerializer(supplier, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        try:
+            supplier = Supplier.objects.get(pk=pk)
+            supplier.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Supplier.DoesNotExist:
+            return Response({"error": "Supplier not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class AttributeView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
-    def get(self, request):
+    def get(self, request, pk=None):
+        if pk:
+            try:
+                attribute = Attribute.objects.get(pk=pk)
+                serializer = AttributeSerializer(attribute)
+                return Response(serializer.data)
+            except Attribute.DoesNotExist:
+                return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
         attributes = Attribute.objects.all()
         serializer = AttributeSerializer(attributes, many=True)
         return Response(serializer.data)
@@ -2236,25 +2275,172 @@ class AttributeListView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class AttributeValueListView(APIView):
+    def put(self, request, pk):
+        try:
+            attribute = Attribute.objects.get(pk=pk)
+        except Attribute.DoesNotExist:
+            return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = AttributeSerializer(attribute, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        try:
+            attribute = Attribute.objects.get(pk=pk)
+            attribute.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Attribute.DoesNotExist:
+            return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class AttributeValueView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
-    def get(self, request):
+    def get(self, request, pk=None):
+        if pk:
+            try:
+                attribute_value = AttributeValue.objects.get(pk=pk)
+                serializer = AttributeValueSerializer(attribute_value)
+                return Response(serializer.data)
+            except AttributeValue.DoesNotExist:
+                return Response({"error": "Attribute value not found"}, status=status.HTTP_404_NOT_FOUND)
         attribute_values = AttributeValue.objects.select_related('attribute').all()
         serializer = AttributeValueSerializer(attribute_values, many=True)
         return Response(serializer.data)
 
     def post(self, request):
-        attribute_name = request.data.get('attribute_name')
-        value = request.data.get('value')
-        if not attribute_name or not value:
-            return Response({'error': 'Both attribute_name and value are required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        attribute, _ = Attribute.objects.get_or_create(name=attribute_name)
-        attribute_value = AttributeValue.objects.create(attribute=attribute, value=value)
-        serializer = AttributeValueSerializer(attribute_value)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        attribute_id = request.data.get('attribute_id')
+        values = request.data.get('values', [])  # Expect a list of values
+        if not attribute_id or not values:
+            return Response(
+                {'error': 'Both attribute_id and values are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            attribute = Attribute.objects.get(id=attribute_id)
+        except Attribute.DoesNotExist:
+            return Response(
+                {'error': 'Attribute not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        created_values = []
+        for value in values:
+            value = value.strip()
+            if not value or AttributeValue.objects.filter(attribute=attribute, value=value).exists():
+                continue
+            attribute_value = AttributeValue.objects.create(attribute=attribute, value=value)
+            created_values.append(AttributeValueSerializer(attribute_value).data)
+        return Response(created_values, status=status.HTTP_201_CREATED)
+
+    def put(self, request, pk):
+        try:
+            attribute_value = AttributeValue.objects.get(pk=pk)
+        except AttributeValue.DoesNotExist:
+            return Response({"error": "Attribute value not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = AttributeValueSerializer(attribute_value, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        try:
+            attribute_value = AttributeValue.objects.get(pk=pk)
+            attribute_value.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except AttributeValue.DoesNotExist:
+            return Response({"error": "Attribute value not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AttributeValueByAttributeView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, attribute_id):
+        try:
+            attribute = Attribute.objects.get(id=attribute_id)
+            attribute_values = AttributeValue.objects.filter(attribute=attribute)
+            serializer = AttributeValueSerializer(attribute_values, many=True)
+            return Response(serializer.data)
+        except Attribute.DoesNotExist:
+            return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
+class BulkProductImportView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+        if not file:
+            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Read CSV or Excel
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
+            elif file.name.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file)
+            else:
+                return Response({"error": "Unsupported file format. Use CSV or Excel."}, status=status.HTTP_400_BAD_REQUEST)
+
+            created_products = []
+            errors = []
+            
+            for index, row in df.iterrows():
+                try:
+                    # Prepare product data
+                    product_data = {
+                        'name': row.get('name', ''),
+                        'slug': row.get('slug', row.get('name', '').lower().replace(' ', '-')),
+                        'description': row.get('description', ''),
+                        'price': row.get('price', 0),
+                        'below_moq_price': row.get('below_moq_price', None),
+                        'moq': int(row.get('moq', 1)),
+                        'moq_per_person': int(row.get('moq_per_person', 1)),
+                        'moq_status': row.get('moq_status', 'active'),
+                        'category_id': int(row.get('category_id', 0)),
+                        'supplier_id': int(row.get('supplier_id', None)) if row.get('supplier_id') else None,
+                        'meta_title': row.get('meta_title', ''),
+                        'meta_description': row.get('meta_description', ''),
+                        'attribute_ids': row.get('attribute_ids', '').split(',') if row.get('attribute_ids') else [],
+                    }
+
+                    # Validate and create product
+                    serializer = ProductSerializer(data=product_data)
+                    if serializer.is_valid():
+                        product = serializer.save()
+                        
+                        # Handle images (URLs in CSV)
+                        image_urls = row.get('image_urls', '').split(',') if row.get('image_urls') else []
+                        for url in image_urls:
+                            url = url.strip()
+                            if url:
+                                try:
+                                    response = requests.get(url)
+                                    if response.status_code == 200:
+                                        image_name = url.split('/')[-1]
+                                        ProductImage.objects.create(
+                                            product=product,
+                                            image=ContentFile(response.content, name=image_name)
+                                        )
+                                except Exception as e:
+                                    logger.error(f"Failed to download image {url} for product {product.name}: {str(e)}")
+                        
+                        created_products.append(serializer.data)
+                    else:
+                        errors.append({"row": index + 2, "errors": serializer.errors})
+                except Exception as e:
+                    errors.append({"row": index + 2, "error": str(e)})
+            
+            response_data = {
+                "created": len(created_products),
+                "products": created_products,
+                "errors": errors
+            }
+            return Response(response_data, status=status.HTTP_201_CREATED if created_products else status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            logger.error(f"Failed to process file: {str(e)}")
+            return Response({"error": f"Failed to process file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class HomeCategoriesPagination(PageNumberPagination):

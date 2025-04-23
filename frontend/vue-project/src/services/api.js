@@ -306,9 +306,9 @@ export const createAttribute = async (api, attributeData) => {
 };
 
 // Modified Product APIs
-export const createProduct = async (api, productData) => {
+export const createProduct = async (api, data) => {
   try {
-    const response = await api.post('admin/products/', productData, {
+    const response = await api.post('admin/products/', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -318,9 +318,9 @@ export const createProduct = async (api, productData) => {
   }
 };
 
-export const updateProduct = async (api, productId, productData) => {
+export const updateProduct = async (api, id, data) => {
   try {
-    const response = await api.put(`admin/products/${productId}/`, productData, {
+    const response = await api.put(`admin/products/${id}/`, data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -330,9 +330,9 @@ export const updateProduct = async (api, productId, productData) => {
   }
 };
 
-export const deleteProduct = async (api, productId) => {
+export const deleteProduct = async (api, id) => {
   try {
-    const response = await api.delete(`admin/products/${productId}/`);
+    const response = await api.delete(`admin/products/${id}/`);
     return response.data;
   } catch (error) {
     console.error('Error deleting product:', error.response?.data || error.message);

@@ -17,7 +17,7 @@ from .views import (
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierListView, AttributeListView, AttributeValueListView,HomeCategoriesView,
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,
 )
 
 router = routers.DefaultRouter()
@@ -38,9 +38,14 @@ urlpatterns = [
     path('admin/products/<int:product_id>/place-order/', place_order_for_product, name='place_order_for_product'),
     path('admin/orders/bulk-update/', bulk_update_order_status, name='bulk_update_order_status'),
     path('admin/orders/<int:order_id>/update-status/', update_single_order_status, name='update_single_order_status'),
-    path('admin/suppliers/', SupplierListView.as_view(), name='supplier-list'),
-    path('admin/attributes/', AttributeListView.as_view(), name='attribute-list'),
-    path('admin/attribute-values/', AttributeValueListView.as_view(), name='attribute-value-list'),
+    path('admin/suppliers/', SupplierView.as_view(), name='supplier-list'),
+    path('admin/suppliers/<int:pk>/', SupplierView.as_view(), name='supplier-detail'),
+    path('admin/attributes/', AttributeView.as_view(), name='attribute-list'),
+    path('admin/attributes/<int:pk>/', AttributeView.as_view(), name='attribute-detail'),
+    path('admin/attribute-values/', AttributeValueView.as_view(), name='attribute-value-list'),
+    path('admin/attribute-values/<int:pk>/', AttributeValueView.as_view(), name='attribute-value-detail'),
+    path('admin/attribute-values/by-attribute/<int:attribute_id>/', AttributeValueByAttributeView.as_view(), name='attribute-values-by-attribute'),
+    path('admin/bulk-import/', BulkProductImportView.as_view(), name='bulk-import'),
 
     # Authentication
     path('auth/logout/', logout_view, name='logout'),

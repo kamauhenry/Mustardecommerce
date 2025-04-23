@@ -1,81 +1,241 @@
 <template>
   <AdminLayout>
-    <div class="products">
-      <h2>Manage Products</h2>
+    <div class="admin-panel">
+      <h2>Admin Dashboard</h2>
 
-      <!-- Search Bar -->
-      <div class="search-bar">
-        <input
-          v-model="searchQuery"
-          placeholder="Search products by name..."
-          @input="handleSearch"
-        />
+      <!-- Navigation Tabs -->
+      <div class="tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab"
+          :class="{ active: activeTab === tab }"
+          @click="activeTab = tab"
+        >
+          {{ tab }}
+        </button>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        Loading products...
+      <!-- Products Tab -->
+      <div v-if="activeTab === 'Products'" class="products">
+        <!-- Search Bar -->
+        <div class="search-bar">
+          <input
+            v-model="searchQuery"
+            placeholder="Search products by name..."
+            @input="handleSearch"
+          />
+        </div>
+
+        <!-- CSV Import -->
+        <div class="import-section">
+          <label>Import Products (CSV/Excel)</label>
+          <input type="file" accept=".csv,.xlsx,.xls" @change="handleFileImport" />
+          <button @click="uploadProducts" :disabled="importLoading || !importFile">
+            {{ importLoading ? 'Importing...' : 'Upload' }}
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <div v-if="loading" class="loading">
+          <div class="spinner"></div>
+          Loading products...
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+          {{ error }}
+          <button @click="fetchData" class="retry-button">Retry</button>
+        </div>
+
+        <!-- Products List -->
+        <div v-else class="products-content">
+          <button class="add-button" @click="openAddModal('product')" :disabled="formLoading">
+            Add Product
+          </button>
+
+          <div class="products-list">
+            <table v-if="filteredProducts.length">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Price (KES)</th>
+                  <th>Below MOQ Price</th>
+                  <th>MOQ</th>
+                  <th>MOQ Progress</th>
+                  <th>Supplier</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="product in filteredProducts" :key="product.id" class="product-row">
+                  <td class="product-name">{{ product.name }}</td>
+                  <td class="product-price">{{ formatPrice(product.price) }}</td>
+                  <td class="below-moq-price">{{ product.below_moq_price ? formatPrice(product.below_moq_price) : 'N/A' }}</td>
+                  <td class="moq-info">{{ product.moq || 'N/A' }} items</td>
+                  <td class="moq-progress-cell">
+                    <div class="moq-progress-container">
+                      <div
+                        class="moq-progress-bar"
+                        :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
+                      ></div>
+                      <span class="moq-progress-text">
+                        {{ product.moq_progress?.percentage || 0 }}%
+                      </span>
+                    </div>
+                  </td>
+                  <td>{{ product.supplier?.name || 'N/A' }}</td>
+                  <td class="product-actions">
+                    <button @click="openEditModal('product', product)" :disabled="formLoading" class="edit-button">Edit</button>
+                    <button @click="deleteItem('product', product.id)" :disabled="formLoading" class="delete-button">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else>No products found.</p>
+          </div>
+        </div>
       </div>
 
-      <!-- Error Message -->
-      <div v-if="error" class="error-message">
-        {{ error }}
-        <button @click="fetchData" class="retry-button">Retry</button>
+      <!-- Attributes Tab -->
+      <div v-if="activeTab === 'Attributes'" class="attributes">
+        <h3>Manage Attributes</h3>
+
+        <!-- Manage Attribute Types -->
+        <div class="attribute-types">
+          <h4>Attribute Types</h4>
+          <div class="form-group">
+            <label for="new_attribute_name">New Attribute Type</label>
+            <input
+              v-model="newAttributeName"
+              type="text"
+              id="new_attribute_name"
+              placeholder="e.g., Color, Size"
+            />
+            <button @click="createAttributeType" :disabled="formLoading || !newAttributeName.trim()">
+              Add Attribute Type
+            </button>
+          </div>
+          <div v-if="attributeTypes.length" class="attribute-types-list">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="attr in attributeTypes" :key="attr.id">
+                  <td>{{ attr.name }}</td>
+                  <td>
+                    <button @click="selectAttributeType(attr)" :disabled="formLoading" class="edit-button">
+                      Manage Values
+                    </button>
+                    <button @click="deleteAttributeType(attr.id)" :disabled="formLoading" class="delete-button">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else>No attribute types found.</p>
+        </div>
+
+        <!-- Manage Attribute Values -->
+        <div v-if="selectedAttributeType" class="attribute-values">
+          <h4>Values for {{ selectedAttributeType.name }}</h4>
+          <div class="form-group">
+            <label for="new_attribute_values">New Values (comma-separated)</label>
+            <input
+              v-model="newAttributeValues"
+              type="text"
+              id="new_attribute_values"
+              placeholder="e.g., Blue, Red, Green"
+            />
+            <button @click="createAttributeValues" :disabled="formLoading || !newAttributeValues.trim()">
+              Add Values
+            </button>
+          </div>
+          <div v-if="attributeValues.length" class="attribute-values-list">
+            <table>
+              <thead>
+                <tr>
+                  <th>Value</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="value in attributeValues" :key="value.id">
+                  <td>{{ value.value }}</td>
+                  <td>
+                    <button @click="openEditAttributeValueModal(value)" :disabled="formLoading" class="edit-button">
+                      Edit
+                    </button>
+                    <button @click="deleteAttributeValue(value.id)" :disabled="formLoading" class="delete-button">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else>No values found for this attribute.</p>
+        </div>
       </div>
 
-      <!-- Products List -->
-      <div v-else class="products-content">
-        <button class="add-button" @click="openAddModal" :disabled="formLoading">
-          Add Product
+      <!-- Suppliers Tab -->
+      <div v-if="activeTab === 'Suppliers'" class="suppliers">
+        <h3>Manage Suppliers</h3>
+        <button class="add-button" @click="openAddModal('supplier')" :disabled="formLoading">
+          Add Supplier
         </button>
 
-        <div class="products-list">
-          <table v-if="filteredProducts.length">
+        <!-- Loading State -->
+        <div v-if="loading" class="loading">
+          <div class="spinner"></div>
+          Loading suppliers...
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+          {{ error }}
+          <button @click="fetchData" class="retry-button">Retry</button>
+        </div>
+
+        <!-- Suppliers List -->
+        <div v-else class="suppliers-content">
+          <table v-if="suppliers.length">
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Price (KES)</th>
-                <th>Below MOQ Price</th>
-                <th>MOQ</th>
-                <th>MOQ Progress</th>
-                <th>Supplier</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Address</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="product in filteredProducts" :key="product.id" class="product-row">
-                <td class="product-name">{{ product.name }}</td>
-                <td class="product-price">{{ formatPrice(product.price) }}</td>
-                <td class="below-moq-price">{{ product.below_moq_price ? formatPrice(product.below_moq_price) : 'N/A' }}</td>
-                <td class="moq-info">{{ product.moq || 'N/A' }} items</td>
-                <td class="moq-progress-cell">
-                  <div class="moq-progress-container">
-                    <div
-                      class="moq-progress-bar"
-                      :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
-                    ></div>
-                    <span class="moq-progress-text">
-                      {{ product.moq_progress?.percentage || 0 }}%
-                    </span>
-                  </div>
-                </td>
-                <td>{{ product.supplier?.name || 'N/A' }}</td>
-                <td class="product-actions">
-                  <button @click="openEditModal(product)" :disabled="formLoading" class="edit-button">Edit</button>
-                  <button @click="deleteProduct(product.id)" :disabled="formLoading" class="delete-button">Delete</button>
+              <tr v-for="supplier in suppliers" :key="supplier.id" class="supplier-row">
+                <td>{{ supplier.name }}</td>
+                <td>{{ supplier.contact_email || 'N/A' }}</td>
+                <td>{{ supplier.phone || 'N/A' }}</td>
+                <td>{{ supplier.address || 'N/A' }}</td>
+                <td class="supplier-actions">
+                  <button @click="openEditModal('supplier', supplier)" :disabled="formLoading" class="edit-button">Edit</button>
+                  <button @click="deleteItem('supplier', supplier.id)" :disabled="formLoading" class="delete-button">Delete</button>
                 </td>
               </tr>
             </tbody>
           </table>
+          <p v-else>No suppliers found.</p>
         </div>
       </div>
 
-      <!-- Add/Edit Product Modal -->
-      <div v-if="showModal" class="modal" @click="closeModal">
+      <!-- Product Modal -->
+      <div v-if="showModal && modalType === 'product'" class="modal" @click="closeModal">
         <div class="modal-content" @click.stop>
           <h3>{{ editMode ? 'Edit Product' : 'Add Product' }}</h3>
-          <form @submit.prevent="saveProduct">
+          <form @submit.prevent="saveItem('product')">
             <div class="form-group">
               <label>Name</label>
               <input
@@ -140,17 +300,46 @@
                   {{ supplier.name }}
                 </option>
               </select>
-              <button type="button" @click="openAddSupplierModal">Add New Supplier</button>
             </div>
             <div class="form-group">
-              <label>Variant Attributes</label>
-              <div>
-                <select multiple v-model="form.attribute_ids">
-                  <option v-for="attribute in attributes" :key="attribute.id" :value="attribute.id">
-                    {{ attribute.attribute_name }}: {{ attribute.value }}
-                  </option>
-                </select>
-                <button type="button" @click="openAddAttributeModal">Add New Attribute</button>
+              <label for="attribute_id">Attribute Type</label>
+              <select
+                v-model="form.selectedAttributeId"
+                id="attribute_id"
+                @change="fetchAttributeValuesForProduct"
+              >
+                <option value="">Select Attribute Type</option>
+                <option v-for="attr in attributeTypes" :key="attr.id" :value="attr.id">
+                  {{ attr.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group" v-if="form.selectedAttributeId">
+              <label>Attribute Values</label>
+              <select
+                v-model="form.attribute_value_ids"
+                multiple
+                size="5"
+              >
+                <option
+                  v-for="value in attributeValues"
+                  :key="value.id"
+                  :value="value.id"
+                >
+                  {{ value.value }}
+                </option>
+              </select>
+              <div class="new-values">
+                <label for="new_attribute_values">Add New Values (comma-separated)</label>
+                <input
+                  v-model="form.newAttributeValues"
+                  type="text"
+                  id="new_attribute_values"
+                  placeholder="e.g., Blue, Red, Green"
+                />
+                <button type="button" @click="addNewAttributeValues" :disabled="formLoading">
+                  Add Values
+                </button>
               </div>
             </div>
             <div class="form-group">
@@ -178,49 +367,49 @@
         </div>
       </div>
 
-      <!-- Add Supplier Modal -->
-      <div v-if="showSupplierModal" class="modal" @click="closeSupplierModal">
+      <!-- Supplier Modal -->
+      <div v-if="showModal && modalType === 'supplier'" class="modal" @click="closeModal">
         <div class="modal-content" @click.stop>
-          <h3>Add Supplier</h3>
-          <form @submit.prevent="saveSupplier">
+          <h3>{{ editMode ? 'Edit Supplier' : 'Add Supplier' }}</h3>
+          <form @submit.prevent="saveItem('supplier')">
             <div class="form-group">
               <label>Name</label>
-              <input v-model="supplierForm.name" required placeholder="Enter supplier name" />
+              <input v-model="form.name" required placeholder="Enter supplier name" />
             </div>
             <div class="form-group">
               <label>Contact Email</label>
-              <input v-model="supplierForm.contact_email" type="email" placeholder="Enter contact email (optional)" />
+              <input v-model="form.contact_email" type="email" placeholder="Enter contact email (optional)" />
             </div>
             <div class="form-group">
               <label>Phone</label>
-              <input v-model="supplierForm.phone" placeholder="Enter phone number (optional)" />
+              <input v-model="form.phone" placeholder="Enter phone number (optional)" />
             </div>
             <div class="form-group">
               <label>Address</label>
-              <textarea v-model="supplierForm.address" placeholder="Enter address (optional)"></textarea>
+              <textarea v-model="form.address" placeholder="Enter address (optional)"></textarea>
             </div>
             <button type="submit" :disabled="formLoading">
-              {{ formLoading ? 'Saving...' : 'Add Supplier' }}
+              {{ formLoading ? 'Saving...' : (editMode ? 'Update' : 'Add') }}
             </button>
           </form>
         </div>
       </div>
 
-      <!-- Add Attribute Modal -->
-      <div v-if="showAttributeModal" class="modal" @click="closeAttributeModal">
+      <!-- Attribute Value Modal -->
+      <div v-if="showModal && modalType === 'attribute_value'" class="modal" @click="closeModal">
         <div class="modal-content" @click.stop>
-          <h3>Add Variant Attribute</h3>
-          <form @submit.prevent="saveAttribute">
+          <h3>{{ editMode ? 'Edit Attribute Value' : 'Add Attribute Value' }}</h3>
+          <form @submit.prevent="saveItem('attribute_value')">
             <div class="form-group">
-              <label>Attribute Name</label>
-              <input v-model="attributeForm.attribute_name" required placeholder="e.g., Color, Size" />
+              <label>Attribute Type</label>
+              <input :value="selectedAttributeType?.name" disabled />
             </div>
             <div class="form-group">
               <label>Value</label>
-              <input v-model="attributeForm.value" required placeholder="e.g., Blue, Large" />
+              <input v-model="form.value" required placeholder="e.g., Blue" />
             </div>
             <button type="submit" :disabled="formLoading">
-              {{ formLoading ? 'Saving...' : 'Add Attribute' }}
+              {{ formLoading ? 'Saving...' : (editMode ? 'Update' : 'Add') }}
             </button>
           </form>
         </div>
@@ -233,68 +422,56 @@
 import { ref, onMounted, computed } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
-import api from '@/services/api';
-
 import { toast } from 'vue3-toastify';
+import api from '@/services/api';
 
 export default {
   components: { AdminLayout },
   setup() {
     const store = useEcommerceStore();
-    
+    const activeTab = ref('Products');
+    const tabs = ['Products', 'Attributes', 'Suppliers'];
     const products = ref([]);
     const categories = ref([]);
     const suppliers = ref([]);
-    const attributes = ref([]);
+    const attributeTypes = ref([]);
+    const selectedAttributeType = ref(null);
+    const attributeValues = ref([]);
     const searchQuery = ref('');
     const showModal = ref(false);
-    const showSupplierModal = ref(false);
-    const showAttributeModal = ref(false);
+    const modalType = ref('');
     const editMode = ref(false);
-    const form = ref({
-      id: null,
-      name: '',
-      slug: '',
-      description: '',
-      price: '',
-      below_moq_price: '',
-      moq: '',
-      moq_per_person: '',
-      moq_status: 'active',
-      category_id: '',
-      supplier_id: '',
-      attribute_ids: [],
-      images: [],
-      meta_title: '',
-      meta_description: '',
-    });
-    const supplierForm = ref({
-      name: '',
-      contact_email: '',
-      phone: '',
-      address: '',
-    });
-    const attributeForm = ref({
-      attribute_name: '',
-      value: '',
-    });
+    const form = ref({});
+    const importFile = ref(null);
+    const importLoading = ref(false);
     const loading = ref(false);
     const formLoading = ref(false);
     const error = ref(null);
+    const newAttributeName = ref('');
+    const newAttributeValues = ref('');
+
+    const filteredProducts = computed(() => {
+      if (!searchQuery.value) return products.value;
+      return products.value.filter(product =>
+        product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      );
+    });
 
     const fetchData = async () => {
       try {
         loading.value = true;
         error.value = null;
         const apiInstance = api.createApiInstance(store);
-        const productsResponse = await api.fetchProducts(apiInstance);
+        const [productsResponse, categoriesResponse, suppliersResponse, attributeTypesResponse] = await Promise.all([
+          api.fetchProducts(apiInstance),
+          api.fetchCategories(apiInstance),
+          apiInstance.get('/admin/suppliers/').then(res => res.data),
+          apiInstance.get('/admin/attributes/').then(res => res.data),
+        ]);
         products.value = productsResponse.flatMap(category => category.products || []) || [];
-        const categoriesResponse = await api.fetchCategories(apiInstance);
         categories.value = categoriesResponse || [];
-        const suppliersResponse = await api.fetchSuppliers(apiInstance);
         suppliers.value = suppliersResponse || [];
-        const attributesResponse = await api.fetchAttributes(apiInstance);
-        attributes.value = attributesResponse || [];
+        attributeTypes.value = attributeTypesResponse || [];
       } catch (err) {
         error.value = err.response?.data?.error || 'Failed to load data. Please try again.';
         console.error('Failed to fetch data:', err);
@@ -304,19 +481,147 @@ export default {
       }
     };
 
-    const filteredProducts = computed(() => {
-      if (!searchQuery.value) return products.value;
-      return products.value.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      );
-    });
+    const fetchAttributeValues = async (attributeId) => {
+      try {
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.get(`/admin/attribute-values/by-attribute/${attributeId}/`);
+        attributeValues.value = response.data;
+      } catch (error) {
+        toast.error('Failed to load attribute values.');
+      }
+    };
+
+    const fetchAttributeValuesForProduct = async () => {
+      if (!form.value.selectedAttributeId) {
+        attributeValues.value = [];
+        form.value.attribute_value_ids = [];
+        return;
+      }
+      try {
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.get(`/admin/attribute-values/by-attribute/${form.value.selectedAttributeId}/`);
+        attributeValues.value = response.data;
+      } catch (error) {
+        toast.error('Failed to load attribute values.');
+        attributeValues.value = [];
+      }
+    };
+
+    const createAttributeType = async () => {
+      if (!newAttributeName.value.trim() || formLoading.value) return;
+      try {
+        formLoading.value = true;
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.post('/admin/attributes/', {
+          name: newAttributeName.value,
+        });
+        attributeTypes.value.push(response.data);
+        newAttributeName.value = '';
+        toast.success('Attribute type created successfully!');
+      } catch (error) {
+        toast.error('Failed to create attribute type.');
+      } finally {
+        formLoading.value = false;
+      }
+    };
+
+    const deleteAttributeType = async (id) => {
+      if (!confirm('Are you sure you want to delete this attribute type?')) return;
+      try {
+        formLoading.value = true;
+        const apiInstance = api.createApiInstance(store);
+        await apiInstance.delete(`/admin/attributes/${id}/`);
+        attributeTypes.value = attributeTypes.value.filter(attr => attr.id !== id);
+        if (selectedAttributeType.value?.id === id) {
+          selectedAttributeType.value = null;
+          attributeValues.value = [];
+        }
+        toast.success('Attribute type deleted successfully!');
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Failed to delete attribute type.');
+      } finally {
+        formLoading.value = false;
+      }
+    };
+
+    const selectAttributeType = (attribute) => {
+      selectedAttributeType.value = attribute;
+      fetchAttributeValues(attribute.id);
+    };
+
+    const createAttributeValues = async () => {
+      if (!newAttributeValues.value.trim() || !selectedAttributeType.value || formLoading.value) return;
+      try {
+        formLoading.value = true;
+        const values = newAttributeValues.value.split(',').map(v => v.trim()).filter(v => v);
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.post('/admin/attribute-values/', {
+          attribute_id: selectedAttributeType.value.id,
+          values,
+        });
+        attributeValues.value.push(...response.data);
+        newAttributeValues.value = '';
+        toast.success('Attribute values created successfully!');
+      } catch (error) {
+        toast.error('Failed to create attribute values.');
+      } finally {
+        formLoading.value = false;
+      }
+    };
+
+    const openEditAttributeValueModal = (value) => {
+      editMode.value = true;
+      modalType.value = 'attribute_value';
+      form.value = {
+        id: value.id,
+        attribute_id: selectedAttributeType.value.id,
+        value: value.value,
+      };
+      showModal.value = true;
+    };
+
+    const deleteAttributeValue = async (id) => {
+      if (!confirm('Are you sure you want to delete this attribute value?')) return;
+      try {
+        formLoading.value = true;
+        const apiInstance = api.createApiInstance(store);
+        await apiInstance.delete(`/admin/attribute-values/${id}/`);
+        attributeValues.value = attributeValues.value.filter(val => val.id !== id);
+        toast.success('Attribute value deleted successfully!');
+      } catch (error) {
+        toast.error('Failed to delete attribute value.');
+      } finally {
+        formLoading.value = false;
+      }
+    };
+
+    const addNewAttributeValues = async () => {
+      if (!form.value.newAttributeValues.trim() || !form.value.selectedAttributeId || formLoading.value) return;
+      try {
+        formLoading.value = true;
+        const values = form.value.newAttributeValues.split(',').map(v => v.trim()).filter(v => v);
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.post('/admin/attribute-values/', {
+          attribute_id: form.value.selectedAttributeId,
+          values,
+        });
+        attributeValues.value.push(...response.data);
+        form.value.attribute_value_ids.push(...response.data.map(v => v.id));
+        form.value.newAttributeValues = '';
+        toast.success('Attribute values added successfully!');
+      } catch (error) {
+        toast.error('Failed to add attribute values.');
+      } finally {
+        formLoading.value = false;
+      }
+    };
 
     const handleSearch = () => {
       // Filtering handled by computed property
     };
 
     const generateSlug = () => {
-      if (!editMode.value && form.value.name) {
+      if (!editMode.value && form.value.name && modalType.value === 'product') {
         form.value.slug = form.value.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
@@ -324,92 +629,82 @@ export default {
       }
     };
 
-    const openAddModal = () => {
+    const openAddModal = (type) => {
       editMode.value = false;
-      form.value = {
-        id: null,
-        name: '',
-        slug: '',
-        description: '',
-        price: '',
-        below_moq_price: '',
-        moq: '',
-        moq_per_person: '',
-        moq_status: 'active',
-        category_id: '',
-        supplier_id: '',
-        attribute_ids: [],
-        images: [],
-        meta_title: '',
-        meta_description: '',
-      };
+      modalType.value = type;
+      if (type === 'product') {
+        form.value = {
+          id: null,
+          name: '',
+          slug: '',
+          description: '',
+          price: '',
+          below_moq_price: '',
+          moq: '',
+          moq_per_person: '',
+          moq_status: 'active',
+          category_id: '',
+          supplier_id: '',
+          attribute_value_ids: [],
+          selectedAttributeId: '',
+          newAttributeValues: '',
+          images: [],
+          meta_title: '',
+          meta_description: '',
+        };
+      } else if (type === 'supplier') {
+        form.value = { id: null, name: '', contact_email: '', phone: '', address: '' };
+      }
       showModal.value = true;
     };
 
-    const openEditModal = (product) => {
+    const openEditModal = (type, item) => {
       editMode.value = true;
-      form.value = {
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
-        description: product.description || '',
-        price: product.price,
-        below_moq_price: product.below_moq_price || '',
-        moq: product.moq || '',
-        moq_per_person: product.moq_per_person || '',
-        moq_status: product.moq_status || 'active',
-        category_id: product.category?.id || '',
-        supplier_id: product.supplier?.id || '',
-        attribute_ids: product.attributes?.map(attr => attr.id) || [],
-        images: product.images || [],
-        meta_title: product.meta_title || '',
-        meta_description: product.meta_description || '',
-      };
+      modalType.value = type;
+      if (type === 'product') {
+        form.value = {
+          id: item.id,
+          name: item.name,
+          slug: item.slug,
+          description: item.description || '',
+          price: item.price,
+          below_moq_price: item.below_moq_price || '',
+          moq: item.moq || '',
+          moq_per_person: item.moq_per_person || '',
+          moq_status: item.moq_status || 'active',
+          category_id: item.category?.id || '',
+          supplier_id: item.supplier?.id || '',
+          attribute_value_ids: item.attributes?.flatMap(attr => attr.values.map(val => val.id)) || [],
+          selectedAttributeId: item.attributes?.length ? item.attributes[0]?.id : '',
+          newAttributeValues: '',
+          images: item.images || [],
+          meta_title: item.meta_title || '',
+          meta_description: item.meta_description || '',
+        };
+        if (form.value.selectedAttributeId) {
+          fetchAttributeValuesForProduct();
+        }
+      } else if (type === 'supplier') {
+        form.value = {
+          id: item.id,
+          name: item.name,
+          contact_email: item.contact_email || '',
+          phone: item.phone || '',
+          address: item.address || '',
+        };
+      }
       showModal.value = true;
     };
 
     const closeModal = () => {
       showModal.value = false;
-      form.value.images.forEach(image => {
-        if (image.preview) URL.revokeObjectURL(image.preview);
-      });
-      form.value = {
-        id: null,
-        name: '',
-        slug: '',
-        description: '',
-        price: '',
-        below_moq_price: '',
-        moq: '',
-        moq_per_person: '',
-        moq_status: 'active',
-        category_id: '',
-        supplier_id: '',
-        attribute_ids: [],
-        images: [],
-        meta_title: '',
-        meta_description: '',
-      };
-    };
-
-    const openAddSupplierModal = () => {
-      supplierForm.value = { name: '', contact_email: '', phone: '', address: '' };
-      showSupplierModal.value = true;
-    };
-
-    const closeSupplierModal = () => {
-      showSupplierModal.value = false;
-      supplierForm.value = { name: '', contact_email: '', phone: '', address: '' };
-    };
-
-    const openAddAttributeModal = () => {
-      attributeForm.value = { attribute_name: '', value: '' };
-      showAttributeModal.value = true;
-    };
-
-    const closeAttributeModal = () => {
-      showAttributeModal.value = false;
-      attributeForm.value = { attribute_name: '', value: '' };
+      if (modalType.value === 'product') {
+        form.value.images.forEach(image => {
+          if (image.preview) URL.revokeObjectURL(image.preview);
+        });
+      }
+      form.value = {};
+      modalType.value = '';
     };
 
     const handleFileUpload = (event) => {
@@ -418,7 +713,6 @@ export default {
         const preview = URL.createObjectURL(file);
         form.value.images.push({ file, preview });
       });
-      console.log('Selected images:', form.value.images.map(img => img.file?.name || img.image));
     };
 
     const removeImage = (index) => {
@@ -427,108 +721,116 @@ export default {
       form.value.images.splice(index, 1);
     };
 
-    const saveProduct = async () => {
+    const handleFileImport = (event) => {
+      importFile.value = event.target.files[0];
+    };
+
+    const uploadProducts = async () => {
+      if (!importFile.value) return;
+      try {
+        importLoading.value = true;
+        const formData = new FormData();
+        formData.append('file', importFile.value);
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.post('/admin/bulk-import/', formData);
+        toast.success(`Imported ${response.data.created} products successfully!`);
+        if (response.data.errors.length) {
+          toast.warning(`Some rows failed: ${JSON.stringify(response.data.errors)}`);
+        }
+        await fetchData();
+        importFile.value = null;
+      } catch (err) {
+        error.value = err.response?.data?.error || 'Failed to import products.';
+        toast.error(error.value);
+      } finally {
+        importLoading.value = false;
+      }
+    };
+
+    const saveItem = async (type) => {
       try {
         formLoading.value = true;
         error.value = null;
         const apiInstance = api.createApiInstance(store);
-        const formData = new FormData();
-        
-        // Append scalar fields
-        for (const key in form.value) {
-          if (key !== 'images' && key !== 'attribute_ids' && form.value[key] != null) {
-            formData.append(key, form.value[key]);
-          }
-        }
-        
-        // Append attribute_ids
-        form.value.attribute_ids.forEach((id, index) => {
-          formData.append(`attribute_ids[${index}]`, id);
-        });
-        
-        // Append images under 'images'
-        form.value.images.forEach(image => {
-          if (image.file) {
-            formData.append('images', image.file);
-          }
-        });
-
-        // Log FormData entries
-        console.log('FormData entries:');
-        for (let [key, value] of formData.entries()) {
-          console.log(`${key}:`, value instanceof File ? value.name : value);
-        }
-
         let response;
-        if (editMode.value) {
-          response = await api.updateProduct(apiInstance, form.value.id, formData);
-          toast.success('Product updated successfully');
-        } else {
-          response = await api.createProduct(apiInstance, formData);
-          toast.success('Product added successfully');
+
+        if (type === 'product') {
+          const formData = new FormData();
+          for (const key in form.value) {
+            if (key !== 'images' && key !== 'attribute_value_ids' && key !== 'selectedAttributeId' && key !== 'newAttributeValues' && form.value[key] != null) {
+              formData.append(key, form.value[key]);
+            }
+          }
+          if (form.value.attribute_value_ids) {
+            form.value.attribute_value_ids.forEach(id => {
+              if (Number.isInteger(Number(id))) {
+                formData.append('attribute_value_ids', id);
+              }
+            });
+          }
+          form.value.images.forEach(image => {
+            if (image.file) {
+              formData.append('images', image.file);
+            }
+          });
+          if (editMode.value) {
+            response = await api.updateProduct(apiInstance, form.value.id, formData);
+            toast.success('Product updated successfully');
+          } else {
+            response = await api.createProduct(apiInstance, formData);
+            toast.success('Product added successfully');
+          }
+        } else if (type === 'supplier') {
+          if (editMode.value) {
+            response = await apiInstance.put(`/admin/suppliers/${form.value.id}/`, form.value);
+            toast.success('Supplier updated successfully');
+          } else {
+            response = await apiInstance.post('/admin/suppliers/', form.value);
+            toast.success('Supplier added successfully');
+          }
+          suppliers.value = (await apiInstance.get('/admin/suppliers/')).data;
+        } else if (type === 'attribute_value') {
+          const payload = {
+            attribute_id: selectedAttributeType.value.id,
+            value: form.value.value,
+          };
+          if (editMode.value) {
+            response = await apiInstance.put(`/admin/attribute-values/${form.value.id}/`, payload);
+            toast.success('Attribute value updated successfully');
+          } else {
+            response = await apiInstance.post('/admin/attribute-values/', payload);
+            toast.success('Attribute value added successfully');
+          }
+          await fetchAttributeValues(selectedAttributeType.value.id);
         }
-        console.log('API response:', response);
         await fetchData();
         closeModal();
       } catch (err) {
-        error.value = err.response?.data?.error || 'Failed to save product. Please try again.';
-        console.error('Failed to save product:', err.response?.data || err.message);
-        toast.error(error.value);
+        error.value = err.response?.data || `Failed to save ${type}. Please try again.`;
+        console.error(`Failed to save ${type}:`, JSON.stringify(err.response?.data, null, 2));
+        toast.error(JSON.stringify(error.value, null, 2));
       } finally {
         formLoading.value = false;
       }
     };
 
-    const saveSupplier = async () => {
-      try {
-        formLoading.value = true;
-        error.value = null;
-        const apiInstance = api.createApiInstance(store);
-        const response = await api.createSupplier(apiInstance, supplierForm.value);
-        suppliers.value.push(response);
-        form.value.supplier_id = response.id;
-        toast.success('Supplier added successfully');
-        closeSupplierModal();
-      } catch (err) {
-        error.value = err.response?.data?.error || 'Failed to save supplier. Please try again.';
-        console.error('Failed to save supplier:', err);
-        toast.error(error.value);
-      } finally {
-        formLoading.value = false;
-      }
-    };
-
-    const saveAttribute = async () => {
-      try {
-        formLoading.value = true;
-        error.value = null;
-        const apiInstance = api.createApiInstance(store);
-        const response = await api.createAttribute(apiInstance, attributeForm.value);
-        attributes.value.push(response);
-        form.value.attribute_ids.push(response.id);
-        toast.success('Attribute added successfully');
-        closeAttributeModal();
-      } catch (err) {
-        error.value = err.response?.data?.error || 'Failed to save attribute. Please try again.';
-        console.error('Failed to save attribute:', err);
-        toast.error(error.value);
-      } finally {
-        formLoading.value = false;
-      }
-    };
-
-    const deleteProduct = async (id) => {
-      if (confirm('Are you sure you want to delete this product?')) {
+    const deleteItem = async (type, id) => {
+      if (confirm(`Are you sure you want to delete this ${type}?`)) {
         try {
           formLoading.value = true;
           error.value = null;
           const apiInstance = api.createApiInstance(store);
-          await api.deleteProduct(apiInstance, id);
-          toast.success('Product deleted successfully');
+          if (type === 'product') {
+            await api.deleteProduct(apiInstance, id);
+            toast.success('Product deleted successfully');
+          } else if (type === 'supplier') {
+            await apiInstance.delete(`/admin/suppliers/${id}/`);
+            toast.success('Supplier deleted successfully');
+          }
           await fetchData();
         } catch (err) {
-          error.value = err.response?.data?.error || 'Failed to delete product. Please try again.';
-          console.error('Failed to delete product:', err);
+          error.value = err.response?.data?.error || `Failed to delete ${type}. Please try again.`;
+          console.error(`Failed to delete ${type}:`, err);
           toast.error(error.value);
         } finally {
           formLoading.value = false;
@@ -541,38 +843,48 @@ export default {
     });
 
     return {
+      activeTab,
+      tabs,
       products,
       categories,
       suppliers,
-      attributes,
+      attributeTypes,
+      selectedAttributeType,
+      attributeValues,
       searchQuery,
       filteredProducts,
       showModal,
-      showSupplierModal,
-      showAttributeModal,
+      modalType,
       editMode,
       form,
-      supplierForm,
-      attributeForm,
+      importFile,
+      importLoading,
       loading,
       formLoading,
       error,
+      newAttributeName,
+      newAttributeValues,
       fetchData,
+      fetchAttributeValues,
+      fetchAttributeValuesForProduct,
+      createAttributeType,
+      deleteAttributeType,
+      selectAttributeType,
+      createAttributeValues,
+      openEditAttributeValueModal,
+      deleteAttributeValue,
+      addNewAttributeValues,
       handleSearch,
       generateSlug,
       openAddModal,
       openEditModal,
       closeModal,
-      openAddSupplierModal,
-      closeSupplierModal,
-      openAddAttributeModal,
-      closeAttributeModal,
       handleFileUpload,
       removeImage,
-      saveProduct,
-      saveSupplier,
-      saveAttribute,
-      deleteProduct,
+      handleFileImport,
+      uploadProducts,
+      saveItem,
+      deleteItem,
       formatPrice: (price) => {
         if (price == null) return 'N/A';
         const num = Number(price);
@@ -583,22 +895,17 @@ export default {
 };
 </script>
 
-
 <style scoped>
-/* Existing styles */
-.products {
-  padding: 0;
-  background-color: transparent;
-  border-radius: 0;
-  box-shadow: none;
+.admin-panel {
+  padding: 20px;
+  background-color: #f4f6f9;
+  min-height: 100vh;
 }
 
 h2 {
   font-size: 1.75rem;
   color: #4f46e5;
   margin-bottom: 24px;
-  border-bottom: none;
-  padding-bottom: 0;
   font-weight: 700;
 }
 
@@ -608,7 +915,40 @@ h3 {
   margin-bottom: 15px;
 }
 
-/* Search Bar Styling */
+h4 {
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.tabs button {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.tabs button.active {
+  color: #6f42c1;
+  border-bottom: 2px solid #6f42c1;
+}
+
+.tabs button:hover {
+  color: #5a32a3;
+}
+
+/* Search Bar */
 .search-bar {
   margin-bottom: 20px;
 }
@@ -628,6 +968,44 @@ h3 {
   box-shadow: 0 0 5px rgba(111, 66, 193, 0.2);
 }
 
+/* Import Section */
+.import-section {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.import-section label {
+  font-weight: 500;
+  color: #333;
+}
+
+.import-section input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.import-section button {
+  padding: 8px 16px;
+  background-color: #6f42c1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.import-section button:hover:not(:disabled) {
+  background-color: #5a32a3;
+}
+
+.import-section button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Add Button */
 .add-button {
   padding: 8px 16px;
   background-color: #6f42c1;
@@ -648,8 +1026,8 @@ h3 {
   cursor: not-allowed;
 }
 
-/* Products List Styling */
-.products-list {
+/* Tables */
+.products-list, .attribute-types-list, .attribute-values-list, .suppliers-content {
   width: 100%;
   overflow-x: auto;
 }
@@ -677,26 +1055,8 @@ tbody td {
   color: #495057;
 }
 
-.product-row:hover {
+.product-row:hover, .attribute-row:hover, .supplier-row:hover {
   background-color: #f8f9fa;
-}
-
-.product-name {
-  font-weight: 500;
-  color: #212529;
-}
-
-.product-price {
-  font-weight: 600;
-  color: #6f42c1;
-}
-
-.below-moq-price {
-  color: #6c757d;
-}
-
-.moq-info {
-  color: #6c757d;
 }
 
 /* MOQ Progress Bar */
@@ -715,7 +1075,6 @@ tbody td {
 
 .moq-progress-bar {
   height: 100%;
-  padding: 2px;
   background: linear-gradient(45deg, #28a745, #5fd778);
   transition: width 0.5s ease;
 }
@@ -736,11 +1095,11 @@ tbody td {
 }
 
 /* Action Buttons */
-.product-actions {
+.product-actions, .attribute-actions, .supplier-actions {
   white-space: nowrap;
 }
 
-.product-actions button {
+.product-actions button, .attribute-actions button, .supplier-actions button {
   padding: 6px 12px;
   border-radius: 4px;
   border: none;
@@ -767,7 +1126,7 @@ tbody td {
   background-color: #c0392b;
 }
 
-.product-actions button:disabled {
+.product-actions button:disabled, .attribute-actions button:disabled, .supplier-actions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -900,6 +1259,40 @@ tbody td {
   cursor: pointer;
 }
 
+/* Attribute Types and Values */
+.attribute-types, .attribute-values {
+  margin-bottom: 20px;
+}
+
+.attribute-types-list table, .attribute-values-list table {
+  width: 100%;
+}
+
+.attribute-types-list th, .attribute-values-list th {
+  background-color: #f8f9fa;
+  padding: 10px;
+}
+
+.attribute-types-list td, .attribute-values-list td {
+  padding: 10px;
+}
+
+.new-values {
+  margin-top: 10px;
+}
+
+.new-values input {
+  width: calc(100% - 100px);
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.new-values button {
+  width: 90px;
+  display: inline-block;
+  vertical-align: top;
+}
+
 /* Loading and Error States */
 .loading {
   display: flex;
@@ -921,12 +1314,8 @@ tbody td {
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .error-message {
@@ -958,12 +1347,17 @@ tbody td {
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+  .admin-panel {
+    padding: 15px;
+  }
+
   h2 {
     font-size: 1.5rem;
   }
 
-  .products {
-    padding: 15px;
+  .tabs button {
+    padding: 8px 12px;
+    font-size: 0.9rem;
   }
 
   thead th {
@@ -976,7 +1370,7 @@ tbody td {
     font-size: 0.8rem;
   }
 
-  .product-actions button {
+  .product-actions button, .attribute-actions button, .supplier-actions button {
     padding: 4px 8px;
     font-size: 0.75rem;
   }
@@ -987,10 +1381,6 @@ tbody td {
 }
 
 @media (max-width: 480px) {
-  .products-list {
-    font-size: 0.8rem;
-  }
-
   .modal-content {
     max-width: 300px;
     padding: 10px;
@@ -1000,6 +1390,15 @@ tbody td {
   .form-group select,
   .form-group textarea {
     font-size: 0.9rem;
+  }
+
+  .new-values input {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .new-values button {
+    width: 100%;
   }
 }
 </style>

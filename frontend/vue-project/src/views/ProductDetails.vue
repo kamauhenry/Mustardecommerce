@@ -42,16 +42,16 @@
         <div class="social-sharing">
           <span>Share:</span>
           <a :href="xShareUrl" target="_blank" class="social-icon x" title="Share on X">
-            <i class="fab fa-x"></i>
+            <font-awesome-icon icon="share" />
           </a>
           <a :href="instagramShareUrl" target="_blank" class="social-icon instagram" title="Share on Instagram">
-            <i class="fab fa-instagram"></i>
+            <font-awesome-icon :icon="['fab', 'instagram']" />
           </a>
           <a :href="whatsappShareUrl" target="_blank" class="social-icon whatsapp" title="Share on WhatsApp">
-            <i class="fab fa-whatsapp"></i>
+            <font-awesome-icon :icon="['fab', 'whatsapp']" />
           </a>
           <button @click="copyToClipboard" class="social-icon clipboard" title="Copy to Clipboard">
-            <i class="fas fa-copy"></i>
+            <font-awesome-icon icon="copy" />
           </button>
         </div>
 
@@ -81,16 +81,10 @@
                 <ul v-if="product.attributes?.length">
                   <li v-for="attr in product.attributes" :key="attr.id">
                     <strong>{{ attr.name }}:</strong>
-                    <span>{{ attributeOptions[attr.name]?.join(', ') || 'N/A' }}</span>
+                    <span>{{ attr.values.map(v => v.value).join(', ') }}</span>
                   </li>
                 </ul>
                 <p v-else>No attributes available.</p>
-                <h3>Details</h3>
-                <ul>
-                  <li><strong>Material:</strong> {{ product.material || 'N/A' }}</li>
-                  <li><strong>Fit:</strong> {{ product.fit || 'N/A' }}</li>
-                  <li><strong>Product Code:</strong> {{ product.code || 'N/A' }}</li>
-                </ul>
               </div>
 
               <!-- Gallery Tab -->
@@ -109,7 +103,7 @@
                       @click="scrollThumbnails('left')"
                       :disabled="thumbnailOffset === 0"
                     >
-                      <span class="fas fa-chevron-left"></span>
+                      <font-awesome-icon icon="chevron-left" />
                     </button>
                     <div class="thumbnail-container" ref="thumbnailContainer">
                       <img
@@ -127,7 +121,7 @@
                       @click="scrollThumbnails('right')"
                       :disabled="thumbnailOffset >= maxThumbnailOffset"
                     >
-                      <span class="fas fa-chevron-right"></span>
+                      <font-awesome-icon icon="chevron-right" />
                     </button>
                   </div>
                 </div>
@@ -140,11 +134,12 @@
                     <div class="review-content">
                       <p>{{ review.content }}</p>
                       <div class="review-rating">
-                        <span
+                        <font-awesome-icon
                           v-for="star in 5"
                           :key="star"
-                          :class="star <= review.rating ? 'fas fa-star' : 'far fa-star'"
-                        ></span>
+                          :icon="star <= review.rating ? 'star' : ['far', 'star']"
+                          :style="{ color: star <= review.rating ? '#f5c518' : '#ccc' }"
+                        />
                       </div>
                       <p class="review-meta">
                         By {{ review.username }} on
@@ -177,15 +172,15 @@
                     <div class="rating-input">
                       <label for="reviewRating">Your Rating:</label>
                       <div class="star-rating">
-                        <span
+                        <font-awesome-icon
                           v-for="star in 5"
                           :key="star"
-                          :class="star <= (hoveredRating || reviewRating) ? 'fas fa-star' : 'far fa-star'"
+                          :icon="star <= (hoveredRating || reviewRating) ? 'star' : ['far', 'star']"
                           @click="reviewRating = star"
                           @mouseover="hoveredRating = star"
                           @mouseleave="hoveredRating = null"
                           :style="{ color: star <= (hoveredRating || reviewRating) ? '#f5c518' : '#ccc' }"
-                        ></span>
+                        />
                       </div>
                     </div>
                     <div class="form-actions">
@@ -214,6 +209,7 @@
 
               <!-- Order Tab -->
               <div v-if="activeTab === 'Order'" class="order-tab">
+              
                 <div class="order-details">
                   <div class="attributes">
                     <label>Order Attributes</label>
@@ -232,11 +228,11 @@
                         >
                           <option disabled value="">Select {{ attr.name }}</option>
                           <option
-                            v-for="value in attributeOptions[attr.name] || []"
-                            :key="value"
-                            :value="value"
+                            v-for="value in attr.values"
+                            :key="value.id"
+                            :value="value.value"
                           >
-                            {{ value }}
+                            {{ value.value }}
                           </option>
                         </select>
                       </div>
@@ -245,12 +241,11 @@
                         <input
                           type="number"
                           v-model.number="quantity"
-                          min="1"
+                          :min="product.moq_per_person || 1"
                           required
                         />
                       </div>
                     </div>
-                    <!-- Display Selected Attributes -->
                     <div v-if="Object.keys(selectedAttributes).length" class="selected-attributes">
                       <h4>Selected Attributes:</h4>
                       <ul>
@@ -330,12 +325,12 @@
 
               <!-- Rating -->
               <div class="rating">
-                <span
+                <font-awesome-icon
                   v-for="star in 5"
                   :key="star"
-                  :class="star <= Math.round(product.rating || 0) ? 'fas fa-star' : 'far fa-star'"
+                  :icon="star <= Math.round(product.rating || 0) ? 'star' : ['far', 'star']"
                   style="color: #f5c518;"
-                ></span>
+                />
                 <span>({{ product.rating || 0 }})</span>
               </div>
             </div>
@@ -358,7 +353,7 @@
             v-else-if="Array.isArray(relatedProducts) && relatedProducts.length"
             class="related-products-container"
           >
-            <div class="related-products-grid">
+            <div class="related-products-grid" ref="relatedContainer">
               <router-link
                 v-for="relatedProduct in relatedProducts"
                 :key="relatedProduct.id"
@@ -389,7 +384,7 @@
               :disabled="relatedScrollOffset <= 0"
               aria-label="Scroll left"
             >
-              <i class="fas fa-chevron-left"></i>
+              <font-awesome-icon icon="chevron-left" />
             </button>
             <button
               class="scroll-btn next"
@@ -397,7 +392,7 @@
               :disabled="relatedScrollOffset >= maxRelatedScrollOffset"
               aria-label="Scroll right"
             >
-              <i class="fas fa-chevron-right"></i>
+              <font-awesome-icon icon="chevron-right" />
             </button>
           </div>
           <div v-else class="no-related">No related products available.</div>
@@ -411,7 +406,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useHead } from '@vueuse/head';
 import {
   createApiInstance,
@@ -445,9 +440,10 @@ export default {
 
     // Related Products Scroll
     const relatedScrollOffset = ref(0);
-    const relatedCardWidth = 220; // Width of each card + margin
+    const relatedCardWidth = ref(220);
+    const relatedContainer = ref(null);
     const maxRelatedScrollOffset = computed(() =>
-      Math.max(0, ((relatedProducts.value.length || 0) - 3) * relatedCardWidth)
+      Math.max(0, ((relatedProducts.value.length || 0) - 3) * relatedCardWidth.value)
     );
 
     // Form state
@@ -455,7 +451,8 @@ export default {
     const selectedAttributes = ref({});
     const shippingMethod = ref('ship');
     const promoCode = ref('');
-    const placeholderImage = 'data:image/jpeg;base64,...'; // Your placeholder image
+    const placeholderImage = '/path/to/placeholder.jpg'; // Replace with actual image path
+
     // Tab state
     const activeTab = ref('Description');
     const tabs = ['Description', 'Gallery', 'Review', 'Order'];
@@ -464,9 +461,10 @@ export default {
     const currentImage = ref(null);
     const thumbnailOffset = ref(0);
     const thumbnailsPerPage = 4;
-    const thumbnailWidth = 70;
+    const thumbnailWidth = ref(70);
+    const thumbnailContainer = ref(null);
     const maxThumbnailOffset = computed(() =>
-      Math.max(0, ((product.value?.images?.length || 0) - thumbnailsPerPage) * thumbnailWidth)
+      Math.max(0, ((product.value?.images?.length || 0) - thumbnailsPerPage) * thumbnailWidth.value)
     );
 
     // Review state
@@ -542,7 +540,6 @@ export default {
         : undefined,
     }));
 
-    // Use @vueuse/head to manage meta tags and JSON-LD
     useHead({
       title: metaTitle,
       meta: [
@@ -567,7 +564,6 @@ export default {
       ],
     });
 
-    // Social sharing URLs
     const xShareUrl = computed(() =>
       `https://x.com/intent/tweet?text=${encodeURIComponent(shareText.value)}`
     );
@@ -578,7 +574,6 @@ export default {
       `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText.value)}`
     );
 
-    // Copy to clipboard
     const copyToClipboard = async () => {
       try {
         await navigator.clipboard.writeText(productUrl.value);
@@ -588,34 +583,19 @@ export default {
       }
     };
 
-    // Attribute options
     const attributeOptions = computed(() => {
-      if (!product.value?.attributes || !Array.isArray(product.value.attributes)) {
-        console.warn('No attributes available for product:', product.value);
-        return {};
-      }
       const options = {};
-      product.value.attributes.forEach(attr => {
-        const values = new Set();
-        if (product.value.variants && Array.isArray(product.value.variants)) {
-          product.value.variants.forEach(variant => {
-            const attrValue = variant.attribute_values?.find(
-              av => av.attribute_name === attr.name
-            );
-            if (attrValue) values.add(attrValue.value);
-          });
-        }
-        options[attr.name] = Array.from(values);
-        // Initialize selectedAttributes if not set
-        if (options[attr.name].length && !selectedAttributes.value[attr.name]) {
-          selectedAttributes.value[attr.name] = options[attr.name][0];
-        }
-      });
-      console.log('Computed attributeOptions:', options);
+      if (product.value?.attributes) {
+        product.value.attributes.forEach(attr => {
+          options[attr.name] = attr.values.map(val => val.value);
+          if (options[attr.name].length && !selectedAttributes.value[attr.name]) {
+            selectedAttributes.value[attr.name] = options[attr.name][0];
+          }
+        });
+      }
       return options;
     });
 
-    // Effective price
     const effectivePrice = computed(() => {
       if (!product.value) return '0';
       const qty = Number(quantity.value) || 1;
@@ -629,14 +609,11 @@ export default {
       return price.toFixed(2);
     });
 
-    // Selected variant
     const selectedVariant = computed(() => {
       if (!product.value?.variants || !Array.isArray(product.value.variants)) {
-        console.warn('No variants available for product:', product.value);
         return null;
       }
       if (!product.value?.attributes || !Array.isArray(product.value.attributes)) {
-        console.warn('No attributes available for variants:', product.value);
         return null;
       }
       const variant = product.value.variants.find(variant => {
@@ -648,46 +625,48 @@ export default {
           return selectedValue === variantValue;
         });
       });
-      console.log('Selected variant:', variant);
       return variant;
     });
 
-    // Methods
-    const scrollThumbnails = direction => {
+    const scrollThumbnails = async (direction) => {
       if (direction === 'left' && thumbnailOffset.value > 0) {
-        thumbnailOffset.value -= thumbnailWidth;
+        thumbnailOffset.value -= thumbnailWidth.value;
       } else if (
         direction === 'right' &&
         thumbnailOffset.value < maxThumbnailOffset.value
       ) {
-        thumbnailOffset.value += thumbnailWidth;
+        thumbnailOffset.value += thumbnailWidth.value;
       }
-      const container = document.querySelector('.thumbnail-container');
-      if (container) {
-        container.style.transform = `translateX(-${thumbnailOffset.value}px)`;
+      await nextTick();
+      if (thumbnailContainer.value) {
+        thumbnailContainer.value.style.transform = `translateX(-${thumbnailOffset.value}px)`;
       }
     };
 
-    const scrollRelatedProducts = direction => {
+    const scrollRelatedProducts = async (direction) => {
       if (direction === 'left' && relatedScrollOffset.value > 0) {
-        relatedScrollOffset.value -= relatedCardWidth;
+        relatedScrollOffset.value -= relatedCardWidth.value;
       } else if (
         direction === 'right' &&
         relatedScrollOffset.value < maxRelatedScrollOffset.value
       ) {
-        relatedScrollOffset.value += relatedCardWidth;
+        relatedScrollOffset.value += relatedCardWidth.value;
       }
-      const container = document.querySelector('.related-products-grid');
-      if (container) {
-        container.style.transform = `translateX(-${relatedScrollOffset.value}px)`;
+      await nextTick();
+      if (relatedContainer.value) {
+        relatedContainer.value.style.transform = `translateX(-${relatedScrollOffset.value}px)`;
       }
     };
-
+    const isVariantValid = computed(() => {
+      if (!product.value?.attributes || !product.value.attributes.length) {
+        return true;
+      }
+      return product.value.attributes.every(attr => selectedAttributes.value[attr.name]);
+    });
     const updateVariant = () => {
       if (selectedVariant.value && product.value?.images?.length) {
         currentImage.value = product.value.images[0].image || placeholderImage;
       }
-      console.log('Updated selectedAttributes:', selectedAttributes.value);
     };
 
     const handleAddToCart = async () => {
@@ -710,7 +689,6 @@ export default {
         );
         toast.success('Product added to cart successfully!', { autoClose: 3000 });
       } catch (error) {
-        console.error('Add to cart error:', error);
         toast.error('Failed to add to cart.', { autoClose: 3000 });
       } finally {
         isAddingToCart.value = false;
@@ -723,7 +701,6 @@ export default {
         const response = await fetchProductReviews(api, product.value.id);
         reviews.value = response.reviews || [];
       } catch (error) {
-        console.error('Error fetching reviews:', error);
         reviews.value = [];
         toast.error('Failed to load reviews.', { autoClose: 3000 });
       }
@@ -775,14 +752,11 @@ export default {
                 : 'An error occurred while submitting the review.';
           }
         }
-        console.error('Error submitting review:', error.response?.data || error.message);
         toast.error(errorMessage, { autoClose: 3000 });
       } finally {
         isSubmittingReview.value = false;
       }
     };
-
-
 
     const fetchProductAndRelated = async () => {
       isLoadingProduct.value = true;
@@ -790,7 +764,6 @@ export default {
       try {
         await store.fetchProductDetails(props.categorySlug, props.productSlug);
         const currentProduct = store.productDetails[key];
-        console.log('Product details from API:', currentProduct);
         if (currentProduct && currentProduct.id) {
           currentImage.value = currentProduct.images?.[0]?.image || placeholderImage;
           isLoadingRelated.value = true;
@@ -816,7 +789,6 @@ export default {
           relatedProducts.value = [];
         }
       } catch (error) {
-        console.error('Failed to fetch product details:', error);
         toast.error('Failed to load product details.', { autoClose: 3000 });
       } finally {
         isLoadingProduct.value = false;
@@ -824,6 +796,20 @@ export default {
     };
 
     onMounted(() => {
+      nextTick(() => {
+        if (thumbnailContainer.value) {
+          const firstThumbnail = thumbnailContainer.value.querySelector('.thumbnail');
+          if (firstThumbnail) {
+            thumbnailWidth.value = firstThumbnail.offsetWidth + 10;
+          }
+        }
+        if (relatedContainer.value) {
+          const firstCard = relatedContainer.value.querySelector('.related-product');
+          if (firstCard) {
+            relatedCardWidth.value = firstCard.offsetWidth + 24;
+          }
+        }
+      });
       fetchProductAndRelated();
     });
 
@@ -842,7 +828,6 @@ export default {
         if (newProduct?.images?.length) {
           currentImage.value = newProduct.images[0].image || placeholderImage;
         }
-        // Reset and initialize selectedAttributes
         selectedAttributes.value = {};
         if (newProduct?.attributes) {
           newProduct.attributes.forEach(attr => {
@@ -853,6 +838,30 @@ export default {
         }
       },
       { immediate: true }
+    );
+
+    watch(
+      () => product.value?.images?.length,
+      () => {
+        thumbnailOffset.value = 0;
+        nextTick(() => {
+          if (thumbnailContainer.value) {
+            thumbnailContainer.value.style.transform = `translateX(0px)`;
+          }
+        });
+      }
+    );
+
+    watch(
+      () => relatedProducts.value.length,
+      () => {
+        relatedScrollOffset.value = 0;
+        nextTick(() => {
+          if (relatedContainer.value) {
+            relatedContainer.value.style.transform = `translateX(0px)`;
+          }
+        });
+      }
     );
 
     return {
@@ -899,14 +908,15 @@ export default {
       relatedScrollOffset,
       maxRelatedScrollOffset,
       scrollRelatedProducts,
+      thumbnailContainer,
+      relatedContainer,
+      isVariantValid,
     };
   },
 };
 </script>
 
 <style scoped>
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
-
 /* Skeleton for Product Details */
 .skeleton-product-details {
   padding: 20px;
@@ -1080,12 +1090,12 @@ export default {
   transition: background-color 0.3s ease;
 }
 
-.social-icon i {
+.social-icon svg {
   font-size: 1.2rem;
 }
 
 .social-icon.x {
-  background-color: #000000; /* X brand color */
+  background-color: #000000;
 }
 
 .social-icon.instagram {
@@ -1096,15 +1106,15 @@ export default {
     #fd5949 45%,
     #d6249f 60%,
     #285aeb 90%
-  ); /* Instagram gradient */
+  );
 }
 
 .social-icon.whatsapp {
-  background-color: #25d366; /* WhatsApp green */
+  background-color: #25d366;
 }
 
 .social-icon.clipboard {
-  background-color: #ff7b00; /* Blue for copy button */
+  background-color: #ff7b00;
   border: none;
   cursor: pointer;
 }
@@ -1194,7 +1204,7 @@ export default {
 
 .main-image-container {
   width: 100%;
-  padding-top: 75%; /* 4:3 aspect ratio */
+  padding-top: 75%;
   position: relative;
   background-color: #f0f0f0;
 }
@@ -1214,6 +1224,8 @@ export default {
   justify-content: center;
   margin-top: 10px;
   position: relative;
+  width: 100%;
+  overflow: hidden;
 }
 
 .thumbnail-container {
@@ -1223,6 +1235,8 @@ export default {
   overflow: hidden;
   flex: 1;
   justify-content: center;
+  width: calc(70px * 4 + 10px * 3);
+  max-width: 100%;
 }
 
 .thumbnail {
@@ -1241,28 +1255,43 @@ export default {
 }
 
 .thumbnail-nav {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   color: #fff;
   border: none;
-  padding: 10px;
+  padding: 8px;
   cursor: pointer;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s ease;
 }
 
-.thumbnail-nav.prev {
-  left: 0;
-}
-
-.thumbnail-nav.next {
-  right: 0;
+.thumbnail-nav:hover {
+  background: rgba(0, 0, 0, 0.9);
 }
 
 .thumbnail-nav:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.thumbnail-nav.prev {
+  left: -16px;
+}
+
+.thumbnail-nav.next {
+  right: -16px;
+}
+
+.thumbnail-nav svg {
+  font-size: 1rem;
 }
 
 /* Reviews Tab */
@@ -1300,13 +1329,7 @@ export default {
   gap: 5px;
 }
 
-.review-rating .fas.fa-star {
-  color: #f5c518; /* Gold for filled stars */
-  font-size: 1rem;
-}
-
-.review-rating .far.fa-star {
-  color: #ccc; /* Grey for empty stars */
+.review-rating svg {
   font-size: 1rem;
 }
 
@@ -1360,11 +1383,11 @@ export default {
 }
 
 .button-primary {
-  background-color: #ff7b00; /* Blue for primary actions */
+  background-color: #ff7b00;
 }
 
 .button-secondary {
-  background-color: #6c757d; /* Grey for secondary actions */
+  background-color: #6c757d;
 }
 
 .review-form {
@@ -1407,15 +1430,9 @@ export default {
   gap: 8px;
 }
 
-.star-rating span {
+.star-rating svg {
   font-size: 1.2rem;
   cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.star-rating span:hover,
-.star-rating span.active {
-  color: #f5c518; /* Gold on hover or when selected */
 }
 
 .form-actions {
@@ -1580,8 +1597,7 @@ export default {
   gap: 5px;
 }
 
-.stars {
-  color: #f5c518;
+.rating svg {
   font-size: 1rem;
 }
 
@@ -1610,6 +1626,8 @@ export default {
 .related-products-container {
   position: relative;
   padding: 0 3rem;
+  overflow: hidden;
+  width: 100%;
 }
 
 .related-products-grid {
@@ -1620,6 +1638,8 @@ export default {
   transition: transform 0.4s ease-in-out;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  overflow: hidden;
+  width: calc(220px * 3 + 1.5rem * 2);
 }
 
 .related-products-grid::-webkit-scrollbar {
@@ -1754,7 +1774,7 @@ export default {
   right: 0.5rem;
 }
 
-.scroll-btn i {
+.scroll-btn svg {
   font-size: 1.4rem;
 }
 
@@ -1815,7 +1835,7 @@ export default {
 @media (max-width: 768px) {
   .product-content {
     flex-direction: column;
-    gap: 20px; /* Reduced vertical gap */
+    gap: 20px;
   }
 
   .product-left,
@@ -1844,7 +1864,7 @@ export default {
   }
 
   .thumbnail {
-    width: 50px; /* Reduced thumbnail size */
+    width: 50px;
     height: 50px;
   }
 
@@ -1865,7 +1885,7 @@ export default {
     height: 28px;
   }
 
-  .social-icon i {
+  .social-icon svg {
     font-size: 1rem;
   }
 
@@ -1881,7 +1901,7 @@ export default {
     min-height: 80px;
   }
 
-  .star-rating span {
+  .star-rating svg {
     font-size: 1rem;
   }
 
@@ -1943,7 +1963,7 @@ export default {
     height: 40px;
   }
 
-  .scroll-btn i {
+  .scroll-btn svg {
     font-size: 1.2rem;
   }
 
@@ -1987,7 +2007,7 @@ export default {
     height: 36px;
   }
 
-  .scroll-btn i {
+  .scroll-btn svg {
     font-size: 1rem;
   }
 

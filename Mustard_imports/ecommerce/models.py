@@ -189,7 +189,7 @@ class Product(models.Model):
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='active')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
-    attributes = models.ManyToManyField(Attribute, related_name='products', blank=True)
+    attribute_values = models.ManyToManyField(AttributeValue, related_name='products', blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')

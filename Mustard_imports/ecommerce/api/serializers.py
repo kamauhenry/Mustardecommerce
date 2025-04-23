@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model, authenticate
 import logging
 
 
-
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -79,18 +79,75 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = ['id', 'name', 'contact_email', 'phone', 'address']
 
-class AttributeValueSerializer(serializers.ModelSerializer):
-    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+    def validate(self, data):
+        # Ensure unique name
+        name = data.get('name')
+        instance = self.instance
+        if name and Supplier.objects.filter(name=name).exclude(id=instance.id if instance else None).exists():
+            raise serializers.ValidationError({"name": "A supplier with this name already exists."})
+        
+        # Validate email if provided
+        contact_email = data.get('contact_email')
+        if contact_email and not contact_email.strip():
+            raise serializers.ValidationError({"contact_email": "Email cannot be empty if provided."})
+        
+        return data
 
-    class Meta:
-        model = AttributeValue
-        fields = ['id', 'attribute_name', 'value']
+
 
 
 class AttributeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attribute
         fields = ['id', 'name']
+        read_only_fields = ['id']
+
+    def validate_name(self, value):
+        # Normalize: trim whitespace and capitalize
+        normalized = value.strip().capitalize()
+        if not normalized:
+            raise serializers.ValidationError("Attribute name cannot be empty.")
+        return normalized
+
+class AttributeValueSerializer(serializers.ModelSerializer):
+    attribute_id = serializers.PrimaryKeyRelatedField(
+        queryset=Attribute.objects.all(), source='attribute', write_only=True
+    )
+    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
+    value = serializers.CharField(required=True)
+
+    class Meta:
+        model = AttributeValue
+        fields = ['id', 'attribute_id', 'attribute_name', 'value']
+        read_only_fields = ['id', 'attribute_name']
+
+    def validate(self, data):
+        attribute = data.get('attribute')
+        value = data.get('value').strip()
+        instance = self.instance
+
+        if not value:
+            raise serializers.ValidationError({"value": "Value cannot be empty."})
+
+        # Check for duplicate attribute value
+        if AttributeValue.objects.filter(
+            attribute=attribute,
+            value=value
+        ).exclude(id=instance.id if instance else None).exists():
+            raise serializers.ValidationError(
+                {"value": f"Value '{value}' for attribute '{attribute.name}' already exists."}
+            )
+        return {**data, 'value': value}
+
+    def create(self, validated_data):
+        return AttributeValue.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.attribute = validated_data.get('attribute', instance.attribute)
+        instance.value = validated_data.get('value', instance.value)
+        instance.save()
+        return instance
+
         
 class VariantAttributeValueSerializer(serializers.ModelSerializer):
     attribute_name = serializers.CharField(source='attribute.name', read_only=True)
@@ -164,9 +221,11 @@ class ProductSerializer(serializers.ModelSerializer):
         queryset=Supplier.objects.all(), source='supplier', write_only=True, allow_null=True
     )
     images = ProductImageSerializer(many=True, read_only=True)
-    attributes = AttributeSerializer(many=True, read_only=True)
-    attribute_ids = serializers.PrimaryKeyRelatedField(
-        queryset=Attribute.objects.all(), source='attributes', many=True, write_only=True
+    attributes = serializers.SerializerMethodField()
+    attribute_value_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False
     )
     variants = ProductVariantSerializer(many=True, read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -174,16 +233,72 @@ class ProductSerializer(serializers.ModelSerializer):
     thumbnail = serializers.SerializerMethodField()
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True)
+
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_id','category_slug' ,'created_at', 'variants', 'thumbnail',
-            'rating', 'attributes', 'attribute_ids', 'supplier', 'supplier_id',
+            'category_id', 'category_slug', 'created_at', 'variants', 'thumbnail',
+            'rating', 'attributes', 'attribute_value_ids', 'supplier', 'supplier_id',
             'images', 'meta_title', 'meta_description'
         ]
         read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images', 'variants']
+
+    def validate_attribute_value_ids(self, value):
+        logger.info(f"Validating attribute_value_ids: {value}")
+        if value:
+            valid_ids = AttributeValue.objects.filter(id__in=value).count()
+            if valid_ids != len(value):
+                logger.error(f"Invalid attribute_value_ids: {value}")
+                raise serializers.ValidationError("One or more attribute value IDs are invalid.")
+        return value
+
+   
+
+    def create(self, validated_data):
+        attribute_value_ids = validated_data.pop('attribute_value_ids', [])
+        logger.info(f"Creating product with attribute_value_ids: {attribute_value_ids}")
+        instance = super().create(validated_data)
+        if attribute_value_ids:
+            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
+            instance.attribute_values.set(attribute_values)
+        logger.info(f"Created product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
+        return instance
+
+    def update(self, instance, validated_data):
+        attribute_value_ids = validated_data.pop('attribute_value_ids', None)
+        logger.info(f"Updating product with attribute_value_ids: {attribute_value_ids}")
+        instance = super().update(instance, validated_data)
+        if attribute_value_ids is not None:
+            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
+            instance.attribute_values.set(attribute_values)
+        logger.info(f"Updated product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
+        return instance
+
+    def get_attributes(self, obj):
+        attribute_values = obj.attribute_values.all()
+        result = {}
+        for attr_val in attribute_values:
+            attr_name = attr_val.attribute.name
+            if attr_name not in result:
+                result[attr_name] = {
+                    'id': attr_val.attribute.id,
+                    'name': attr_name,
+                    'values': []
+                }
+            result[attr_name]['values'].append({
+                'id': attr_val.id,
+                'value': attr_val.value
+            })
+        return [
+            {
+                'id': data['id'],
+                'name': name,
+                'values': sorted(data['values'], key=lambda x: x['value'])
+            }
+            for name, data in result.items()
+        ]
 
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
@@ -196,11 +311,20 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_thumbnail(self, obj):
         return obj.get_primary_thumbnail()
-    
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
 
-        return representation
+    def validate(self, data):
+        moq_status = data.get('moq_status', 'active')
+        if moq_status not in ['active', 'closed', 'completed', 'not_applicable']:
+            raise serializers.ValidationError({"moq_status": "Invalid MOQ status."})
+        if 'price' in data and data['price'] < 0:
+            raise serializers.ValidationError({"price": "Price cannot be negative."})
+        if 'below_moq_price' in data and data['below_moq_price'] is not None and data['below_moq_price'] < 0:
+            raise serializers.ValidationError({"below_moq_price": "Below MOQ price cannot be negative."})
+        if 'moq' in data and data['moq'] is not None and data['moq'] < 1:
+            raise serializers.ValidationError({"moq": "MOQ must be at least 1."})
+        if 'moq_per_person' in data and data['moq_per_person'] is not None and data['moq_per_person'] < 1:
+            raise serializers.ValidationError({"moq_per_person": "MOQ per person must be at least 1."})
+        return data
         
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')

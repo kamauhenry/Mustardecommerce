@@ -8,6 +8,30 @@ import axios from 'axios';
 import Vue3Toastify, { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import {
+  faChevronLeft,
+  faChevronRight,
+  faStar,
+  faCopy,
+  faShare,
+} from '@fortawesome/free-solid-svg-icons';
+import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
+import { faInstagram, faWhatsapp } from '@fortawesome/free-brands-svg-icons';
+import 'vue-multiselect/dist/vue-multiselect.css';
+
+
+library.add(
+  faChevronLeft,
+  faChevronRight,
+  faStar,
+  faStarRegular,
+  faCopy,
+  faShare,
+  faInstagram,
+  faWhatsapp
+);
 
 const pinia = createPinia();
 const router = createMyRouter(pinia);
@@ -16,10 +40,10 @@ const head = createHead();
 const initializeApp = (router, mountPoint) => {
   const app = createApp(App);
   app.config.globalProperties.$axios = axios;
-
+  app.component('font-awesome-icon', FontAwesomeIcon);
   app.use(pinia);
   app.use(router);
-  app.use(head); // Add vueuse/head
+  app.use(head);
   app.use(Vue3Toastify, {
     position: 'top-right',
     transition: 'bounce',
