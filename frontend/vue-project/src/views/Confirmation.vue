@@ -2,11 +2,8 @@
   <MainLayout>
     <div class="confirmation-container">
       <div class="confirmation-card">
-        <!-- Show loading state while fetching order -->
         <div v-if="loading" class="loading">Loading order details...</div>
-        <!-- Show error message if something goes wrong -->
         <div v-else-if="error" class="error">{{ error }}</div>
-        <!-- Show order details if successfully fetched -->
         <div v-else-if="order">
           <div class="success-icon">✓</div>
           <h1>Order Confirmed!</h1>
@@ -14,8 +11,10 @@
           <div class="order-details">
             <h2>Order Summary</h2>
             <p>Order Number: #{{ order.id }}</p>
-            <p>Total Amount: KES {{ order.total_price.toFixed(2) }}</p>
-            <p>Shipping Method: {{ order.shipping_method }}</p>
+            <p>Subtotal: KES {{ formatPrice(orderSubtotal) }}</p>
+            <p>Shipping Method: {{ order.shipping_method?.name || 'Not specified' }}</p>
+            <p>Shipping Cost: KES {{ formatPrice(order.shipping_cost) }}</p>
+            <p>Total Amount: KES {{ formatPrice(order.total_price) }}</p>
             <p>Delivery Status: {{ order.delivery_status }}</p>
           </div>
           <div class="actions">
@@ -23,7 +22,6 @@
             <router-link to="/" class="continue-shopping-btn">Continue Shopping</router-link>
           </div>
         </div>
-        <!-- Show message if order is not found -->
         <div v-else>
           <p>Order not found.</p>
           <router-link to="/" class="continue-shopping-btn">Continue Shopping</router-link>
@@ -34,57 +32,62 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { useEcommerceStore } from '@/stores/ecommerce'
-import MainLayout from '@/components/navigation/MainLayout.vue'
-import api from '@/services/api'
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { useEcommerceStore } from '@/stores/ecommerce';
+import MainLayout from '@/components/navigation/MainLayout.vue';
+import api from '@/services/api';
 
-// Initialize reactive variables
-const route = useRoute()
-const store = useEcommerceStore()
-const order = ref(null)
-const loading = ref(true) // Track loading state
-const error = ref(null)  // Store error messages
+const route = useRoute();
+const store = useEcommerceStore();
+const order = ref(null);
+const loading = ref(true);
+const error = ref(null);
 
-// Fetch order details when component mounts
+// Format price to 2 decimal places
+const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
+
+// Compute subtotal
+const orderSubtotal = computed(() =>
+  order.value ? order.value.items.reduce((sum, item) => sum + item.quantity * item.price, 0) : 0
+);
+
 onMounted(async () => {
-  const orderId = route.query.orderId
-
-  // Check if orderId is present
+  const orderId = route.query.orderId;
   if (!orderId) {
-    error.value = 'No order specified'
-    loading.value = false
-    return
+    error.value = 'No order specified';
+    loading.value = false;
+    return;
   }
 
   try {
-    // Create API instance with store (assumes it includes auth token)
-    const apiInstance = api.createApiInstance(store)
-    const response = await apiInstance.get(`/api/order/${orderId}/`)
-    order.value = response.data
+    const apiInstance = api.createApiInstance(store);
+    const response = await apiInstance.get(`/api/order/${orderId}/`);
+    order.value = response.data;
   } catch (err) {
-    // Handle specific error cases
     if (err.response) {
       if (err.response.status === 404) {
-        error.value = 'Order not found.'
+        error.value = 'Order not found.';
       } else if (err.response.status === 401) {
-        error.value = 'Please log in to view your order.'
+        error.value = 'Please log in to view your order.';
       } else {
-        error.value = 'Failed to load order details. Please try again later.'
+        error.value = 'Failed to load order details. Please try again later.';
       }
     } else {
-      error.value = 'An unexpected error occurred.'
+      error.value = 'An unexpected error occurred.';
     }
-    console.error('Failed to fetch order details:', err)
+    console.error('Failed to fetch order details:', err);
   } finally {
-    // Ensure loading state is cleared
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style scoped>
+.order-details p {
+  font-size: 1rem;
+  margin: 0.5rem 0;
+}
 .confirmation-container {
   display: flex;
   justify-content: center;

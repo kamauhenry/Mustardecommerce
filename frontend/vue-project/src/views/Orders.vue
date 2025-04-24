@@ -149,9 +149,9 @@
                 <div class="item-details">
                   <p class="item-name">{{ item.product_name }}</p>
                   <p class="item-quantity">Qty: {{ item.quantity }}</p>
-                  <p class="item-price">KES {{ item.price }}</p>
+                  <p class="item-price">KES {{ formatPrice(item.price) }}</p>
                 </div>
-                <p class="item-line-total">KES {{ item.line_total }}</p>
+                <p class="item-line-total">KES {{ formatPrice(item.quantity * item.price) }}</p>
               </div>
             </div>
 
@@ -162,14 +162,27 @@
                 <span class="info-label">Name:</span> {{ selectedOrder.delivery_location.name }}
               </p>
               <p v-else>No delivery location specified.</p>
-              <p><span class="info-label">Shipping Method:</span> {{ selectedOrder.shipping_method }}</p>
+              <p><span class="info-label">Shipping Method:</span> {{ selectedOrder.shipping_method?.name || 'Not specified' }}</p>
+              <p><span class="info-label">Shipping Cost:</span> KES {{ formatPrice(selectedOrder.shipping_cost) }}</p>
+            </div>
+
+            <div class="receipt-section">
+              <h3>Order Totals</h3>
+              <div class="receipt-row">
+                <span>Subtotal:</span>
+                <span>KES {{ formatPrice(orderSubtotal) }}</span>
+              </div>
+              <div class="receipt-row">
+                <span>Shipping Cost:</span>
+                <span>KES {{ formatPrice(selectedOrder.shipping_cost) }}</span>
+              </div>
+              <div class="receipt-row">
+                <span>Total:</span>
+                <span class="total-amount">KES {{ formatPrice(selectedOrder.total_price) }}</span>
+              </div>
             </div>
 
             <div class="receipt-footer">
-              <div class="receipt-total">
-                <span>Total:</span>
-                <span class="total-amount">KES {{ selectedOrder.total_price }}</span>
-              </div>
               <div class="receipt-actions">
                 <button @click="printReceipt" class="print-button">Print Receipt</button>
                 <button @click="closeOrderDetails" class="close-button">Close</button>
@@ -187,7 +200,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import { useRouter } from 'vue-router';
-import logo from "../assets/images/mustard-imports.png";
+import logo from '../assets/images/mustard-imports.png';
 
 const store = useEcommerceStore();
 const router = useRouter();
@@ -197,8 +210,6 @@ const statusFilter = ref('all');
 const searchQuery = ref('');
 const activeTab = ref('all');
 const loading = ref(true);
-
-// Modal state
 const showModal = ref(false);
 const modalLoading = ref(false);
 const modalError = ref(null);
@@ -219,6 +230,14 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
+const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
+
+const orderSubtotal = computed(() =>
+  selectedOrder.value
+    ? selectedOrder.value.items.reduce((sum, item) => sum + item.quantity * item.price, 0)
+    : 0
+);
+
 onMounted(async () => {
   if (!store.isAuthenticated) {
     router.push('/login');
@@ -235,8 +254,6 @@ onMounted(async () => {
 
 const filteredOrders = computed(() => {
   let result = store.orders;
-
-  // Apply date filter
   const now = new Date();
   result = result.filter((order) => {
     const orderDate = new Date(order.created_at);
@@ -249,22 +266,19 @@ const filteredOrders = computed(() => {
     } else if (dateFilter.value === 'lastyear') {
       return orderDate >= new Date(now.setFullYear(now.getFullYear() - 1));
     }
-    return true; // 'all'
+    return true;
   });
 
-  // Filter by status tab
   if (activeTab.value !== 'all') {
     result = result.filter((order) => order.payment_status.toLowerCase() === activeTab.value);
   }
 
-  // Filter by status dropdown
   if (statusFilter.value !== 'all') {
     result = result.filter((order) =>
       order.payment_status.toLowerCase().includes(statusFilter.value.toLowerCase())
     );
   }
 
-  // Filter by search query
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter((order) => order.id.toString().includes(query));
@@ -302,7 +316,6 @@ const closeOrderDetails = () => {
 
 const printReceipt = () => {
   const orderId = selectedOrder.value.id;
-
   const printWindow = window.open('', '_blank');
   printWindow.document.write(`
     <html>
@@ -325,7 +338,6 @@ const printReceipt = () => {
             position: relative;
             border-radius: 4px;
           }
-          /* Perforated edge effect */
           .receipt::before,
           .receipt::after {
             content: '';
@@ -449,9 +461,9 @@ const printReceipt = () => {
                 <div class="item-details">
                   <span>${item.product_name}</span>
                   <span>Qty: ${item.quantity}</span>
-                  <span>KES ${item.price}</span>
+                  <span>KES ${formatPrice(item.price)}</span>
                 </div>
-                <span>KES ${item.line_total}</span>
+                <span>KES ${formatPrice(item.quantity * item.price)}</span>
               </div>`
               )
               .join('')}
@@ -464,12 +476,26 @@ const printReceipt = () => {
                    Name: ${selectedOrder.value.delivery_location.name}`
                 : 'No delivery location specified.'}
             </p>
-            <p>Shipping Method: ${selectedOrder.value.shipping_method}</p>
+            <p>Shipping Method: ${selectedOrder.value.shipping_method?.name || 'Not specified'}</p>
+            <p>Shipping Cost: KES ${formatPrice(selectedOrder.value.shipping_cost)}</p>
+          </div>
+          <div class="receipt-section">
+            <h3>Order Totals</h3>
+            <div class="receipt-row">
+              <span>Subtotal:</span>
+              <span>KES ${formatPrice(orderSubtotal.value)}</span>
+            </div>
+            <div class="receipt-row">
+              <span>Shipping Cost:</span>
+              <span>KES ${formatPrice(selectedOrder.value.shipping_cost)}</span>
+            </div>
+            <div class="receipt-row">
+              <span>Total:</span>
+              <span>KES ${formatPrice(selectedOrder.value.total_price)}</span>
+            </div>
           </div>
           <div class="receipt-footer">
-            <div class="receipt-total">
-              Total: KES ${selectedOrder.value.total_price}
-            </div>
+            <div class="barcode"></div>
           </div>
         </div>
       </body>

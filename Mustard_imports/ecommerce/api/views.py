@@ -1071,10 +1071,17 @@ def add_item_to_cart(request, cart_id):
         product_id = request.data.get('productId')
         variant_id = request.data.get('variantId')
         quantity = request.data.get('quantity', 1)
+        shipping_method_id = request.data.get('shippingMethodId')  # New field
 
-        cart = Cart.objects.get(id=cart_id)
+        cart = Cart.objects.get(id=cart_id, user=request.user)
         product = Product.objects.get(id=product_id)
         variant = ProductVariant.objects.get(id=variant_id)
+
+        # Update shipping method if provided
+        if shipping_method_id:
+            shipping_method = ShippingMethod.objects.get(id=shipping_method_id, is_active=True)
+            cart.shipping_method = shipping_method
+            cart.save()
 
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -1102,6 +1109,48 @@ def add_item_to_cart(request, cart_id):
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
     except ProductVariant.DoesNotExist:
         return Response({"error": "Product variant not found"}, status=status.HTTP_404_NOT_FOUND)
+    except ShippingMethod.DoesNotExist:
+        return Response({"error": "Shipping method not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_cart_shipping_method(request, cart_id):
+    try:
+        shipping_method_id = request.data.get('shippingMethodId')
+        cart = Cart.objects.get(id=cart_id, user=request.user)
+
+        if shipping_method_id:
+            shipping_method = ShippingMethod.objects.get(id=shipping_method_id, is_active=True)
+            cart.shipping_method = shipping_method
+        else:
+            cart.shipping_method = None
+        cart.save()
+
+        # Invalidate cart cache
+        cache_key = f'user_cart_{cart.user.id}'
+        try:
+            cache.delete(cache_key)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to invalidate cache: {e}")
+
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Cart.DoesNotExist:
+        return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+    except ShippingMethod.DoesNotExist:
+        return Response({"error": "Shipping method not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_shipping_methods(request):
+    try:
+        shipping_methods = ShippingMethod.objects.filter(is_active=True)
+        serializer = ShippingMethodSerializer(shipping_methods, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

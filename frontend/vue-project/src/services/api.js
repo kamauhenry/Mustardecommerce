@@ -465,6 +465,7 @@ export const addToCart = async (api, cartId, productId, variantId, quantity = 1)
       productId: productId,
       variantId: variantId,
       quantity: quantity,
+      shippingMethodId, 
     });
     console.log('Add to cart response:', response.data);
     return response.data;

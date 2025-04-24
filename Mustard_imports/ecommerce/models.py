@@ -297,8 +297,29 @@ class ProductImage(models.Model):
             raise
 
 
+class ShippingMethod(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} (KES {self.price})"
+
+    class Meta:
+        ordering = ['name']
+
+
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')
+    shipping_method = models.ForeignKey(
+        ShippingMethod,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='carts'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -312,6 +333,15 @@ class Cart(models.Model):
     @property
     def subtotal(self):
         return sum(item.line_total for item in self.items.all())
+
+    @property
+    def shipping_cost(self):
+        return self.shipping_method.price if self.shipping_method else 0
+
+    @property
+    def total(self):
+        return self.subtotal + self.shipping_cost
+
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
@@ -360,14 +390,15 @@ class Order(models.Model):
         ('cancelled', 'Cancelled'),
     )
 
-    SHIPPING_METHOD_CHOICES = (
-        ('standard', 'Standard Shipping'),
-        ('express', 'Express Shipping'),
-        ('pickup', 'Local Pickup'),
-    )
-
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    shipping_method = models.CharField(max_length=20, choices=SHIPPING_METHOD_CHOICES, default='standard')
+    shipping_method = models.ForeignKey(
+        ShippingMethod,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders'
+    )
+    shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default='processing')
@@ -376,16 +407,14 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk:
-            super().save(*args, **kwargs)
+            # Set shipping cost when creating the order
+            self.shipping_cost = self.shipping_method.price if self.shipping_method else 0
         self.total_price = self.calculate_total_price()
         super().save(*args, **kwargs)
 
     def calculate_total_price(self):
-        total = sum(
-            item.quantity * item.price
-            for item in self.items.all()
-        )
-        return total
+        items_total = sum(item.quantity * item.price for item in self.items.all())
+        return items_total + self.shipping_cost
 
     def update_total_price(self):
         self.total_price = self.calculate_total_price()
@@ -401,7 +430,7 @@ class Order(models.Model):
                 completed_order = CompletedOrder.objects.create(
                     order_number=f"ORD-{self.id}",
                     user=self.user,
-                    shipping_method=self.shipping_method,
+                    shipping_method=self.shipping_method.name if self.shipping_method else 'N/A',
                     order_date=self.created_at,
                     original_order=self,
                     delivery_location=self.delivery_location
@@ -411,12 +440,12 @@ class Order(models.Model):
                 print(f"Error creating completed order: {e}")
         return None
 
-        class Meta:
-            indexes = [
-                models.Index(fields=['created_at']),
-                models.Index(fields=['payment_status']),
-                models.Index(fields=['delivery_status']),
-            ]
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_at']),
+            models.Index(fields=['payment_status']),
+            models.Index(fields=['delivery_status']),
+        ]
             
 
 class OrderItem(models.Model):
@@ -503,7 +532,7 @@ class CompletedOrder(models.Model):
     original_order = models.OneToOneField(Order, on_delete=models.CASCADE, null=True, related_name='completed_order')
     order_number = models.CharField(max_length=50, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='completed_orders')
-    shipping_method = models.CharField(max_length=50)
+    shipping_method = models.CharField(max_length=100)  # Store name instead of ForeignKey
     mpesa_confirmation_code = models.CharField(max_length=50, null=True, blank=True)
     order_date = models.DateTimeField()
     phone_number = models.CharField(max_length=15, blank=True, null=True)
@@ -525,7 +554,6 @@ class CompletedOrder(models.Model):
     @property
     def total_price(self):
         return self.original_order.total_price
-
 class CustomerReview(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')

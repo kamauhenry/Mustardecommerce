@@ -17,7 +17,7 @@ from .views import (
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods
 )
 
 router = routers.DefaultRouter()
@@ -80,6 +80,9 @@ urlpatterns = [
     path('carts/<int:cart_id>/remove_item/', remove_cart_item, name='remove-cart-item'),
     path('carts/<int:cart_id>/checkout/', process_checkout, name='process-checkout'),
     path('carts/<int:cart_id>/create-order/', create_order_from_cart, name='create-order-from-cart'),
+ 
+    path('cart/<int:cart_id>/update-shipping/', update_cart_shipping_method, name='update_cart_shipping_method'),
+    path('shipping-methods/', get_shipping_methods, name='get_shipping_methods'),
     path('orders/<int:order_id>/update-shipping/', update_order_shipping, name='update-order-shipping'),
 
     # Payment

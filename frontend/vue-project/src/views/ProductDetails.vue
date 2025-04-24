@@ -258,25 +258,29 @@
 
                   <div class="shipping">
                     <label>Shipping Method</label>
-                    <div class="shipping-option">
-                      <input
-                        type="radio"
-                        id="ship"
-                        name="shipping"
-                        value="ship"
-                        v-model="shippingMethod"
-                      />
-                      <label for="ship">Ship (Approx. KES 310 each)</label>
+                    <div v-if="isLoadingShippingMethods" class="skeleton-shipping">
+                      <div v-for="n in 2" :key="n" class="skeleton-shipping-option"></div>
                     </div>
-                    <div class="shipping-option">
-                      <input
-                        type="radio"
-                        id="air"
-                        name="shipping"
-                        value="air"
-                        v-model="shippingMethod"
-                      />
-                      <label for="air">Air (Approx. cost TBD)</label>
+                    <div v-else-if="shippingMethods.length" class="shipping-options">
+                      <div
+                        v-for="method in shippingMethods"
+                        :key="method.id"
+                        class="shipping-option"
+                      >
+                        <input
+                          type="radio"
+                          :id="`shipping-${method.id}`"
+                          name="shipping"
+                          :value="method.id"
+                          v-model="selectedShippingMethodId"
+                        />
+                        <label :for="`shipping-${method.id}`">
+                          {{ method.name }} (KES {{ method.price }})
+                        </label>
+                      </div>
+                    </div>
+                    <div v-else class="no-shipping">
+                      No shipping methods available.
                     </div>
                   </div>
 
@@ -294,6 +298,7 @@
           </div>
 
           <!-- Right Section: Product Info -->
+          <!-- Right Section: Product Info -->
           <div class="product-right">
             <div class="product-info">
               <!-- Pricing -->
@@ -309,6 +314,12 @@
                 </p>
                 <p class="moq-info">Quantity: {{ quantity }}</p>
                 <p class="moq-info">MOQ Status: {{ product.moq_status }}</p>
+                <p v-if="selectedShippingMethod" class="shipping-cost">
+                  Shipping Cost: KES {{ selectedShippingMethod.price }}
+                </p>
+                <p class="total-price">
+                  Total: KES {{ totalPrice }}
+                </p>
               </div>
 
               <!-- Add to Cart Button -->
@@ -316,7 +327,7 @@
                 <button
                   class="add-to-cart"
                   @click="handleAddToCart"
-                  :disabled="isAddingToCart || !selectedVariant"
+                  :disabled="isAddingToCart || !selectedVariant || !selectedShippingMethodId"
                   :aria-label="isAddingToCart ? 'Adding to cart' : 'Add to cart'"
                 >
                   {{ isAddingToCart ? 'Adding to Cart...' : 'Add to Cart' }}
@@ -475,6 +486,16 @@ export default {
     const hoveredRating = ref(null);
     const isSubmittingReview = ref(false);
 
+
+       // Shipping Methods
+    const shippingMethods = ref([]);
+    const isLoadingShippingMethods = ref(false);
+    const selectedShippingMethodId = ref(null);
+    const selectedShippingMethod = computed(() =>
+      shippingMethods.value.find(method => method.id === selectedShippingMethodId.value) || null
+    );
+
+
     // Cart state
     const isAddingToCart = ref(false);
 
@@ -595,6 +616,12 @@ export default {
       }
       return options;
     });
+    const totalPrice = computed(() => {
+      const productPrice = Number(effectivePrice.value) || 0;
+      const shippingCost = selectedShippingMethod.value ? Number(selectedShippingMethod.value.price) : 0;
+      return (productPrice + shippingCost).toFixed(2);
+    });
+
 
     const effectivePrice = computed(() => {
       if (!product.value) return '0';
@@ -604,11 +631,10 @@ export default {
         Number(product.value.below_moq_price) || Number(product.value.price) || 0;
       const price = Number(product.value.price) || 0;
       if (product.value.moq_status === 'active' && qty < moqPerPerson) {
-        return belowMoqPrice.toFixed(2);
+        return (belowMoqPrice * qty).toFixed(2);
       }
-      return price.toFixed(2);
+      return (price * qty).toFixed(2);
     });
-
     const selectedVariant = computed(() => {
       if (!product.value?.variants || !Array.isArray(product.value.variants)) {
         return null;
@@ -669,12 +695,33 @@ export default {
       }
     };
 
+    const fetchShippingMethods = async () => {
+      isLoadingShippingMethods.value = true;
+      try {
+        const response = await api.get('/api/shipping-methods/');
+        shippingMethods.value = response.data;
+        // Set default shipping method (e.g., first active method)
+        if (shippingMethods.value.length && !selectedShippingMethodId.value) {
+          selectedShippingMethodId.value = shippingMethods.value[0].id;
+        }
+      } catch (error) {
+        shippingMethods.value = [];
+        toast.error('Failed to load shipping methods.', { autoClose: 3000 });
+      } finally {
+        isLoadingShippingMethods.value = false;
+      }
+    };
+
     const handleAddToCart = async () => {
       if (!selectedVariant.value) {
         toast.warning(
           'Please select all attributes or the selected combination is not available',
           { autoClose: 3000 }
         );
+        return;
+      }
+      if (!selectedShippingMethodId.value) {
+        toast.warning('Please select a shipping method', { autoClose: 3000 });
         return;
       }
       if (isAddingToCart.value) return;
@@ -685,7 +732,8 @@ export default {
           product.value.id,
           selectedVariant.value.id,
           quantity.value,
-          affiliateCodeFromUrl
+          affiliateCodeFromUrl,
+          selectedShippingMethodId.value // Pass shipping method ID
         );
         toast.success('Product added to cart successfully!', { autoClose: 3000 });
       } catch (error) {
@@ -796,6 +844,7 @@ export default {
     };
 
     onMounted(() => {
+      fetchShippingMethods();
       nextTick(() => {
         if (thumbnailContainer.value) {
           const firstThumbnail = thumbnailContainer.value.querySelector('.thumbnail');
@@ -911,6 +960,11 @@ export default {
       thumbnailContainer,
       relatedContainer,
       isVariantValid,
+      shippingMethods,
+      totalPrice,
+      isLoadingShippingMethods,
+      selectedShippingMethodId,
+      fetchShippingMethods,
     };
   },
 };
@@ -1509,15 +1563,66 @@ export default {
   margin-bottom: 5px;
 }
 
+.skeleton-shipping {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-shipping-option {
+  height: 20px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+
+.shipping-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .shipping-option {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 5px;
+}
+
+.shipping-option input[type="radio"] {
+  margin: 0;
 }
 
 .shipping-option label {
-  font-size: 0.9rem;
+  flex: 1;
+}
+
+.no-shipping {
+  color: #888;
+  font-style: italic;
+}
+
+.pricing .shipping-cost,
+.pricing .total-price {
+  font-size: 1.1rem;
+  margin: 10px 0;
+}
+
+.pricing .total-price {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* Animation for skeleton */
+@keyframes pulse {
+  0% {
+    background-color: #e0e0e0;
+  }
+  50% {
+    background-color: #f5f5f5;
+  }
+  100% {
+    background-color: #e0e0e0;
+  }
 }
 
 .promo-code {

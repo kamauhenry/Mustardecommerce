@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <MainLayout>
     <div class="cart-container">
@@ -66,14 +65,31 @@
             <span>KES {{ formatPrice(cartSubtotal) }}</span>
           </div>
           <div class="summary-row">
-            <span>Shipping</span>
+            <span>Shipping Method</span>
+            <div v-if="isLoadingShippingMethods" class="skeleton-shipping">
+              <div class="skeleton-shipping-option"></div>
+            </div>
+            <div v-else-if="shippingMethods.length" class="shipping-options">
+              <select v-model="selectedShippingMethodId" @change="updateShippingMethod" class="shipping-select">
+                <option :value="null" disabled>Select a shipping method</option>
+                <option v-for="method in shippingMethods" :key="method.id" :value="method.id">
+                  {{ method.name }} (KES {{ formatPrice(method.price) }})
+                </option>
+              </select>
+            </div>
+            <span v-else>No shipping methods available</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping Cost</span>
             <span>KES {{ formatPrice(shippingCost) }}</span>
           </div>
           <div class="summary-row total">
             <span>Total</span>
             <span>KES {{ formatPrice(cartTotal) }}</span>
           </div>
-          <button @click="proceedToCheckout" class="checkout-button">Proceed to Checkout</button>
+          <button @click="proceedToCheckout" class="checkout-button" :disabled="!selectedShippingMethodId">
+            Proceed to Checkout
+          </button>
         </div>
       </div>
     </div>
@@ -87,6 +103,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 import grey from '@/assets/images/placeholder.jpeg';
+import axios from 'axios';
 
 export default {
   components: { MainLayout },
@@ -95,16 +112,17 @@ export default {
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
-    const shippingCost = ref(0); // Placeholder for shipping cost
+    const shippingMethods = ref([]);
+    const isLoadingShippingMethods = ref(false);
+    const selectedShippingMethodId = ref(null);
 
     // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
     const cartItems = computed(() => store.cartItems);
     const cartItemCount = computed(() => store.cartItemCount);
-    const cartSubtotal = computed(() =>
-      cartItems.value.reduce((sum, item) => sum + (item.line_total || 0), 0)
-    );
-    const cartTotal = computed(() => cartSubtotal.value + shippingCost.value);
+    const cartSubtotal = computed(() => store.cart?.subtotal || 0);
+    const shippingCost = computed(() => store.cart?.shipping_cost || 0);
+    const cartTotal = computed(() => store.cart?.total || 0);
 
     // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
@@ -113,12 +131,31 @@ export default {
     const goToLogin = () => router.push('/login');
     const goToProducts = () => router.push('/products');
 
-    // Load cart data on mount
+    // Fetch shipping methods
+    const fetchShippingMethods = async () => {
+      isLoadingShippingMethods.value = true;
+      try {
+        const response = await axios.get('/api/shipping-methods/', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        shippingMethods.value = response.data;
+      } catch (err) {
+        console.error('Failed to fetch shipping methods:', err);
+        toast.error('Failed to load shipping methods.', { autoClose: 3000 });
+      } finally {
+        isLoadingShippingMethods.value = false;
+      }
+    };
+
+    // Load cart data
     const loadCart = async () => {
       loading.value = true;
       try {
         await store.fetchCurrentUserInfo();
         await store.fetchCart();
+        selectedShippingMethodId.value = store.cart?.shipping_method?.id || null;
         error.value = null;
       } catch (err) {
         error.value = 'Please login to view your cart';
@@ -163,10 +200,29 @@ export default {
       }
     };
 
+    // Update shipping method
+    const updateShippingMethod = async () => {
+      try {
+        if (!store.apiInstance) store.initializeApiInstance();
+        await store.apiInstance.patch(`/api/cart/${store.cart.id}/update-shipping/`, {
+          shippingMethodId: selectedShippingMethodId.value,
+        });
+        await store.fetchCart();
+        toast.success('Shipping method updated!', { autoClose: 3000 });
+      } catch (err) {
+        console.error('Failed to update shipping method:', err);
+        toast.error('Failed to update shipping method.', { autoClose: 3000 });
+      }
+    };
+
     // Proceed to Checkout
     const proceedToCheckout = async () => {
       if (!cartItems.value.length) {
         toast.error('Your cart is empty.', { autoClose: 3000 });
+        return;
+      }
+      if (!selectedShippingMethodId.value) {
+        toast.error('Please select a shipping method.', { autoClose: 3000 });
         return;
       }
       try {
@@ -179,7 +235,10 @@ export default {
       }
     };
 
-    onMounted(loadCart);
+    onMounted(() => {
+      loadCart();
+      fetchShippingMethods();
+    });
 
     return {
       loading,
@@ -188,14 +247,18 @@ export default {
       cartItems,
       cartItemCount,
       cartSubtotal,
-      cartTotal,
       shippingCost,
+      cartTotal,
+      shippingMethods,
+      isLoadingShippingMethods,
+      selectedShippingMethodId,
       formatPrice,
       goToLogin,
       goToProducts,
       retryFetch,
       updateQuantity,
       removeItem,
+      updateShippingMethod,
       proceedToCheckout,
       grey,
     };
@@ -205,6 +268,48 @@ export default {
 
 <style scoped>
 /* Modern Cart Styling */
+
+.skeleton-shipping {
+  height: 40px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+
+.skeleton-shipping-option {
+  height: 20px;
+  background: #e0e0e0;
+  border-radius: 4px;
+}
+
+.shipping-options {
+  display: flex;
+  align-items: center;
+}
+
+.shipping-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.shipping-select:focus {
+  outline: none;
+  border-color: #f6ad55;
+  box-shadow: 0 0 0 3px rgba(246, 173, 85, 0.2);
+}
+
+@keyframes pulse {
+  0% { background-color: #e0e0e0; }
+  50% { background-color: #f5f5f5; }
+  100% { background-color: #e0e0e0; }
+}
+
+
 .cart-container {
     margin: 0 auto;
   max-width: 1200px;
