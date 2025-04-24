@@ -285,3 +285,13 @@ LOGGING = {
         },
     },
 }
+
+
+# settings.py
+OXYLABS_USERNAME = 'mustardimports_SXOYJ'
+OXYLABS_PASSWORD = 'Mustardoxy1+'
+
+
+
+
+

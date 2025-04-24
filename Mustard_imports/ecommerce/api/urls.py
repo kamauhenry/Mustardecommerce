@@ -17,7 +17,7 @@ from .views import (
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView
 )
 
 router = routers.DefaultRouter()
@@ -46,6 +46,7 @@ urlpatterns = [
     path('admin/attribute-values/<int:pk>/', AttributeValueView.as_view(), name='attribute-value-detail'),
     path('admin/attribute-values/by-attribute/<int:attribute_id>/', AttributeValueByAttributeView.as_view(), name='attribute-values-by-attribute'),
     path('admin/bulk-import/', BulkProductImportView.as_view(), name='bulk-import'),
+    path('admin/scrape-products/', ScrapeProductsView.as_view(), name='scrape-products'),
 
     # Authentication
     path('auth/logout/', logout_view, name='logout'),

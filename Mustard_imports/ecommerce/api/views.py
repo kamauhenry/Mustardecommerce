@@ -39,7 +39,15 @@ import logging
 from django.core.files.base import ContentFile
 import pandas as pd
 import io
+import requests
+from bs4 import BeautifulSoup
+from django.utils.text import slugify
+import time
+import json
+import requests
+import re
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 load_dotenv()
 
@@ -2473,3 +2481,446 @@ class HomeCategoriesView(APIView):
             return paginator.get_paginated_response(serializer.data)
         except Exception as e:
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class ScrapeProductsView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        logger.info("Starting POST request processing in ScrapeProductsView")
+        platform = request.data.get('platform')
+        url = request.data.get('url')
+        logger.info(f"Request received - Platform: {platform}, URL: {url}")
+
+        if not platform or not url:
+            logger.error("Missing platform or URL in request")
+            return Response(
+                {"error": "Both 'platform' and 'url' are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if platform not in ['shein', 'alibaba']:
+            logger.error(f"Invalid platform: {platform}")
+            return Response(
+                {"error": "Please provide a valid platform ('shein' or 'alibaba')."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            if platform == 'shein':
+                logger.info("Calling fetch_shein_single_product")
+                product = self.fetch_shein_single_product(url)
+            else:
+                logger.info("Calling fetch_alibaba_single_product")
+                product = self.fetch_alibaba_single_product(url)
+        except Exception as e:
+            logger.error(f"Error during scraping for {platform}: {str(e)}")
+            return Response(
+                {"error": f"Failed to scrape product from {platform}: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        logger.info(f"Scraped product: {product.get('name', 'Unknown') if product else 'None'}")
+        if not product:
+            logger.warning(f"No product found on {platform} page")
+            return Response(
+                {"error": f"No product found on the {platform} page."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        logger.info("Starting product serialization and saving process")
+        logger.info(f"Serializing product: {product.get('name', 'Unknown')}")
+        serializer = ProductSerializer(data=product, context={'request': request})
+        if serializer.is_valid():
+            logger.info(f"Product data valid: {product.get('name', 'Unknown')}")
+            product_instance = serializer.save()
+            saved_product = serializer.data
+            logger.info(f"Successfully saved product: {product.get('name', 'Unknown')}")
+        else:
+            logger.error(f"Failed to save product: {serializer.errors}")
+            return Response(
+                {"error": f"Failed to save product: {serializer.errors}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        logger.info("Returning saved product")
+        return Response(
+            {
+                "message": "Successfully saved 1 product.",
+                "product": saved_product
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    def fetch_shein_single_product(self, url):
+        logger.info("Starting fetch_shein_single_product method")
+        logger.warning("Shein single product fetching may require JavaScript rendering")
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            }
+            logger.info("Sending GET request to Shein product page")
+            response = requests.get(url, headers=headers, timeout=30)
+            logger.info(f"Shein response status: {response.status_code}")
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            logger.info("Parsed Shein product page HTML with BeautifulSoup")
+            return self.parse_shein_single_product(soup)
+        except requests.RequestException as e:
+            logger.error(f"Shein product page request failed: {str(e)}")
+            return None
+
+    def fetch_alibaba_single_product(self, url):
+        logger.info("Starting fetch_alibaba_single_product method")
+        OXYLABS_USERNAME = getattr(settings, 'OXYLABS_USERNAME', 'your_username')
+        OXYLABS_PASSWORD = getattr(settings, 'OXYLABS_PASSWORD', 'your_password')
+        logger.info(f"Using Oxylabs credentials: {OXYLABS_USERNAME}")
+        payload = {
+            "source": "universal",
+            "url": url,
+            "render": "html"
+        }
+        logger.info(f"Oxylabs payload: {payload}")
+        try:
+            logger.info("Sending POST request to Oxylabs API")
+            response = requests.post(
+                "https://realtime.oxylabs.io/v1/queries",
+                auth=(OXYLABS_USERNAME, OXYLABS_PASSWORD),
+                json=payload,
+                timeout=30
+            )
+            logger.info(f"Oxylabs API response status: {response.status_code}")
+            response.raise_for_status()
+            logger.info("Parsing Oxylabs API response")
+            data = response.json()
+            logger.info(f"Oxylabs response: {data.get('results', 'No results')[:1000]}")
+            logger.info("Validating Oxylabs API response structure")
+            if 'results' not in data or not data['results']:
+                logger.error("No content returned from Oxylabs API")
+                return None
+            html_content = data['results'][0].get('content', '')
+            logger.info(f"Oxylabs HTML length: {len(html_content)}")
+            if not html_content:
+                logger.error("Empty content returned from Oxylabs API")
+                return None
+            logger.info("Parsing HTML with BeautifulSoup")
+            soup = BeautifulSoup(html_content, 'html.parser')
+            logger.info("BeautifulSoup parsed HTML successfully")
+            logger.info("Calling parse_alibaba_single_product")
+            return self.parse_alibaba_single_product(soup)
+        except requests.RequestException as e:
+            logger.error(f"Oxylabs API request failed: {str(e)}")
+            if e.response is not None:
+                logger.error(f"Oxylabs response: {e.response.text}")
+            return None
+
+    def parse_alibaba_single_product(self, soup):
+        logger.info("Starting parse_alibaba_single_product method")
+        logger.info("Creating or retrieving Alibaba category")
+        default_category, _ = Category.objects.get_or_create(
+            name="Alibaba",
+            defaults={"slug": "alibaba", "description": "Products scraped from Alibaba", "is_active": True}
+        )
+        default_category_id = default_category.id
+        default_supplier_id = None
+        logger.info(f"Default category ID for Alibaba: {default_category_id}")
+
+        product_data = {}
+
+        # Extract product name
+        logger.info("Extracting product name")
+        name_elem = soup.select_one('h1.module-pdp-title')
+        product_data['name'] = name_elem.text.strip() if name_elem else 'Unknown Product'
+        logger.info(f"Product name: {product_data['name']}")
+
+        # Extract price and below MOQ price
+        logger.info("Extracting product price")
+        price_elem = soup.select_one('span.price-number')
+        price_text = price_elem.text.strip().replace('$', '').replace('US', '').replace(',', '') if price_elem else '0.0'
+        try:
+            if '-' in price_text:
+                prices = price_text.split('-')
+                price_usd = float(prices[0].strip())
+                below_moq_price_usd = float(prices[1].strip())
+            else:
+                price_usd = float(price_text)
+                below_moq_price_usd = price_usd * 1.2  # Default multiplier if no range
+        except ValueError:
+            logger.warning(f"Invalid price format: {price_text}, defaulting to 0.0")
+            price_usd = 0.0
+            below_moq_price_usd = 0.0
+
+        # Apply Alibaba multiplier (1.35)
+        price_usd *= 1.35
+        below_moq_price_usd *= 1.35
+        logger.info(f"Price after 1.35 multiplier: {price_usd} USD, Below MOQ: {below_moq_price_usd} USD")
+
+        # Convert USD to KES (as of April 2025, using a realistic rate; in practice, fetch from an API)
+        USD_TO_KES_RATE = 130.50  # Example rate; replace with real-time fetch if needed
+        price_kes = price_usd * USD_TO_KES_RATE
+        below_moq_price_kes = below_moq_price_usd * USD_TO_KES_RATE
+
+        # Round to 2 decimal places, then to nearest shilling if needed
+        price_kes = round(price_kes, 2)
+        below_moq_price_kes = round(below_moq_price_kes, 2)
+        if price_kes % 1 > 0:  # If there are decimals
+            price_kes = round(price_kes)
+        if below_moq_price_kes % 1 > 0:
+            below_moq_price_kes = round(below_moq_price_kes)
+        product_data['price'] = price_kes
+        product_data['below_moq_price'] = below_moq_price_kes
+        logger.info(f"Price in KES: {product_data['price']}, Below MOQ in KES: {product_data['below_moq_price']}")
+
+        # Extract description
+        logger.info("Extracting product description")
+        desc_elem = soup.select_one('div.module-pdp-description')
+        product_data['description'] = desc_elem.text.strip() if desc_elem else 'No description available'
+        logger.info(f"Description: {product_data['description']}")
+
+        # Extract thumbnail
+        logger.info("Extracting thumbnail")
+        thumbnail_elem = soup.select_one('img.magnifier-image')
+        product_data['thumbnail'] = thumbnail_elem['src'] if thumbnail_elem and 'src' in thumbnail_elem.attrs else ""
+        logger.info(f"Thumbnail URL: {product_data['thumbnail']}")
+
+        # Extract supplier information
+        logger.info("Extracting supplier information")
+        supplier_elem = soup.select_one('a.supplier-name')
+        product_data['supplier_name'] = supplier_elem.text.strip() if supplier_elem else "N/A"
+        product_data['supplier_link'] = supplier_elem['href'] if supplier_elem and 'href' in supplier_elem.attrs else None
+        logger.info(f"Supplier: {product_data['supplier_name']} - {product_data['supplier_link']}")
+
+        # Extract supplier info (years, country)
+        logger.info("Extracting supplier info")
+        supplier_info_elem = soup.select_one('div.supplier-year')
+        product_data['supplier_info'] = supplier_info_elem.text.strip() if supplier_info_elem else "N/A"
+        logger.info(f"Supplier Info: {product_data['supplier_info']}")
+
+        # Extract MOQ
+        logger.info("Extracting MOQ")
+        moq_elem = soup.select_one('div.moq-value')
+        moq_text = moq_elem.text.strip() if moq_elem else "1"
+        try:
+            product_data['moq'] = int(re.sub(r'\D', '', moq_text))  # Extract digits only
+        except ValueError:
+            product_data['moq'] = 1
+        logger.info(f"MOQ: {product_data['moq']}")
+
+        # Extract product ID
+        logger.info("Extracting product ID")
+        product_id_elem = soup.select_one('meta[itemprop="productID"]')
+        product_data['product_id'] = product_id_elem['content'] if product_id_elem and 'content' in product_id_elem.attrs else None
+        logger.info(f"Product ID: {product_data['product_id']}")
+
+        # Extract attributes (variations)
+        logger.info("Extracting product variations")
+        attribute_value_ids = []
+        variation_sections = soup.select('div.sku-item')  # Common Alibaba variation container
+        for variation in variation_sections:
+            # Extract attribute name (e.g., "Color", "Model")
+            attr_name_elem = variation.select_one('span.sku-title')
+            attr_name = attr_name_elem.text.strip().replace(':', '').lower() if attr_name_elem else None
+            if not attr_name:
+                continue
+            logger.info(f"Found variation attribute: {attr_name}")
+
+            # Find or create the attribute
+            try:
+                attribute = Attribute.objects.filter(name__iexact=attr_name).first()
+                if not attribute:
+                    logger.info(f"Creating new attribute: {attr_name}")
+                    attribute = Attribute.objects.create(name=attr_name)
+            except Exception as e:
+                logger.error(f"Error creating attribute {attr_name}: {str(e)}")
+                continue
+
+            # Extract attribute values (e.g., "Red", "Blue" for Color)
+            attr_values = variation.select('div.sku-item-option')
+            for value_elem in attr_values:
+                attr_value = value_elem.text.strip().lower()
+                if not attr_value:
+                    continue
+                logger.info(f"Found attribute value: {attr_value} for attribute: {attr_name}")
+
+                # Find or create the attribute value
+                try:
+                    attribute_value = AttributeValue.objects.filter(attribute=attribute, value__iexact=attr_value).first()
+                    if not attribute_value:
+                        logger.info(f"Creating new attribute value: {attr_value} for attribute: {attr_name}")
+                        attribute_value = AttributeValue.objects.create(attribute=attribute, value=attr_value)
+                    attribute_value_ids.append(attribute_value.id)
+                except Exception as e:
+                    logger.error(f"Error creating attribute value {attr_value} for {attr_name}: {str(e)}")
+                    continue
+
+        product_data['attribute_value_ids'] = attribute_value_ids
+        logger.info(f"Attribute value IDs: {attribute_value_ids}")
+
+        # Prepare metadata
+        logger.info("Preparing metadata")
+        meta_title = f"{product_data['name']} - Wholesale Deals"
+        meta_description = f"Get {product_data['name']} at competitive prices. {product_data['description'][:150]}..."
+        logger.info(f"Meta title: {meta_title}, Meta description: {meta_description[:50]}...")
+
+        if product_data['name'] == "Unknown Product":
+            logger.warning("Product name not found, returning None")
+            return None
+
+        product = {
+            'name': product_data['name'],
+            'slug': product_data['name'].lower().replace(' ', '-').replace('/', '-')[:50],
+            'description': product_data['description'],
+            'price': product_data['price'],
+            'below_moq_price': product_data['below_moq_price'],
+            'moq': product_data['moq'],
+            'moq_per_person': 1,
+            'moq_status': 'not_applicable',
+            'category_id': default_category_id,
+            'supplier_id': default_supplier_id,
+            'supplier_name': product_data['supplier_name'],
+            'supplier_link': product_data['supplier_link'],
+            'supplier_info': product_data['supplier_info'],
+            'meta_title': meta_title,
+            'meta_description': meta_description,
+            'attribute_value_ids': product_data['attribute_value_ids'],
+            'thumbnail': product_data['thumbnail'],
+            'images': [product_data['thumbnail']] if product_data['thumbnail'] else [],
+            'alibaba_product_id': product_data['product_id']
+        }
+        logger.info(f"Returning product: {product_data['name']}")
+        return product
+
+    def parse_shein_single_product(self, soup):
+        logger.info("Starting parse_shein_single_product method")
+        logger.info("Creating or retrieving Shein category")
+        default_category, _ = Category.objects.get_or_create(
+            name="Shein",
+            defaults={"slug": "shein", "description": "Products scraped from Shein", "is_active": True}
+        )
+        default_category_id = default_category.id
+        default_supplier_id = None
+        logger.info(f"Default category ID for Shein: {default_category_id}")
+
+        product_data = {}
+
+        # Extract product name
+        logger.info("Extracting product name")
+        name_elem = soup.select_one('h1.product-intro__head-name')
+        product_data['name'] = name_elem.text.strip() if name_elem else 'Unknown Product'
+        logger.info(f"Product name: {product_data['name']}")
+
+        # Extract price
+        logger.info("Extracting product price")
+        price_elem = soup.select_one('div.product-intro__head-mainprice')
+        price_text = price_elem.text.strip().replace('€', '').replace('$', '').replace(',', '') if price_elem else '0.0'
+        try:
+            if '-' in price_text:
+                prices = price_text.split('-')
+                price_usd = float(prices[0].strip())
+                below_moq_price_usd = float(prices[1].strip())
+            else:
+                price_usd = float(price_text)
+                below_moq_price_usd = price_usd * 1.2
+        except ValueError:
+            logger.warning(f"Invalid price format: {price_text}, defaulting to 0.0")
+            price_usd = 0.0
+            below_moq_price_usd = 0.0
+
+        # Convert USD to KES
+        USD_TO_KES_RATE = 130.50
+        price_kes = price_usd * USD_TO_KES_RATE
+        below_moq_price_kes = below_moq_price_usd * USD_TO_KES_RATE
+
+        # Round to 2 decimal places, then to nearest shilling if needed
+        price_kes = round(price_kes, 2)
+        below_moq_price_kes = round(below_moq_price_kes, 2)
+        if price_kes % 1 > 0:
+            price_kes = round(price_kes)
+        if below_moq_price_kes % 1 > 0:
+            below_moq_price_kes = round(below_moq_price_kes)
+        product_data['price'] = price_kes
+        product_data['below_moq_price'] = below_moq_price_kes
+        logger.info(f"Price in KES: {product_data['price']}, Below MOQ in KES: {product_data['below_moq_price']}")
+
+        # Extract description
+        logger.info("Extracting product description")
+        desc_elem = soup.select_one('div.product-intro__description')
+        product_data['description'] = desc_elem.text.strip() if desc_elem else 'No description available'
+        logger.info(f"Description: {product_data['description']}")
+
+        # Extract thumbnail
+        logger.info("Extracting thumbnail")
+        thumbnail_elem = soup.select_one('img.product-intro__main-image')
+        product_data['thumbnail'] = thumbnail_elem['src'] if thumbnail_elem and 'src' in thumbnail_elem.attrs else ""
+        logger.info(f"Thumbnail URL: {product_data['thumbnail']}")
+
+        # Extract attributes (variations)
+        logger.info("Extracting product variations")
+        attribute_value_ids = []
+        variation_sections = soup.select('div.product-intro__sku-item')  # Shein variation container
+        for variation in variation_sections:
+            attr_name_elem = variation.select_one('span.sku-title')
+            attr_name = attr_name_elem.text.strip().replace(':', '').lower() if attr_name_elem else None
+            if not attr_name:
+                continue
+            logger.info(f"Found variation attribute: {attr_name}")
+
+            try:
+                attribute = Attribute.objects.filter(name__iexact=attr_name).first()
+                if not attribute:
+                    logger.info(f"Creating new attribute: {attr_name}")
+                    attribute = Attribute.objects.create(name=attr_name)
+            except Exception as e:
+                logger.error(f"Error creating attribute {attr_name}: {str(e)}")
+                continue
+
+            attr_values = variation.select('div.sku-item-option')
+            for value_elem in attr_values:
+                attr_value = value_elem.text.strip().lower()
+                if not attr_value:
+                    continue
+                logger.info(f"Found attribute value: {attr_value} for attribute: {attr_name}")
+
+                try:
+                    attribute_value = AttributeValue.objects.filter(attribute=attribute, value__iexact=attr_value).first()
+                    if not attribute_value:
+                        logger.info(f"Creating new attribute value: {attr_value} for attribute: {attr_name}")
+                        attribute_value = AttributeValue.objects.create(attribute=attribute, value=attr_value)
+                    attribute_value_ids.append(attribute_value.id)
+                except Exception as e:
+                    logger.error(f"Error creating attribute value {attr_value} for {attr_name}: {str(e)}")
+                    continue
+
+        product_data['attribute_value_ids'] = attribute_value_ids
+        logger.info(f"Attribute value IDs: {attribute_value_ids}")
+
+        # Prepare metadata
+        logger.info("Preparing metadata")
+        meta_title = f"{product_data['name']} - Shop Now at Great Prices"
+        meta_description = f"Discover {product_data['name']} at our store. {product_data['description'][:150]}..."
+        logger.info(f"Meta title: {meta_title}, Meta description: {meta_description[:50]}...")
+
+        if product_data['name'] == "Unknown Product":
+            logger.warning("Product name not found, returning None")
+            return None
+
+        product = {
+            'name': product_data['name'],
+            'slug': product_data['name'].lower().replace(' ', '-').replace('/', '-')[:50],
+            'description': product_data['description'],
+            'price': product_data['price'],
+            'below_moq_price': product_data['below_moq_price'],
+            'moq': 1,
+            'moq_per_person': 1,
+            'moq_status': 'not_applicable',
+            'category_id': default_category_id,
+            'supplier_id': default_supplier_id,
+            'meta_title': meta_title,
+            'meta_description': meta_description,
+            'attribute_value_ids': product_data['attribute_value_ids'],
+            'thumbnail': product_data['thumbnail'],
+            'images': [product_data['thumbnail']] if product_data['thumbnail'] else []
+        }
+        logger.info(f"Returning product: {product_data['name']}")
+        return product
