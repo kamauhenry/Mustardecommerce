@@ -30,15 +30,7 @@ import CartAuth from '../auth/CartAuth.vue';
           <IconLogin />
         </AuthModals>
       </div>
-      <div class="icon admin-icon">
-        <div class="admin-links">
-          <IconAdmin />
-          <div class="admin-dropdown">
-            <router-link to="/admin-page/login">Admin Login</router-link>
-            <router-link to="/admin-page/register">Admin Register</router-link>
-          </div>
-        </div>
-      </div>
+
     </div>
   </div>
 </template>

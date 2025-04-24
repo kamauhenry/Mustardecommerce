@@ -12,11 +12,10 @@ User = get_user_model()
 class AdminRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
-
     class Meta:
         model = User
-        fields = ['id', 'username','email', 'first_name', 'last_name', 
-                  'user_type', 'phone_number', 'points', 'affiliate_code',  'password']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+                  'user_type', 'phone_number', 'points', 'affiliate_code', 'password']
         read_only_fields = ['id', 'points', 'affiliate_code']
         extra_kwargs = {'password': {'write_only': True}}
 
@@ -27,20 +26,26 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
-        user_type = validated_data.pop('user_type', 'admin')  # Force user_type to 'admin'
-        
-        user = User.objects.create_user(
+        validated_data.pop('user_type', None)  # Ensure user_type is always 'admin'
+
+        # Create user with superuser and staff status
+        user = User.objects.create_superuser(
             username=validated_data['username'],
             email=validated_data['email'],
             password=password,
-            user_type='admin',
-            
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-
+            phone_number=validated_data.get('phone_number', None),
         )
-        return user
 
+        # Create AdminUser profile with senior admin level
+        AdminUser.objects.create(
+            user=user,
+            admin_level='senior'
+        )
+
+        return user
+        
 class AdminLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)

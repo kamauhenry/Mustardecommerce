@@ -19,9 +19,9 @@ const formMessageType = ref('success');
 
 // Company information
 const companyInfo = reactive({
-  location: '123 Business Avenue, City, Country',
-  email: 'contact@company.com',
-  telephone: '+1 (123) 456-7890',
+  location: 'Nairobi, Kenya',
+  email: 'mustardimports@gmail.com',
+  telephone: '+254 724028971',
   callHours: '9:00 AM - 5:00 PM (Mon-Fri)'
 });
 
@@ -236,10 +236,10 @@ const resetForm = () => {
           <div class="social-media">
             <h3>Connect with us on social media</h3>
             <div class="social-icons">
-              <a href="#" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
-              <a href="#" title="LinkedIn"><i class="fa-brands fa-linkedin"></i></a>
-              <a href="#" title="Twitter"><i class="fa-brands fa-twitter"></i></a>
-              <a href="#" title="Facebook"><i class="fa-brands fa-facebook"></i></a>
+              <a href="https://www.instagram.com/mustard_imports?igsh=d2hqa3FhendhbHA1" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
+        
+              <a href="https://www.tiktok.com/@mustard_imports?_t=ZM-8vbZdUKSfIc&_r=1" title="Tiktok"><i class="fa-brands fa-tiktok"></i></a>
+
             </div>
           </div>
         </div>

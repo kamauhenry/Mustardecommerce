@@ -67,7 +67,7 @@ export const login = async (apiInstance, username, password) => {
   if (!username || !password) {
     throw new Error('Username and password are required');
   }
-  console.log('Sending login request with:', { username, password });
+  
   try {
     const response = await apiInstance.post('auth/login/', { username, password });
     const token = response.data.token;
