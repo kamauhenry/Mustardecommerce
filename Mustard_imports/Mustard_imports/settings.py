@@ -24,10 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-DEBUG = True
-
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
-
+DEBUG = False  # Disable debug mode for production
+ALLOWED_HOSTS = [os.getenv("DOMAIN"), "www." + os.getenv("DOMAIN"), "localhost", "127.0.0.1"]  # Add your domain, e.g., "example.com"
+SECRET_KEY = os.getenv('SECRET_KEY')  # Already set to use .env
 # Application definition
 
 INSTALLED_APPS = [
@@ -75,11 +74,7 @@ DJOSER = {
 
 CACHES = {
     'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Use the appropriate Redis server URL
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
 
@@ -100,15 +95,10 @@ MIDDLEWARE = [
 
 # CORS Settings
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vue.js development server
-    "http://127.0.0.1:8080",  # Nginx load balancer
-    "http://localhost:8080",   # Added for flexibility
-
-    "http://127.0.0.1:8000",  # Django server
-    "http://localhost:8000"   # Added for flexibility
+    f"https://{os.getenv('DOMAIN')}",
+    f"https://www.{os.getenv('DOMAIN')}",
 ]
-
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'authorization',  # Lowercase for consistency
@@ -129,13 +119,13 @@ CORS_ALLOW_METHODS = [
 
 # Remove or minimize CSRF settings
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
+    f"https://{os.getenv('DOMAIN')}",
+    f"https://www.{os.getenv('DOMAIN')}",
 ]
 CSRF_COOKIE_HTTPONLY = False
 
-# Simplified session settings or remove if not needed
-SESSION_COOKIE_SAMESITE = None
-SESSION_COOKIE_SECURE = False
+
+SESSION_COOKIE_SECURE = True
 
 
 ROOT_URLCONF = 'Mustard_imports.urls'
@@ -176,7 +166,6 @@ DATABASES = {
     }
 }
 
-SECRET_KEY = getenv('SECRET_KEY')
 
 AUTH_USER_MODEL = 'ecommerce.User'
 
