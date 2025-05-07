@@ -4,25 +4,51 @@ function getAuthToken() {
   return localStorage.getItem('authToken');
 }
 
+// Function to get CSRF token from cookies
+const getCsrfTokenFromCookies = () => {
+  const name = 'csrftoken';
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === name) {
+      return value;
+    }
+  }
+  return null;
+};
+
 export const createApiInstance = (store) => {
-  console.log('Creating apiInstance with store:', store);
+
   const api = axios.create({
     baseURL: 'http://localhost:8000/api/',
     timeout: 150000,
+    withCredentials: true, // Ensure cookies are sent with requests
   });
 
+  // Request interceptor for auth token and CSRF token
   api.interceptors.request.use(
     (config) => {
+      // Add auth token
       const token = getAuthToken();
-      console.log('Request interceptor - token:', token);
+
       if (token) {
         config.headers['Authorization'] = `Token ${token}`;
+      }
+      // Add CSRF token for non-safe methods
+      if (['post', 'put', 'delete'].includes(config.method.toLowerCase())) {
+        const csrfToken = getCsrfTokenFromCookies();
+        if (csrfToken) {
+          config.headers['X-CSRFToken'] = csrfToken;
+        } else {
+          console.warn('CSRF token not found in cookies');
+        }
       }
       return config;
     },
     (error) => Promise.reject(error)
   );
 
+  // Response interceptor for handling 401/403
   api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -46,9 +72,10 @@ export const createApiInstance = (store) => {
     }
   );
 
-  console.log('apiInstance created:', api);
+
   return api;
 };
+
 
 // Authentication APIs
 export const register = async (apiInstance, userData) => {
@@ -101,7 +128,7 @@ export const logout = async (api) => {
     await api.post('auth/logout/');
     console.log('Logout successful');
   } catch (error) {
-    console.error('Logout error:', error.response?.data || error.message);
+
   } finally {
     localStorage.removeItem('authToken');
   }
@@ -397,11 +424,11 @@ export const fetchAllCategoriesWithProducts = async (apiInstance) => {
 
 export const fetchHomeCategories = async (apiInstance, page = 1) => {
   try {
-    console.log(`Fetching home categories for page ${page}`);
+
     const response = await apiInstance.get(`home-categories/?page=${page}`, {
       timeout: 60000,
     });
-    console.log('API response:', response.data); // Debug log
+
     return response.data;
   } catch (error) {
     console.error('Error fetching home categories:', error.response?.data || error.message);
@@ -458,15 +485,18 @@ export const createCart = async (api, userId) => {
   }
 };
 
-export const addToCart = async (api, cartId, productId, variantId, quantity = 1) => {
+export const addToCart = async (api, cartId, productId, attributes, quantity = 1, shippingMethodId = null) => {
   try {
-    console.log('Adding to cart:', { cartId, productId, variantId, quantity });
-    const response = await api.post(`carts/${cartId}/add_item/`, {
+    console.log('Adding to cart:', { cartId, productId, attributes, quantity, shippingMethodId });
+    const payload = {
       productId: productId,
-      variantId: variantId,
+      attributes: attributes,
       quantity: quantity,
-      shippingMethodId, 
-    });
+    };
+    if (shippingMethodId) {
+      payload.shippingMethodId = shippingMethodId;
+    }
+    const response = await api.post(`carts/${cartId}/add_item/`, payload);
     console.log('Add to cart response:', response.data);
     return response.data;
   } catch (error) {
@@ -662,6 +692,41 @@ export const updateSingleOrderStatus = async (apiInstance, orderId, deliveryStat
   }
 };
 
+export const createShippingMethod = async (apiInstance, shippingMethodData) => {
+  try {
+    console.log('Sending create shipping method payload:', shippingMethodData);
+    const response = await apiInstance.post('shipping_methods1/', shippingMethodData);
+    console.log('Create shipping method response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating shipping method:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const updateShippingMethod = async (apiInstance, shippingMethodId, shippingMethodData) => {
+  try {
+    console.log('Sending update shipping method payload:', { shippingMethodId, shippingMethodData });
+    const response = await apiInstance.patch(`shipping_methods1/${shippingMethodId}/`, shippingMethodData);
+    console.log('Update shipping method response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating shipping method:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const deleteShippingMethod = async (apiInstance, shippingMethodId) => {
+  try {
+    console.log('Sending delete shipping method request:', { shippingMethodId });
+    const response = await apiInstance.delete(`shipping_methods1/${shippingMethodId}/`);
+    console.log('Delete shipping method response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting shipping method:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
 
 export default {
@@ -717,4 +782,8 @@ export default {
   fetchAttributes,
   createAttribute,
   fetchHomeCategories,
+  deleteShippingMethod,
+  updateShippingMethod,
+  createShippingMethod,
+
 };

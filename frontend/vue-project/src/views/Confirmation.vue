@@ -10,12 +10,16 @@
           <p>Thank you for your purchase.</p>
           <div class="order-details">
             <h2>Order Summary</h2>
-            <p>Order Number: #{{ order.id }}</p>
+            <p>Order Number: {{ order.order_number }}</p>
             <p>Subtotal: KES {{ formatPrice(orderSubtotal) }}</p>
             <p>Shipping Method: {{ order.shipping_method?.name || 'Not specified' }}</p>
             <p>Shipping Cost: KES {{ formatPrice(order.shipping_cost) }}</p>
             <p>Total Amount: KES {{ formatPrice(order.total_price) }}</p>
             <p>Delivery Status: {{ order.delivery_status }}</p>
+            <p v-if="order.delivery_location">
+              Delivery Location: {{ order.delivery_location.name }} - {{ order.delivery_location.address }}
+            </p>
+            <p v-else>Delivery Location: Not specified</p>
           </div>
           <div class="actions">
             <router-link to="/orders" class="view-orders-btn">View My Orders</router-link>
@@ -36,7 +40,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
-import api from '@/services/api';
 
 const route = useRoute();
 const store = useEcommerceStore();
@@ -49,7 +52,7 @@ const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
 
 // Compute subtotal
 const orderSubtotal = computed(() =>
-  order.value ? order.value.items.reduce((sum, item) => sum + item.quantity * item.price, 0) : 0
+  order.value ? order.value.items.reduce((sum, item) => sum + item.line_total, 0) : 0
 );
 
 onMounted(async () => {
@@ -61,8 +64,8 @@ onMounted(async () => {
   }
 
   try {
-    const apiInstance = api.createApiInstance(store);
-    const response = await apiInstance.get(`/api/order/${orderId}/`);
+    if (!store.apiInstance) store.initializeApiInstance();
+    const response = await store.apiInstance.get(`/orders/${orderId.replace(/^MI/, '')}/`);
     order.value = response.data;
   } catch (err) {
     if (err.response) {
@@ -84,52 +87,72 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.order-details p {
-  font-size: 1rem;
-  margin: 0.5rem 0;
-}
 .confirmation-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 80vh;
   background-color: #f4f4f4;
+  padding: 1rem;
 }
 
 .confirmation-card {
   background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 40px;
+  border-radius: 0.625rem;
+  box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.1);
+  padding: 2rem;
   text-align: center;
-  max-width: 500px;
   width: 100%;
+  max-width: 31.25rem;
 }
 
 .success-icon {
-  font-size: 80px;
+  font-size: 5rem;
   color: #4CAF50;
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0.5rem 0;
 }
 
 .order-details {
   background-color: #f9f9f9;
-  padding: 20px;
-  border-radius: 8px;
-  margin: 20px 0;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+.order-details h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.order-details p {
+  font-size: 0.875rem;
+  margin: 0.375rem 0;
+  line-height: 1.5;
 }
 
 .actions {
   display: flex;
   justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .view-orders-btn,
 .continue-shopping-btn {
-  padding: 12px 24px;
+  flex: 1;
+  padding: 0.75rem 1rem;
   text-decoration: none;
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   transition: background-color 0.3s;
+  font-size: 0.875rem;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .view-orders-btn {
@@ -142,18 +165,89 @@ onMounted(async () => {
   color: white;
 }
 
-/* Added styles for loading and error states */
 .loading {
   text-align: center;
-  padding: 20px;
-  font-size: 18px;
+  padding: 1.25rem;
+  font-size: 1rem;
   color: #666;
 }
 
 .error {
   text-align: center;
-  padding: 20px;
-  font-size: 18px;
+  padding: 1.25rem;
+  font-size: 1rem;
   color: #d9534f;
+}
+
+@media (max-width: 765px) {
+  .confirmation-card {
+    padding: 1.5rem;
+    max-width: 90%;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .success-icon {
+    font-size: 4rem;
+  }
+
+  .order-details h2 {
+    font-size: 1.125rem;
+  }
+
+  .order-details p {
+    font-size: 0.8125rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .view-orders-btn,
+  .continue-shopping-btn {
+    font-size: 0.8125rem;
+  }
+}
+
+@media (max-width: 650px) {
+  .confirmation-container {
+    padding: 0.5rem;
+  }
+
+  .confirmation-card {
+    padding: 1rem;
+    max-width: 95%;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .success-icon {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .order-details {
+    padding: 0.75rem;
+    margin: 0.75rem 0;
+  }
+
+  .order-details h2 {
+    font-size: 1rem;
+  }
+
+  .order-details p {
+    font-size: 0.75rem;
+  }
+
+  .loading,
+  .error {
+    font-size: 0.875rem;
+    padding: 0.75rem;
+  }
 }
 </style>

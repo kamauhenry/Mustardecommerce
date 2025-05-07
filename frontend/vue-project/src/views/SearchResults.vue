@@ -255,7 +255,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #f28c38;
+  color:#D4A017;
   font-size: 0.7rem;
   font-weight: bold;
 }

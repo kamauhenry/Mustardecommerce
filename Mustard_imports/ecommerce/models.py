@@ -239,22 +239,6 @@ class Product(models.Model):
     def get_primary_thumbnail(self):
         first_image = self.images.first()
         return first_image.get_thumbnail() if first_image else ''
-class ProductVariant(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
-
-    def __str__(self):
-        return f"Variant of {self.product.name}"
-
-class VariantAttributeValue(models.Model):
-    variant = models.ForeignKey('ProductVariant', on_delete=models.CASCADE, related_name='attribute_values')
-    attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE)
-    value = models.ForeignKey(AttributeValue, on_delete=models.CASCADE)
-
-    class Meta:
-        unique_together = ('variant', 'attribute')
-
-    def __str__(self):
-        return f"{self.attribute.name}: {self.value.value}"
 
 
 class ProductImage(models.Model):
@@ -346,20 +330,16 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
+    attributes = models.JSONField(default=dict, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('cart', 'product', 'variant')
+        pass
 
     def __str__(self):
-        attributes = ", ".join(
-            f"{av.attribute.name}: {av.value.value}"
-            for av in self.variant.attribute_values.all()
-        )
-        return f"{self.quantity}x {self.product.name} ({attributes})"
-
+        return f"{self.product.name} ({self.quantity})"
+  
     @property
     def price_per_piece(self):
         if self.product.moq_status == 'active':
@@ -374,6 +354,9 @@ class CartItem(models.Model):
     @property
     def line_total(self):
         return self.price_per_piece * self.quantity
+
+
+
 
 class Order(models.Model):
     PAYMENT_STATUS_CHOICES = (
@@ -392,25 +375,28 @@ class Order(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipping_method = models.ForeignKey(
-        ShippingMethod,
+        'ShippingMethod',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='orders'
     )
     shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    delivery_location = models.ForeignKey(DeliveryLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
+    delivery_location = models.ForeignKey('DeliveryLocation', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default='processing')
     created_at = models.DateTimeField(auto_now_add=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        if not self.pk:
-            # Set shipping cost when creating the order
-            self.shipping_cost = self.shipping_method.price if self.shipping_method else 0
-        self.total_price = self.calculate_total_price()
+        # Set shipping cost when creating the order
+        if not self.pk and self.shipping_method:
+            self.shipping_cost = self.shipping_method.price
         super().save(*args, **kwargs)
+        # Calculate total price after saving to ensure pk exists
+        if self.pk:
+            self.total_price = self.calculate_total_price()
+            super().save(update_fields=['total_price'])
 
     def calculate_total_price(self):
         items_total = sum(item.quantity * item.price for item in self.items.all())
@@ -418,7 +404,7 @@ class Order(models.Model):
 
     def update_total_price(self):
         self.total_price = self.calculate_total_price()
-        self.save()
+        self.save(update_fields=['total_price'])
 
     def remove_item(self, order_item):
         order_item.delete()
@@ -428,7 +414,7 @@ class Order(models.Model):
         if self.delivery_status == 'delivered' and self.payment_status == 'paid':
             try:
                 completed_order = CompletedOrder.objects.create(
-                    order_number=f"ORD-{self.id}",
+                    order_number=f"ORD-MI{self.id}",
                     user=self.user,
                     shipping_method=self.shipping_method.name if self.shipping_method else 'N/A',
                     order_date=self.created_at,
@@ -440,18 +426,25 @@ class Order(models.Model):
                 print(f"Error creating completed order: {e}")
         return None
 
+    @property
+    def order_number(self):
+        return f"MI{self.id}"
+
     class Meta:
         indexes = [
             models.Index(fields=['created_at']),
             models.Index(fields=['payment_status']),
             models.Index(fields=['delivery_status']),
         ]
-            
+
+    def __str__(self):
+        return f"Order #MI{self.id}"
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE)
+    attributes = models.JSONField(default=dict, blank=True)
     quantity = models.IntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
 

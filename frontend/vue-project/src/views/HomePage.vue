@@ -1,9 +1,9 @@
 <template>
   <MainLayout>
     <section class="top-row-home" aria-label="Featured Content">
-      <RecentCampaigns />
+      <RecentCampaigns v-if="!isMobile" />
       <HomeCarousel />
-      <RecentSearches />
+      <RecentSearches v-if="!isMobile" />
     </section>
     <main id="homePage" aria-label="Product Categories">
       <!-- Initial loading skeleton -->
@@ -135,8 +135,9 @@ export default {
   setup() {
     const store = useEcommerceStore();
     const loadMoreSentinel = ref(null);
+    const isMobile = ref(window.innerWidth <= 650);
     let observer = null;
-    const maxRetries = 5; // Limit retry attempts
+    const maxRetries = 5;
     let retryCount = 0;
 
     const initialCategories = computed(() => store.allhomeCategoriesWithProducts.slice(0, 4));
@@ -237,15 +238,14 @@ export default {
       });
     };
 
-    const setupObserver = () => {
-      retryCount = 0; // Reset retry count for each attempt
+    const setupObserver = async () => {
+      await nextTick();
+      retryCount = 0;
       const trySetup = () => {
         if (loadMoreSentinel.value) {
           console.log('Setting up IntersectionObserver for sentinel');
           observer = new IntersectionObserver(
             debounce((entries) => {
-              console.log('IntersectionObserver triggered, isIntersecting:', entries[0].isIntersecting);
-              console.log('Current state - hasMore:', store.homeCategoriesPagination.hasMore, 'loading:', store.loading.allhomeCategoriesWithProducts);
               if (
                 entries[0].isIntersecting &&
                 store.homeCategoriesPagination.hasMore &&
@@ -262,11 +262,10 @@ export default {
             }
           );
           observer.observe(loadMoreSentinel.value);
-          console.log('Observer set up successfully');
         } else if (retryCount < maxRetries) {
           console.warn('loadMoreSentinel is null, retrying setup');
           retryCount++;
-          setTimeout(trySetup, 100); // Retry after 100ms
+          setTimeout(trySetup, 500);
         } else {
           console.error('Max retries reached for setting up IntersectionObserver');
         }
@@ -278,24 +277,27 @@ export default {
       store.allhomeCategoriesWithProducts = [];
       store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
       store.fetchHomeCategories(1).then(() => {
-        // After fetch completes, check if more pages exist and set up observer
         if (store.homeCategoriesPagination.hasMore) {
-          nextTick(() => {
-            setupObserver();
-          });
+          nextTick(() => setupObserver());
         }
       });
+      window.addEventListener('resize', updateScreenSize);
     });
 
     onUnmounted(() => {
       if (observer && loadMoreSentinel.value) {
         console.log('Cleaning up IntersectionObserver');
         observer.unobserve(loadMoreSentinel.value);
-        observer = null; // Clear reference to prevent leaks
+        observer = null;
       }
+      window.removeEventListener('resize', updateScreenSize);
     });
 
-    return { store, loadMoreSentinel, retryFetch };
+    const updateScreenSize = () => {
+      isMobile.value = window.innerWidth <= 650;
+    };
+
+    return { store, loadMoreSentinel, retryFetch, isMobile };
   },
   components: {
     MainLayout,
@@ -305,7 +307,6 @@ export default {
   },
 };
 </script>
-
 
 <style scoped>
 /* Base styles */
@@ -320,13 +321,13 @@ export default {
   text-align: center;
   padding: 1.5rem;
   font-size: 1rem;
-  color: #f28c38;
+  color: #D4A017;
 }
 
 .retry-button {
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
-  background-color: #f28c38;
+  background-color: #D4A017;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -338,8 +339,6 @@ export default {
 .retry-button:hover {
   background-color: #e67d21;
 }
-
-
 
 .categories-container {
   display: flex;
@@ -380,7 +379,7 @@ export default {
 .category-title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #f28c38;
+  color: #D4A017;
   text-transform: uppercase;
   margin: 0;
   letter-spacing: 0.5px;
@@ -394,7 +393,7 @@ export default {
   left: 0;
   width: 40px;
   height: 3px;
-  background-color: #f28c38;
+  background-color: #D4A017;
   border-radius: 3px;
 }
 
@@ -402,7 +401,7 @@ export default {
   font-size: 0.9rem;
   font-weight: 600;
   color: #fff;
-  background-color: #f28c38;
+  background-color: #D4A017;
   padding: 8px 16px;
   border-radius: 20px;
   text-transform: uppercase;
@@ -413,17 +412,16 @@ export default {
 }
 
 .see-more-link:hover {
-  background-color: #e67d21;
+  background-color: #D4A017;
   box-shadow: 0 4px 15px rgba(242, 140, 56, 0.4);
   transform: translateY(-2px);
 }
 
 .products-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-  }
- 
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
 
 .product-card {
   display: flex;
@@ -489,7 +487,7 @@ export default {
 .price-highlight {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #f28c38;
+  color: #D4A017;
 }
 
 .below-moq-price {
@@ -601,20 +599,18 @@ export default {
   animation: shimmer 1.5s infinite;
   border-radius: 10px;
 }
+
 /* In HomePage.vue or a shared stylesheet */
 .top-row-home {
   display: flex;
   flex-direction: row;
-  gap: 1rem; /* Reduced gap */
-  margin: 1rem 2%; /* Reduced margin */
+  gap: 1rem;
+  margin: 1rem 2%;
   align-items: stretch;
-  max-width: 100%; /* Prevent overflow */
+  max-width: 100%;
   box-sizing: border-box;
-  flex-wrap: nowrap; /* Ensure components stay in one row */
+  flex-wrap: nowrap;
 }
-
-
-
 
 @keyframes shimmer {
   0% {
@@ -654,12 +650,10 @@ export default {
     max-width: calc(50% - 1rem);
   }
   .products-grid {
-    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
   .skeleton-products {
-    display:grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
@@ -671,13 +665,11 @@ export default {
     max-width: calc(50% - 1rem);
   }
   .products-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);  /* Changed to 2 columns */
-  gap: 1.5rem;
-}
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
   .skeleton-products {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr); 
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
   .product-image {
@@ -694,12 +686,10 @@ export default {
     max-width: calc(50% - 1rem);
   }
   .products-grid {
-    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
   .skeleton-products {
-    display:grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
@@ -709,11 +699,12 @@ export default {
 @media (max-width: 650px) {
   .top-row-home {
     flex-direction: column;
-    gap: 1rem;
-    margin: 1rem 2%;
+    gap: 0.5rem;
+    margin: 0.5rem 2%;
+    margin-bottom: 0.5rem; /* Reduced to minimize gap */
   }
   .categories-container {
-    padding: 1rem 2%;
+    padding: 0.5rem 2%; /* Reduced padding-top */
     gap: 1rem;
     flex-direction: column;
   }
@@ -739,7 +730,7 @@ export default {
     gap: 1rem;
   }
   .skeleton-container {
-    padding: 1rem 2%;
+    padding: 0.5rem 2%;
     gap: 1rem;
     flex-direction: column;
   }
@@ -821,12 +812,10 @@ export default {
     height: 260px;
   }
   .products-grid {
-    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
   .skeleton-products {
-    display:grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }

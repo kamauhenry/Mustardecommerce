@@ -206,7 +206,7 @@ export default {
 .campaign-price {
   margin: 0;
   font-size: 0.9rem;
-  color: #f28c38;
+  color:#D4A017;
   font-weight: 600;
 }
 

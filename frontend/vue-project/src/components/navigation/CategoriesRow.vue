@@ -67,7 +67,7 @@ const categoryGroupsComputed = computed(() => {
   font-weight: 700;
   text-transform: uppercase;
   margin: 0;
-  color: #f28c38;
+  color:#D4A017;
 }
 
 .category-list-p {
@@ -82,13 +82,13 @@ const categoryGroupsComputed = computed(() => {
 }
 
 .category-link:hover {
-  color: #f28c38; /* Hover color preserved from both versions */
+  color:#D4A017; /* Hover color preserved from both versions */
 }
 
 .retry-button {
   margin-top: 0.5rem;
   padding: 0.5rem 1rem;
-  background-color: #f28c38;
+  background-color:#D4A017;
   color: #fff;
   border: none;
   border-radius: 4px;

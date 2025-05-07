@@ -45,7 +45,11 @@ from django.utils.text import slugify
 import time
 import json
 import requests
+from django.views.decorators.http import require_GET
+from googlemaps import Client
+from googlemaps.exceptions import ApiError, TransportError
 import re
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -85,7 +89,7 @@ def generate_access_token():
 def send_stk_push(phone_number, amount, order_id):
     try:
         try:
-            amount = Decimal(str(amount))
+            amount = float(amount)  # Ensure amount is numeric
             if amount <= 0:
                 raise ValueError("Amount must be greater than 0")
             amount = int(amount)
@@ -167,6 +171,10 @@ def format_phone_number(phone_number):
         raise ValueError("Invalid phone number format")
 
 
+
+
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order_from_cart(request, cart_id):
@@ -178,8 +186,11 @@ def create_order_from_cart(request, cart_id):
     if cart.items.count() == 0:
         return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-    shipping_method = request.data.get('shipping_method', 'standard')
-    logger.info(f"Cart contains {cart.items.count()} items")
+    # Validate shipping method
+    if not cart.shipping_method:
+        return Response({"error": "No shipping method selected"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    shipping_method = cart.shipping_method  # Already a ShippingMethod instance
 
     def create_order():
         with transaction.atomic():
@@ -187,37 +198,45 @@ def create_order_from_cart(request, cart_id):
             existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
             for existing_order in existing_orders:
                 if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
-                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
+                    logger.info(f"Found incomplete order #MI{existing_order.id}, deleting it")
                     existing_order.delete()
 
-            # Calculate next ID
-            highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
-            next_id = highest_id + 1
-
-            # Create order with explicit ID
-            order = Order.objects.create(
-                id=next_id,
+            # Create order without items
+            order = Order(
                 user=request.user,
                 shipping_method=shipping_method,
                 payment_status='pending',
                 delivery_status='processing',
             )
+            logger.info(f"Saving new order for user {request.user.username}")
+            order.save()
+            logger.info(f"Order saved with ID {order.id}, order_number MI{order.id}")
+
+            if not order.pk:
+                raise ValueError("Order was not saved properly, no primary key assigned")
+
+            # Create order items
             for cart_item in cart.items.all():
+                logger.info(f"Creating OrderItem for product {cart_item.product.name}")
                 OrderItem.objects.create(
                     order=order,
                     product=cart_item.product,
-                    variant=cart_item.variant,
+                    attributes=cart_item.attributes,
                     quantity=cart_item.quantity,
                     price=cart_item.price_per_piece,
                 )
+
+            # Update total price after adding items
             order.update_total_price()
+            # Clear cart items
             cart.items.all().delete()
-        return order
+                
+            return order
 
     try:
         order = create_order()
         # Invalidate cache
-        cache_key_orders = f'user_orders_{request.user.id}'
+        cache_key_orders = f'rder'
         cache_key_order = f'user_order_{request.user.id}_{order.id}'
         try:
             cache.delete(cache_key_orders)
@@ -226,77 +245,11 @@ def create_order_from_cart(request, cart_id):
             logger.error(f"Failed to invalidate cache: {e}")
 
         serializer = OrderSerializer(order)
+        logger.info(f"Order created successfully: MI{order.id}")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    except IntegrityError as e:
-        logger.error(f"IntegrityError during order creation: {str(e)}, cart_id={cart_id}, user_id={request.user.id}", exc_info=True)
-        if "duplicate key value violates unique constraint" in str(e):
-            from django.db import connection
-            with connection.cursor() as cursor:
-                # Get next safe ID from database
-                cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM ecommerce_order")
-                next_id = cursor.fetchone()[0]
-                # Skip known problematic IDs (e.g., 47, 48)
-                if next_id in {47, 48}:
-                    next_id = max(next_id, 48) + 1
-                cursor.execute("ALTER SEQUENCE ecommerce_order_id_seq RESTART WITH %s", [next_id])
-                cursor.execute("SELECT last_value FROM ecommerce_order_id_seq")
-                new_seq_value = cursor.fetchone()[0]
-                logger.info(f"Sequence reset to {new_seq_value}")
-            # Retry order creation (without explicit ID to use sequence)
-            try:
-                # Temporarily switch to sequence-based creation for retry
-                def create_order_retry():
-                    with transaction.atomic():
-                        existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
-                        for existing_order in existing_orders:
-                            if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
-                                logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
-                                existing_order.delete()
-
-                        order = Order.objects.create(
-                            user=request.user,
-                            shipping_method=shipping_method,
-                            payment_status='pending',
-                            delivery_status='processing',
-                        )
-                        for cart_item in cart.items.all():
-                            OrderItem.objects.create(
-                                order=order,
-                                product=cart_item.product,
-                                variant=cart_item.variant,
-                                quantity=cart_item.quantity,
-                                price=cart_item.price_per_piece,
-                            )
-                        order.update_total_price()
-                        cart.items.all().delete()
-                    return order
-
-                order = create_order_retry()
-                cache_key_orders = f'user_orders_{request.user.id}'
-                cache_key_order = f'user_order_{request.user.id}_{order.id}'
-                try:
-                    cache.delete(cache_key_orders)
-                    cache.delete(cache_key_order)
-                except (InvalidCacheBackendError, Exception) as e:
-                    logger.error(f"Failed to invalidate cache: {e}")
-
-                serializer = OrderSerializer(order)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except IntegrityError as retry_e:
-                logger.error(f"Retry failed: {str(retry_e)}", exc_info=True)
-                return Response(
-                    {"error": "Failed to create order after sequence adjustment."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-        return Response(
-            {"error": "Failed to create order due to a database conflict."},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
     except Exception as e:
         logger.error(f"Unexpected error during order creation: {str(e)}", exc_info=True)
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response({"error": f"Failed to create order: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -306,11 +259,16 @@ def update_order_shipping(request, order_id):
     except Order.DoesNotExist:
         return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    shipping_method = request.data.get('shipping_method')
+    shipping_method_id = request.data.get('shipping_method_id')
     delivery_location_id = request.data.get('delivery_location_id')
 
-    if shipping_method:
-        order.shipping_method = shipping_method
+    if shipping_method_id:
+        try:
+            shipping_method = ShippingMethod.objects.get(id=shipping_method_id, is_active=True)
+            order.shipping_method = shipping_method
+        except ShippingMethod.DoesNotExist:
+            return Response({"error": "Shipping method not found"}, status=status.HTTP_404_NOT_FOUND)
+
     if delivery_location_id:
         try:
             delivery_location = DeliveryLocation.objects.get(id=delivery_location_id, user=request.user)
@@ -331,6 +289,7 @@ def update_order_shipping(request, order_id):
 
     serializer = OrderSerializer(order)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -423,9 +382,10 @@ def get_payment_details(request, order_id):
         "error_message": payment.error_message
     }, status=status.HTTP_200_OK)
 
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def mpesa_callback(request):
     if request.method != "POST":
         logger.error("Invalid request method: Expected POST")
@@ -445,6 +405,7 @@ def mpesa_callback(request):
             return HttpResponseBadRequest("Invalid callback data: Missing required fields")
 
         try:
+            from ecommerce.models import Payment  # Import here to avoid circular imports
             payment = Payment.objects.get(mpesa_checkout_request_id=checkout_request_id)
         except Payment.DoesNotExist:
             logger.error(f"No payment found for CheckoutRequestID: {checkout_request_id}")
@@ -465,85 +426,82 @@ def mpesa_callback(request):
             payment.order.payment_status = "paid"
             payment.order.save()
 
-            # Send email with order details
+            # Send order confirmation email
             try:
                 order = payment.order
                 user = order.user
-                items = order.items.all()
-                item_details = [
-                    {
-                        'product_name': item.product.name,
-                        'quantity': item.quantity,
-                        'price': float(item.price),
-                        'line_total': float(item.quantity * item.price),
+                if user.email:
+                    items = [
+                        {
+                            'product_name': item.product.name,
+                            'quantity': item.quantity,
+                            'price': str(item.price),
+                            'line_total': str(item.quantity * item.price)
+                        }
+                        for item in order.items.all()
+                    ]
+                    email_context = {
+                        'user_name': user.get_full_name() or user.username,
+                        'order_id': order.order_number,
+                        'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'payment_status': order.get_payment_status_display(),
+                        'delivery_status': order.get_delivery_status_display(),
+                        'total_price': str(order.total_price),
+                        'items': items,
+                        'shipping_method': order.shipping_method.name if order.shipping_method else 'N/A',
+                        'delivery_location': order.delivery_location.address if order.delivery_location else 'N/A',
+                        'site_url': settings.SITE_URL,
                     }
-                    for item in items
-                ]
+                    # Build items string for plain text email
+                    items_text = '\n'.join(
+                        f"- {item['product_name']} (Qty: {item['quantity']}, Price: ${item['price']}, Total: ${item['line_total']})"
+                        for item in items
+                    )
+                    html_message = render_to_string('order_confirmation.html', email_context)
+                    plain_message = f"""
+Dear {user.get_full_name() or user.username},
 
-                email_context = {
-                    'order_id': order.id,
-                    'created_at': order.created_at.strftime('%B %d, %Y'),
-                    'items': item_details,
-                    'total_price': float(order.total_price),
-                    'shipping_method': order.shipping_method,
-                    'delivery_location': order.delivery_location.address if order.delivery_location else 'Not specified',
-                    'payment_status': order.payment_status,
-                    'delivery_status': order.delivery_status,
-                    'user_name': user.first_name or user.username,
-                }
+Thank you for your order! Below are the details of your purchase:
 
-                # Format items list with newlines
-                items_text = ''.join(
-                    f"- {item['product_name']} (Qty: {item['quantity']}, Price: ${item['price']}, Total: ${item['line_total']})\n"
-                    for item in item_details
-                )
+Order #{order.order_number}
+Placed on: {order.created_at.strftime('%Y-%m-%d %H:%M:%S')}
+Payment Status: {order.get_payment_status_display()}
+Delivery Status: {order.get_delivery_status_display()}
+Total: ${order.total_price}
 
-                subject = f'Order #{order.id} Confirmation'
-                html_message = render_to_string('order_confirmation_email.html', email_context)
-                plain_message = f"""
-            Dear {user.first_name or user.username},
+Items:
+{items_text}
 
-            Thank you for your order! Below are the details:
+Shipping Method: {order.shipping_method.name if order.shipping_method else 'N/A'}
+Address: {order.delivery_location.address if order.delivery_location else 'N/A'}
 
-            Order #{order.id}
-            Placed on: {order.created_at.strftime('%B %d, %Y')}
-            Total: ${order.total_price}
-            Payment Status: {order.payment_status}
-            Delivery Status: {order.delivery_status}
-
-            Items:
-            {items_text}
-            Shipping: {order.shipping_method}
-            Address: {order.delivery_location.address if order.delivery_location else 'Not specified'}
-
-            Regards,
-            Your Ecommerce Team
-            """
-
-                send_mail(
-                    subject=subject,
-                    message=plain_message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user.email],
-                    html_message=html_message,
-                    fail_silently=False,
-                )
-                logger.info(f"Order confirmation email sent to {user.email} for Order #{order.id}")
+Regards,
+Mustard Imports Team
+"""
+                    send_mail(
+                        subject=f"Order Confirmation #{order.order_number}",
+                        message=plain_message,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[user.email],
+                        html_message=html_message,
+                        fail_silently=False,
+                    )
+                    logger.info(f"Order confirmation email sent to {user.email} for Order #{order.order_number}")
+                else:
+                    logger.warning(f"No email address for user {user.username} for Order #{order.order_number}")
             except Exception as e:
-                logger.error(f"Failed to send order confirmation email for Order #{payment.order.id}: {str(e)}")
-
-
+                logger.error(f"Failed to send order confirmation email for Order #{order.order_number}: {str(e)}", exc_info=True)
 
             # Invalidate orders cache
-            cache_key_orders = f'user_orders_{payment.order.user.id}'
-            cache_key_order = f'user_order_{payment.order.user.id}_{payment.order.id}'
+            cache_key_orders = f'user_orders_{order.user.id}'
+            cache_key_order = f'user_order_{order.user.id}_{order.id}'
             try:
                 cache.delete(cache_key_orders)
                 cache.delete(cache_key_order)
             except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache: {e}")
+                logger.error(f"Failed to invalidate cache: {e}")
 
-            logger.info(f"Payment completed for Order {payment.order.id} - M-Pesa Receipt: {mpesa_receipt}")
+            logger.info(f"Payment completed for Order {order.id} - M-Pesa Receipt: {mpesa_receipt}")
             return JsonResponse({"ResultCode": 0, "ResultDesc": "Success"}, status=status.HTTP_200_OK)
         else:
             payment.payment_status = "failed"
@@ -557,7 +515,7 @@ def mpesa_callback(request):
                 cache.delete(cache_key_orders)
                 cache.delete(cache_key_order)
             except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache: {e}")
+                logger.error(f"Failed to invalidate cache: {e}")
 
             logger.warning(f"Payment failed for Order {payment.order.id} - ResultCode: {result_code}, Desc: {result_desc}")
             return JsonResponse({"ResultCode": result_code, "ResultDesc": result_desc}, status=status.HTTP_200_OK)
@@ -572,77 +530,6 @@ def mpesa_callback(request):
         logger.error(f"Unexpected error in callback: {str(e)}", exc_info=True)
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def process_checkout(request, cart_id):
-    try:
-        logger.info(f"Processing checkout for cart {cart_id}. Data: {request.data}")
-        reset_order_id_sequence()
-        shipping_method = request.data.get('shipping_method', 'standard')
-
-
-        try:
-            cart = Cart.objects.get(id=cart_id)
-        except Cart.DoesNotExist:
-            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        if cart.user != request.user:
-            return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
-
-        if cart.items.count() == 0:
-            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
-            
-        logger.info(f"Cart contains {cart.items.count()} items")
-        highest_id = Order.objects.aggregate(Max('id'))['id__max'] or 0
-        next_id = highest_id + 1
-        with transaction.atomic():
-            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
-            for existing_order in existing_orders:
-                if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
-                    logger.info(f"Found incomplete order #{existing_order.id}, deleting it")
-                    existing_order.delete()
-            
-
-
-            order = Order.objects.create(
-                id=next_id,
-                user=cart.user,
-                shipping_method=shipping_method,
-            
-            )
-            for cart_item in cart.items.all():
-                OrderItem.objects.create(
-                    order=order,
-                    product=cart_item.product,
-                    variant=cart_item.variant,
-                    quantity=cart_item.quantity,
-                    price=cart_item.price_per_piece  # Use price_per_piece from CartItem
-                )
-            order.save()
-
-            cart.items.all().delete()
-
-            # Invalidate orders cache
-            cache_key_orders = f'user_orders_{request.user.id}'
-            cache_key_order = f'user_order_{request.user.id}_{next_id}'
-            try:
-                cache.delete(cache_key_orders)
-                cache.delete(cache_key_order)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache: {e}")
-
-            serializer = OrderSerializer(order)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-    except IntegrityError as e:
-        logger.error(f"IntegrityError during checkout: {str(e)}")
-        return Response(
-            {"error": "Failed to create order due to a database conflict. Please try again."},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error during checkout: {str(e)}", exc_info=True)
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @csrf_protect
 def test_image(request):
@@ -760,6 +647,8 @@ class AdminProfileView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def admin_dashboard(request):
@@ -817,7 +706,9 @@ def admin_dashboard(request):
         ]
 
         active_orders = Order.objects.filter(delivery_status__in=['processing', 'shipped']).count()
-        recent_orders = Order.objects.order_by('-created_at')[:5].values('id', 'total_price', 'created_at')
+        recent_orders = Order.objects.select_related('user', 'shipping_method').order_by('-created_at')[:5].values(
+            'id', 'total_price', 'created_at', 'payment_status', 'delivery_status', 'user__email'
+        )
 
         response_data = {
             'total_sales': total_sales,
@@ -829,6 +720,9 @@ def admin_dashboard(request):
             'total_sales_breakdown': total_sales_breakdown,
             'active_orders': active_orders,
             'recent_orders': list(recent_orders),
+            'user_leaderboard': User.objects.filter(user_type='customer').annotate(
+                total_purchases=Count('order')
+            ).order_by('-total_purchases').values('id', 'username', 'email', 'total_purchases')[:5]
         }
 
         try:
@@ -844,7 +738,6 @@ def admin_dashboard(request):
             {'error': 'Internal server error while fetching dashboard data'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
@@ -1064,34 +957,71 @@ def get_user_cart(request, user_id):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_item_to_cart(request, cart_id):
     try:
         product_id = request.data.get('productId')
-        variant_id = request.data.get('variantId')
+        attributes = request.data.get('attributes', {})  # Expecting a dict of attributes
         quantity = request.data.get('quantity', 1)
-        shipping_method_id = request.data.get('shippingMethodId')  # New field
+        shipping_method_id = request.data.get('shippingMethodId')
 
         cart = Cart.objects.get(id=cart_id, user=request.user)
         product = Product.objects.get(id=product_id)
-        variant = ProductVariant.objects.get(id=variant_id)
+
+        # Validate attributes against product attribute_values
+        if attributes:
+            # Fetch all attribute values for the product
+            product_attribute_values = product.attribute_values.all()
+            product_attributes = {}
+            for attr_value in product_attribute_values:
+                attr_name = attr_value.attribute.name
+                if attr_name not in product_attributes:
+                    product_attributes[attr_name] = []
+                product_attributes[attr_name].append(attr_value.value)
+
+            # Validate each attribute name and value
+            for attr_name, attr_value in attributes.items():
+                if attr_name not in product_attributes:
+                    return Response(
+                        {"error": f"Invalid attribute: {attr_name}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if attr_value not in product_attributes[attr_name]:
+                    return Response(
+                        {"error": f"Invalid value for {attr_name}: {attr_value}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
         # Update shipping method if provided
         if shipping_method_id:
-            shipping_method = ShippingMethod.objects.get(id=shipping_method_id, is_active=True)
-            cart.shipping_method = shipping_method
-            cart.save()
+            try:
+                shipping_method = ShippingMethod.objects.get(id=shipping_method_id, is_active=True)
+                cart.shipping_method = shipping_method
+                cart.save()
+            except ShippingMethod.DoesNotExist:
+                return Response(
+                    {"error": "Shipping method not found"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+        # Determine price based on quantity and MOQ
+        quantity = int(quantity)
+        moq_per_person = product.moq_per_person or 1
+        price = product.price if quantity >= moq_per_person else product.below_moq_price or product.price
+
+        # Create or update cart item
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            variant=variant,
-            defaults={'quantity': quantity}
+            attributes=attributes,  
+            defaults={'quantity': quantity, 'attributes': attributes}
         )
 
         if not created:
             cart_item.quantity += quantity
+            cart_item.attributes = attributes  # Update attributes if changed
             cart_item.save()
 
         # Invalidate cart cache
@@ -1107,10 +1037,8 @@ def add_item_to_cart(request, cart_id):
         return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
     except Product.DoesNotExist:
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-    except ProductVariant.DoesNotExist:
-        return Response({"error": "Product variant not found"}, status=status.HTTP_404_NOT_FOUND)
-    except ShippingMethod.DoesNotExist:
-        return Response({"error": "Shipping method not found"}, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1144,15 +1072,6 @@ def update_cart_shipping_method(request, cart_id):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
-@api_view(['GET'])
-def get_shipping_methods(request):
-    try:
-        shipping_methods = ShippingMethod.objects.filter(is_active=True)
-        serializer = ShippingMethodSerializer(shipping_methods, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1320,6 +1239,8 @@ def search(request):
 
     return Response(response_data)
 
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def random_products(request):
@@ -1371,7 +1292,6 @@ def latest_products(request):
         print(f"Failed to cache response: {e}")
 
     return Response(response_data)
-
 class RelatedProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -1520,6 +1440,7 @@ class AllCategoriesWithProductsView(APIView):
         return Response(response_data)
 
 class CategoryViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = Category.objects.all().only('id', 'name', 'slug')
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -1814,14 +1735,16 @@ class UserProfileView(APIView):
 
         user = request.user
         response_data = {
+            'id': user.id,
             'username': user.username,
             'email': user.email,
-            'name': user.first_name,
-            'phone': user.phone_number,
             'first_name': user.first_name,
             'last_name': user.last_name,
+            'phone_number': user.phone_number or '',
             'date_joined': user.date_joined,
-            'avatar': getattr(user, 'avatar', ''),
+            'profile_photo': getattr(user, 'avatar', ''),
+            'points': getattr(user, 'points', 0),
+            'affiliate_code': getattr(user, 'affiliate_code', ''),
         }
 
         try:
@@ -1834,16 +1757,13 @@ class UserProfileView(APIView):
     def put(self, request):
         user = request.user
         data = request.data
-        user.first_name = data.get('name', user.first_name)
+        user.username = data.get('username', user.username)
         user.email = data.get('email', user.email)
-        if 'phone' in data:
-            user.phone = data['phone']
-        if 'gender' in data:
-            user.gender = data['gender']
-        if 'dob' in data:
-            user.dob = data['dob']
-        if 'avatar' in data:
-            user.avatar = data['avatar']
+        user.first_name = data.get('first_name', user.first_name)
+        user.last_name = data.get('last_name', user.last_name)
+        user.phone_number = data.get('phone_number', user.phone_number)
+        if 'profile_photo' in data:
+            user.avatar = data['profile_photo']
         user.save()
 
         # Invalidate cache
@@ -1856,13 +1776,15 @@ class UserProfileView(APIView):
             print(f"Failed to invalidate cache: {e}")
 
         return Response({
+            'id': user.id,
             'username': user.username,
             'email': user.email,
-            'name': user.first_name,
-            'phone': user.phone,
-            'gender': user.gender,
-            'dob': user.dob,
-            'avatar': user.avatar,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'phone_number': user.phone_number,
+            'profile_photo': user.avatar,
+            'points': getattr(user, 'points', 0),
+            'affiliate_code': getattr(user, 'affiliate_code', ''),
         })
 
 class DeliveryLocationView(APIView):
@@ -1952,39 +1874,34 @@ class DeliveryLocationView(APIView):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+
+
+@require_GET
+@ensure_csrf_cookie
 def autocomplete(request):
-    query = request.GET.get('input', '')
-    if not query:
-        return JsonResponse({'status': 'error', 'message': 'No input provided'}, status=400)
-
-    cache_key = f'autocomplete_{query}'
     try:
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return JsonResponse(cached_data)
-    except (InvalidCacheBackendError, Exception) as e:
-        print(f"Cache error: {e}. Falling back to direct query.")
+        query = request.GET.get('input', '').strip()
+        if not query:
+            return JsonResponse({'predictions': []}, status=200)
 
-    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'
-    url = (
-        f"https://maps.googleapis.com/maps/api/place/autocomplete/json?"
-        f"input={query}&key={api_key}&types=geocode"
-    )
+        gmaps = Client(key=settings.GOOGLE_MAPS_API_KEY)
+        predictions = gmaps.places_autocomplete(
+            input_text=query,
+            types='address',
+            components={'country': 'ke'}
+        )
 
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        response_data = response.json()
-
-        try:
-            cache.set(cache_key, response_data, timeout=60 * 60)  # Cache for 1 hour
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to cache response: {e}")
-
-        return JsonResponse(response_data)
-    except requests.RequestException as e:
-        print(f"Error fetching autocomplete data: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        return JsonResponse({'predictions': predictions}, status=200)
+    except ApiError as e:
+        logger.error(f"Google Maps API error: {str(e)}")
+        return JsonResponse({'error': 'Invalid API key or configuration'}, status=500)
+    except TransportError as e:
+        logger.error(f"Network error contacting Google Maps: {str(e)}")
+        return JsonResponse({'error': 'Network error contacting Google Maps'}, status=500)
+    except Exception as e:
+        logger.error(f"Unexpected error in autocomplete: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 def place_details(request):
     place_id = request.GET.get('place_id', '')
@@ -2022,9 +1939,11 @@ def place_details(request):
 
 
 
+
+
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-@cache_page(60 * 15)  # Cache for 15 minutes
+@cache_page(60 * 15)
 def get_all_orders(request):
     page = int(request.query_params.get('page', 1))
     per_page = int(request.query_params.get('per_page', 10))
@@ -2047,11 +1966,9 @@ def get_all_orders(request):
         'current_page': page
     })
 
-
-
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-@cache_page(60 * 15)  # Cache for 15 minutes
+@cache_page(60 * 15)
 def get_moq_fulfilled_products(request):
     products = Product.objects.filter(moq_status='active').annotate(
         current_moq=Sum('orderitem__quantity', filter=Q(orderitem__order__payment_status='paid'))
@@ -2080,7 +1997,7 @@ def invalidate_order_caches(user_id, order_id=None):
     cache_keys = [f'user_orders_{user_id}']
     if order_id:
         cache_keys.append(f'user_order_{user_id}_{order_id}')
-    cache_keys.append('admin_orders')  # Invalidate admin cache as well
+    cache_keys.append('admin_orders')
     for key in cache_keys:
         try:
             cache.delete(key)
@@ -2092,11 +2009,10 @@ def invalidate_order_caches(user_id, order_id=None):
 @permission_classes([IsAdminUser])
 def bulk_update_order_status(request):
     order_ids = request.data.get('order_ids', [])
-    delivery_status = request.data.get('delivery_status')  # Match field name with Order model
+    delivery_status = request.data.get('delivery_status')
 
     logger.info(f"Bulk update requested: order_ids={order_ids}, delivery_status={delivery_status}")
 
-    # Validate input
     if not order_ids or not delivery_status:
         logger.error("Missing order_ids or delivery_status")
         return Response(
@@ -2104,7 +2020,6 @@ def bulk_update_order_status(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Validate delivery status against choices
     valid_statuses = [choice[0] for choice in Order.DELIVERY_STATUS_CHOICES]
     logger.info(f"Valid statuses: {valid_statuses}")
     if delivery_status not in valid_statuses:
@@ -2116,7 +2031,6 @@ def bulk_update_order_status(request):
 
     try:
         with transaction.atomic():
-            # Lock orders to prevent concurrent updates
             orders = Order.objects.select_for_update().filter(id__in=order_ids)
             if not orders.exists():
                 logger.error("No orders found for the provided IDs")
@@ -2127,7 +2041,6 @@ def bulk_update_order_status(request):
 
             logger.info(f"Found {orders.count()} orders: {[o.id for o in orders]}")
 
-            # Update orders
             updated_count = orders.update(delivery_status=delivery_status)
             logger.info(f"Updated {updated_count} orders to {delivery_status}")
 
@@ -2138,17 +2051,20 @@ def bulk_update_order_status(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Invalidate caches for affected orders
+            updated_orders = Order.objects.filter(id__in=order_ids)
+            serializer = OrderSerializer(updated_orders, many=True)
+
             user_ids = set(orders.values_list('user_id', flat=True))
             for user_id in user_ids:
-                # Invalidate user-specific caches
                 invalidate_order_caches(user_id)
-                # Invalidate individual order caches
                 for order in orders.filter(user_id=user_id):
                     invalidate_order_caches(user_id, order.id)
 
         return Response(
-            {'message': f'Successfully updated {updated_count} orders to {delivery_status}'},
+            {
+                'message': f'Successfully updated {updated_count} orders to {delivery_status}',
+                'orders': serializer.data
+            },
             status=status.HTTP_200_OK
         )
     except IntegrityError as e:
@@ -2164,39 +2080,33 @@ def bulk_update_order_status(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def update_single_order_status(request, order_id):
-    delivery_status = request.data.get('delivery_status')  # Updated field name
+    delivery_status = request.data.get('delivery_status')
 
     logger.info(f"Single update requested: order_id={order_id}, delivery_status={delivery_status}")
 
-    # Validate input
     if not delivery_status:
         logger.error("Missing delivery_status")
         return Response({'error': 'Missing delivery_status'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate delivery status against choices
     valid_statuses = [choice[0] for choice in Order.DELIVERY_STATUS_CHOICES]
     if delivery_status not in valid_statuses:
         logger.error(f"Invalid delivery status: {delivery_status}")
         return Response({'error': 'Invalid delivery status'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Find the order
     try:
         order = Order.objects.get(id=order_id)
     except Order.DoesNotExist:
         logger.error(f"Order not found: {order_id}")
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Update order
     try:
         with transaction.atomic():
             order.delivery_status = delivery_status
             order.save()
             logger.info(f"Order {order_id} updated to {delivery_status}")
-            # Verify update
             order.refresh_from_db()
             if order.delivery_status != delivery_status:
                 logger.error(f"Order {order_id} status mismatch: expected {delivery_status}, got {order.delivery_status}")
@@ -2205,7 +2115,6 @@ def update_single_order_status(request, order_id):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-        # Invalidate cache
         cache_key = 'admin_orders'
         try:
             cache.delete(cache_key)
@@ -2213,11 +2122,14 @@ def update_single_order_status(request, order_id):
         except (InvalidCacheBackendError, Exception) as e:
             logger.error(f"Failed to invalidate cache: {e}")
 
-        return Response({'message': f'Order {order_id} updated to {delivery_status}'})
+        serializer = OrderSerializer(order)
+        return Response({
+            'message': f'Order {order_id} updated to {delivery_status}',
+            'order': serializer.data
+        })
     except Exception as e:
         logger.error(f"Error updating order {order_id}: {str(e)}")
         return Response({'error': f'Failed to update order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
@@ -2431,23 +2343,21 @@ class BulkProductImportView(APIView):
             return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Read CSV or Excel
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file)
             elif file.name.endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file)
             else:
-                return Response({"error": "Unsupported file format. Use CSV or Excel."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Unsupported file format."}, status=status.HTTP_400_BAD_REQUEST)
 
             created_products = []
             errors = []
             
             for index, row in df.iterrows():
                 try:
-                    # Prepare product data
                     product_data = {
                         'name': row.get('name', ''),
-                        'slug': row.get('slug', row.get('name', '').lower().replace(' ', '-')),
+                        'slug': row.get('slug', slugify(row.get('name', ''))),
                         'description': row.get('description', ''),
                         'price': row.get('price', 0),
                         'below_moq_price': row.get('below_moq_price', None),
@@ -2458,15 +2368,27 @@ class BulkProductImportView(APIView):
                         'supplier_id': int(row.get('supplier_id', None)) if row.get('supplier_id') else None,
                         'meta_title': row.get('meta_title', ''),
                         'meta_description': row.get('meta_description', ''),
-                        'attribute_ids': row.get('attribute_ids', '').split(',') if row.get('attribute_ids') else [],
                     }
 
-                    # Validate and create product
+                    attributes_str = row.get('attributes', '')
+                    attribute_value_ids = []
+                    if attributes_str:
+                        attributes_list = attributes_str.split(';')
+                        for attr in attributes_list:
+                            if ':' in attr:
+                                name, values_str = attr.split(':', 1)
+                                name = name.strip().capitalize()
+                                values = [v.strip() for v in values_str.split(',')]
+                                attribute, _ = Attribute.objects.get_or_create(name=name)
+                                for value in values:
+                                    attr_value, _ = AttributeValue.objects.get_or_create(attribute=attribute, value=value)
+                                    attribute_value_ids.append(attr_value.id)
+
+                    product_data['attribute_value_ids'] = attribute_value_ids
+
                     serializer = ProductSerializer(data=product_data)
                     if serializer.is_valid():
                         product = serializer.save()
-                        
-                        # Handle images (URLs in CSV)
                         image_urls = row.get('image_urls', '').split(',') if row.get('image_urls') else []
                         for url in image_urls:
                             url = url.strip()
@@ -2481,7 +2403,6 @@ class BulkProductImportView(APIView):
                                         )
                                 except Exception as e:
                                     logger.error(f"Failed to download image {url} for product {product.name}: {str(e)}")
-                        
                         created_products.append(serializer.data)
                     else:
                         errors.append({"row": index + 2, "errors": serializer.errors})
@@ -2506,7 +2427,7 @@ class HomeCategoriesPagination(PageNumberPagination):
     max_page_size = 20
 
 class HomeCategoriesView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
     pagination_class = HomeCategoriesPagination
 
     def get(self, request, *args, **kwargs):
@@ -2534,335 +2455,195 @@ class HomeCategoriesView(APIView):
 
 
 class ScrapeProductsView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
-        logger.info("Starting POST request processing in ScrapeProductsView")
         platform = request.data.get('platform')
         url = request.data.get('url')
-        logger.info(f"Request received - Platform: {platform}, URL: {url}")
+        import_type = request.data.get('import_type', 'single')
+        import_count = int(request.data.get('import_count', 1)) if import_type == 'category' else 1
 
         if not platform or not url:
-            logger.error("Missing platform or URL in request")
-            return Response(
-                {"error": "Both 'platform' and 'url' are required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Both 'platform' and 'url' are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         if platform not in ['shein', 'alibaba']:
-            logger.error(f"Invalid platform: {platform}")
-            return Response(
-                {"error": "Please provide a valid platform ('shein' or 'alibaba')."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid platform."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if import_type not in ['single', 'category']:
+            return Response({"error": "Invalid import_type. Must be 'single' or 'category'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        FIRECRAWL_API_KEY = settings.FIRECRAWL_API_KEY
+        headers = {'Authorization': f'Bearer {FIRECRAWL_API_KEY}'}
 
         try:
-            if platform == 'shein':
-                logger.info("Calling fetch_shein_single_product")
-                product = self.fetch_shein_single_product(url)
-            else:
-                logger.info("Calling fetch_alibaba_single_product")
-                product = self.fetch_alibaba_single_product(url)
+            if import_type == 'single':
+                product = self.fetch_single_product(platform, url, headers)
+                if not product:
+                    return Response({"error": "No product found."}, status=status.HTTP_404_NOT_FOUND)
+                products = [product]
+            else:  # category
+                product_urls = self.fetch_category_product_urls(platform, url, import_count, headers)
+                products = []
+                for product_url in product_urls:
+                    product = self.fetch_single_product(platform, product_url, headers)
+                    if product:
+                        products.append(product)
+                    if len(products) >= import_count:
+                        break
         except Exception as e:
-            logger.error(f"Error during scraping for {platform}: {str(e)}")
-            return Response(
-                {"error": f"Failed to scrape product from {platform}: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        logger.info(f"Scraped product: {product.get('name', 'Unknown') if product else 'None'}")
-        if not product:
-            logger.warning(f"No product found on {platform} page")
-            return Response(
-                {"error": f"No product found on the {platform} page."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        saved_products = []
+        for product in products:
+            serializer = ProductSerializer(data=product, context={'request': request})
+            if serializer.is_valid():
+                product_instance = serializer.save()
+                saved_products.append(serializer.data)
+            else:
+                logger.error(f"Serialization error: {serializer.errors}")
 
-        logger.info("Starting product serialization and saving process")
-        logger.info(f"Serializing product: {product.get('name', 'Unknown')}")
-        serializer = ProductSerializer(data=product, context={'request': request})
-        if serializer.is_valid():
-            logger.info(f"Product data valid: {product.get('name', 'Unknown')}")
-            product_instance = serializer.save()
-            saved_product = serializer.data
-            logger.info(f"Successfully saved product: {product.get('name', 'Unknown')}")
-        else:
-            logger.error(f"Failed to save product: {serializer.errors}")
-            return Response(
-                {"error": f"Failed to save product: {serializer.errors}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        return Response({
+            "message": f"Successfully saved {len(saved_products)} products.",
+            "products": saved_products
+        }, status=status.HTTP_201_CREATED)
 
-        logger.info("Returning saved product")
-        return Response(
-            {
-                "message": "Successfully saved 1 product.",
-                "product": saved_product
-            },
-            status=status.HTTP_201_CREATED
+    def fetch_single_product(self, platform, url, headers):
+        if platform == 'shein':
+            return self.fetch_shein_single_product(url, headers)
+        elif platform == 'alibaba':
+            return self.fetch_alibaba_single_product(url, headers)
+
+    def fetch_category_product_urls(self, platform, url, count, headers):
+        response = requests.get(
+            'https://api.firecrawl.dev/scrape',
+            headers=headers,
+            params={'url': url, 'format': 'extract', 'extract': {'selector': 'a[href*="/product/"]'}}
         )
+        response.raise_for_status()
+        data = response.json()
+        product_links = [link['href'] for link in data.get('extracted', []) if 'href' in link][:count]
+        return product_links
 
-    def fetch_shein_single_product(self, url):
-        logger.info("Starting fetch_shein_single_product method")
-        logger.warning("Shein single product fetching may require JavaScript rendering")
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    def fetch_alibaba_single_product(self, url, headers):
+        response = requests.get(
+            'https://api.firecrawl.dev/scrape',
+            headers=headers,
+            params={
+                'url': url,
+                'format': 'extract',
+                'extract': {
+                    'name': 'h1.module-pdp-title',
+                    'price': 'span.price-number',
+                    'moq': 'div.moq-value',
+                    'description': 'div.module-pdp-description',
+                    'thumbnail': 'img.magnifier-image',
+                    'images': 'div.product-images img',
+                    'supplier': 'a.supplier-name',
+                    'attributes': 'div.sku-item'
+                }
             }
-            logger.info("Sending GET request to Shein product page")
-            response = requests.get(url, headers=headers, timeout=30)
-            logger.info(f"Shein response status: {response.status_code}")
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            logger.info("Parsed Shein product page HTML with BeautifulSoup")
-            return self.parse_shein_single_product(soup)
-        except requests.RequestException as e:
-            logger.error(f"Shein product page request failed: {str(e)}")
-            return None
-
-    def fetch_alibaba_single_product(self, url):
-        logger.info("Starting fetch_alibaba_single_product method")
-        OXYLABS_USERNAME = getattr(settings, 'OXYLABS_USERNAME', 'your_username')
-        OXYLABS_PASSWORD = getattr(settings, 'OXYLABS_PASSWORD', 'your_password')
-        logger.info(f"Using Oxylabs credentials: {OXYLABS_USERNAME}")
-        payload = {
-            "source": "universal",
-            "url": url,
-            "render": "html"
-        }
-        logger.info(f"Oxylabs payload: {payload}")
-        try:
-            logger.info("Sending POST request to Oxylabs API")
-            response = requests.post(
-                "https://realtime.oxylabs.io/v1/queries",
-                auth=(OXYLABS_USERNAME, OXYLABS_PASSWORD),
-                json=payload,
-                timeout=30
-            )
-            logger.info(f"Oxylabs API response status: {response.status_code}")
-            response.raise_for_status()
-            logger.info("Parsing Oxylabs API response")
-            data = response.json()
-            logger.info(f"Oxylabs response: {data.get('results', 'No results')[:1000]}")
-            logger.info("Validating Oxylabs API response structure")
-            if 'results' not in data or not data['results']:
-                logger.error("No content returned from Oxylabs API")
-                return None
-            html_content = data['results'][0].get('content', '')
-            logger.info(f"Oxylabs HTML length: {len(html_content)}")
-            if not html_content:
-                logger.error("Empty content returned from Oxylabs API")
-                return None
-            logger.info("Parsing HTML with BeautifulSoup")
-            soup = BeautifulSoup(html_content, 'html.parser')
-            logger.info("BeautifulSoup parsed HTML successfully")
-            logger.info("Calling parse_alibaba_single_product")
-            return self.parse_alibaba_single_product(soup)
-        except requests.RequestException as e:
-            logger.error(f"Oxylabs API request failed: {str(e)}")
-            if e.response is not None:
-                logger.error(f"Oxylabs response: {e.response.text}")
-            return None
-
-    def parse_alibaba_single_product(self, soup):
-        logger.info("Starting parse_alibaba_single_product method")
-        logger.info("Creating or retrieving Alibaba category")
-        default_category, _ = Category.objects.get_or_create(
-            name="Alibaba",
-            defaults={"slug": "alibaba", "description": "Products scraped from Alibaba", "is_active": True}
         )
-        default_category_id = default_category.id
-        default_supplier_id = None
-        logger.info(f"Default category ID for Alibaba: {default_category_id}")
+        response.raise_for_status()
+        data = response.json()['extracted']
 
-        product_data = {}
+        if not data.get('name'):
+            return None
 
-        # Extract product name
-        logger.info("Extracting product name")
-        name_elem = soup.select_one('h1.module-pdp-title')
-        product_data['name'] = name_elem.text.strip() if name_elem else 'Unknown Product'
-        logger.info(f"Product name: {product_data['name']}")
+        category_name = "Alibaba"  # Simplified; adjust as needed
+        category, _ = Category.objects.get_or_create(
+            name=category_name,
+            defaults={"slug": slugify(category_name), "description": f"Category for {category_name}", "is_active": True}
+        )
 
-        # Extract price and below MOQ price
-        logger.info("Extracting product price")
-        price_elem = soup.select_one('span.price-number')
-        price_text = price_elem.text.strip().replace('$', '').replace('US', '').replace(',', '') if price_elem else '0.0'
+        price_text = data.get('price', '0.0').replace('$', '').replace('US', '').replace(',', '')
         try:
             if '-' in price_text:
                 prices = price_text.split('-')
-                price_usd = float(prices[0].strip())
-                below_moq_price_usd = float(prices[1].strip())
+                price_usd = float(prices[0].strip()) * 1.35
+                below_moq_price_usd = float(prices[1].strip()) * 1.35
             else:
-                price_usd = float(price_text)
-                below_moq_price_usd = price_usd * 1.2  # Default multiplier if no range
+                price_usd = float(price_text) * 1.35
+                below_moq_price_usd = price_usd * 1.2
         except ValueError:
-            logger.warning(f"Invalid price format: {price_text}, defaulting to 0.0")
-            price_usd = 0.0
-            below_moq_price_usd = 0.0
+            price_usd = below_moq_price_usd = 0.0
+        USD_TO_KES_RATE = 130.50
+        price_kes = round(price_usd * USD_TO_KES_RATE)
+        below_moq_price_kes = round(below_moq_price_usd * USD_TO_KES_RATE)
 
-        # Apply Alibaba multiplier (1.35)
-        price_usd *= 1.35
-        below_moq_price_usd *= 1.35
-        logger.info(f"Price after 1.35 multiplier: {price_usd} USD, Below MOQ: {below_moq_price_usd} USD")
-
-        # Convert USD to KES (as of April 2025, using a realistic rate; in practice, fetch from an API)
-        USD_TO_KES_RATE = 130.50  # Example rate; replace with real-time fetch if needed
-        price_kes = price_usd * USD_TO_KES_RATE
-        below_moq_price_kes = below_moq_price_usd * USD_TO_KES_RATE
-
-        # Round to 2 decimal places, then to nearest shilling if needed
-        price_kes = round(price_kes, 2)
-        below_moq_price_kes = round(below_moq_price_kes, 2)
-        if price_kes % 1 > 0:  # If there are decimals
-            price_kes = round(price_kes)
-        if below_moq_price_kes % 1 > 0:
-            below_moq_price_kes = round(below_moq_price_kes)
-        product_data['price'] = price_kes
-        product_data['below_moq_price'] = below_moq_price_kes
-        logger.info(f"Price in KES: {product_data['price']}, Below MOQ in KES: {product_data['below_moq_price']}")
-
-        # Extract description
-        logger.info("Extracting product description")
-        desc_elem = soup.select_one('div.module-pdp-description')
-        product_data['description'] = desc_elem.text.strip() if desc_elem else 'No description available'
-        logger.info(f"Description: {product_data['description']}")
-
-        # Extract thumbnail
-        logger.info("Extracting thumbnail")
-        thumbnail_elem = soup.select_one('img.magnifier-image')
-        product_data['thumbnail'] = thumbnail_elem['src'] if thumbnail_elem and 'src' in thumbnail_elem.attrs else ""
-        logger.info(f"Thumbnail URL: {product_data['thumbnail']}")
-
-        # Extract supplier information
-        logger.info("Extracting supplier information")
-        supplier_elem = soup.select_one('a.supplier-name')
-        product_data['supplier_name'] = supplier_elem.text.strip() if supplier_elem else "N/A"
-        product_data['supplier_link'] = supplier_elem['href'] if supplier_elem and 'href' in supplier_elem.attrs else None
-        logger.info(f"Supplier: {product_data['supplier_name']} - {product_data['supplier_link']}")
-
-        # Extract supplier info (years, country)
-        logger.info("Extracting supplier info")
-        supplier_info_elem = soup.select_one('div.supplier-year')
-        product_data['supplier_info'] = supplier_info_elem.text.strip() if supplier_info_elem else "N/A"
-        logger.info(f"Supplier Info: {product_data['supplier_info']}")
-
-        # Extract MOQ
-        logger.info("Extracting MOQ")
-        moq_elem = soup.select_one('div.moq-value')
-        moq_text = moq_elem.text.strip() if moq_elem else "1"
+        moq_text = data.get('moq', '1')
         try:
-            product_data['moq'] = int(re.sub(r'\D', '', moq_text))  # Extract digits only
-        except ValueError:
-            product_data['moq'] = 1
-        logger.info(f"MOQ: {product_data['moq']}")
+            moq = int(re.search(r'\d+', moq_text).group())
+        except (AttributeError, ValueError):
+            moq = 1
 
-        # Extract product ID
-        logger.info("Extracting product ID")
-        product_id_elem = soup.select_one('meta[itemprop="productID"]')
-        product_data['product_id'] = product_id_elem['content'] if product_id_elem and 'content' in product_id_elem.attrs else None
-        logger.info(f"Product ID: {product_data['product_id']}")
+        supplier_name = data.get('supplier', 'N/A')
+        supplier, _ = Supplier.objects.get_or_create(
+            name=supplier_name,
+            defaults={"contact_email": "", "phone": "", "address": ""}
+        )
 
-        # Extract attributes (variations)
-        logger.info("Extracting product variations")
         attribute_value_ids = []
-        variation_sections = soup.select('div.sku-item')  # Common Alibaba variation container
-        for variation in variation_sections:
-            # Extract attribute name (e.g., "Color", "Model")
-            attr_name_elem = variation.select_one('span.sku-title')
-            attr_name = attr_name_elem.text.strip().replace(':', '').lower() if attr_name_elem else None
+        attributes = data.get('attributes', [])
+        for attr in attributes:
+            attr_name = attr.get('sku-title', '').replace(':', '').lower()
             if not attr_name:
                 continue
-            logger.info(f"Found variation attribute: {attr_name}")
-
-            # Find or create the attribute
-            try:
-                attribute = Attribute.objects.filter(name__iexact=attr_name).first()
-                if not attribute:
-                    logger.info(f"Creating new attribute: {attr_name}")
-                    attribute = Attribute.objects.create(name=attr_name)
-            except Exception as e:
-                logger.error(f"Error creating attribute {attr_name}: {str(e)}")
-                continue
-
-            # Extract attribute values (e.g., "Red", "Blue" for Color)
-            attr_values = variation.select('div.sku-item-option')
-            for value_elem in attr_values:
-                attr_value = value_elem.text.strip().lower()
+            attribute, _ = Attribute.objects.get_or_create(name=attr_name)
+            attr_values = attr.get('sku-item-option', [])
+            for value in attr_values:
+                attr_value = value.strip().lower()
                 if not attr_value:
                     continue
-                logger.info(f"Found attribute value: {attr_value} for attribute: {attr_name}")
-
-                # Find or create the attribute value
-                try:
-                    attribute_value = AttributeValue.objects.filter(attribute=attribute, value__iexact=attr_value).first()
-                    if not attribute_value:
-                        logger.info(f"Creating new attribute value: {attr_value} for attribute: {attr_name}")
-                        attribute_value = AttributeValue.objects.create(attribute=attribute, value=attr_value)
-                    attribute_value_ids.append(attribute_value.id)
-                except Exception as e:
-                    logger.error(f"Error creating attribute value {attr_value} for {attr_name}: {str(e)}")
-                    continue
-
-        product_data['attribute_value_ids'] = attribute_value_ids
-        logger.info(f"Attribute value IDs: {attribute_value_ids}")
-
-        # Prepare metadata
-        logger.info("Preparing metadata")
-        meta_title = f"{product_data['name']} - Wholesale Deals"
-        meta_description = f"Get {product_data['name']} at competitive prices. {product_data['description'][:150]}..."
-        logger.info(f"Meta title: {meta_title}, Meta description: {meta_description[:50]}...")
-
-        if product_data['name'] == "Unknown Product":
-            logger.warning("Product name not found, returning None")
-            return None
+                attribute_value, _ = AttributeValue.objects.get_or_create(attribute=attribute, value=attr_value)
+                attribute_value_ids.append(attribute_value.id)
 
         product = {
-            'name': product_data['name'],
-            'slug': product_data['name'].lower().replace(' ', '-').replace('/', '-')[:50],
-            'description': product_data['description'],
-            'price': product_data['price'],
-            'below_moq_price': product_data['below_moq_price'],
-            'moq': product_data['moq'],
+            'name': data.get('name', 'Unknown Product'),
+            'slug': slugify(data.get('name', 'Unknown Product'))[:50],
+            'description': data.get('description', 'No description available'),
+            'price': price_kes,
+            'below_moq_price': below_moq_price_kes,
+            'moq': moq,
             'moq_per_person': 1,
             'moq_status': 'not_applicable',
-            'category_id': default_category_id,
-            'supplier_id': default_supplier_id,
-            'supplier_name': product_data['supplier_name'],
-            'supplier_link': product_data['supplier_link'],
-            'supplier_info': product_data['supplier_info'],
-            'meta_title': meta_title,
-            'meta_description': meta_description,
-            'attribute_value_ids': product_data['attribute_value_ids'],
-            'thumbnail': product_data['thumbnail'],
-            'images': [product_data['thumbnail']] if product_data['thumbnail'] else [],
-            'alibaba_product_id': product_data['product_id']
+            'category_id': category.id,
+            'supplier_id': supplier.id,
+            'meta_title': data.get('name', 'Unknown Product'),
+            'meta_description': data.get('description', 'No description available')[:150] + "...",
+            'attribute_value_ids': attribute_value_ids,
+            'thumbnail': data.get('thumbnail', ''),
+            'images': data.get('images', [data.get('thumbnail', '')]) if data.get('thumbnail') else []
         }
-        logger.info(f"Returning product: {product_data['name']}")
         return product
 
-    def parse_shein_single_product(self, soup):
-        logger.info("Starting parse_shein_single_product method")
-        logger.info("Creating or retrieving Shein category")
-        default_category, _ = Category.objects.get_or_create(
+    def fetch_shein_single_product(self, url, headers):
+        response = requests.get(
+            'https://api.firecrawl.dev/scrape',
+            headers=headers,
+            params={
+                'url': url,
+                'format': 'extract',
+                'extract': {
+                    'name': 'h1.product-intro__head-name',
+                    'price': 'div.product-intro__head-mainprice',
+                    'description': 'div.product-intro__description',
+                    'thumbnail': 'img.product-intro__main-image',
+                    'attributes': 'div.product-intro__sku-item'
+                }
+            }
+        )
+        response.raise_for_status()
+        data = response.json()['extracted']
+
+        if not data.get('name'):
+            return None
+
+        category, _ = Category.objects.get_or_create(
             name="Shein",
             defaults={"slug": "shein", "description": "Products scraped from Shein", "is_active": True}
         )
-        default_category_id = default_category.id
-        default_supplier_id = None
-        logger.info(f"Default category ID for Shein: {default_category_id}")
 
-        product_data = {}
-
-        # Extract product name
-        logger.info("Extracting product name")
-        name_elem = soup.select_one('h1.product-intro__head-name')
-        product_data['name'] = name_elem.text.strip() if name_elem else 'Unknown Product'
-        logger.info(f"Product name: {product_data['name']}")
-
-        # Extract price
-        logger.info("Extracting product price")
-        price_elem = soup.select_one('div.product-intro__head-mainprice')
-        price_text = price_elem.text.strip().replace('€', '').replace('$', '').replace(',', '') if price_elem else '0.0'
+        price_text = data.get('price', '0.0').replace('€', '').replace('$', '').replace(',', '')
         try:
             if '-' in price_text:
                 prices = price_text.split('-')
@@ -2872,104 +2653,98 @@ class ScrapeProductsView(APIView):
                 price_usd = float(price_text)
                 below_moq_price_usd = price_usd * 1.2
         except ValueError:
-            logger.warning(f"Invalid price format: {price_text}, defaulting to 0.0")
-            price_usd = 0.0
-            below_moq_price_usd = 0.0
-
-        # Convert USD to KES
+            price_usd = below_moq_price_usd = 0.0
         USD_TO_KES_RATE = 130.50
-        price_kes = price_usd * USD_TO_KES_RATE
-        below_moq_price_kes = below_moq_price_usd * USD_TO_KES_RATE
+        price_kes = round(price_usd * USD_TO_KES_RATE)
+        below_moq_price_kes = round(below_moq_price_usd * USD_TO_KES_RATE)
 
-        # Round to 2 decimal places, then to nearest shilling if needed
-        price_kes = round(price_kes, 2)
-        below_moq_price_kes = round(below_moq_price_kes, 2)
-        if price_kes % 1 > 0:
-            price_kes = round(price_kes)
-        if below_moq_price_kes % 1 > 0:
-            below_moq_price_kes = round(below_moq_price_kes)
-        product_data['price'] = price_kes
-        product_data['below_moq_price'] = below_moq_price_kes
-        logger.info(f"Price in KES: {product_data['price']}, Below MOQ in KES: {product_data['below_moq_price']}")
-
-        # Extract description
-        logger.info("Extracting product description")
-        desc_elem = soup.select_one('div.product-intro__description')
-        product_data['description'] = desc_elem.text.strip() if desc_elem else 'No description available'
-        logger.info(f"Description: {product_data['description']}")
-
-        # Extract thumbnail
-        logger.info("Extracting thumbnail")
-        thumbnail_elem = soup.select_one('img.product-intro__main-image')
-        product_data['thumbnail'] = thumbnail_elem['src'] if thumbnail_elem and 'src' in thumbnail_elem.attrs else ""
-        logger.info(f"Thumbnail URL: {product_data['thumbnail']}")
-
-        # Extract attributes (variations)
-        logger.info("Extracting product variations")
         attribute_value_ids = []
-        variation_sections = soup.select('div.product-intro__sku-item')  # Shein variation container
-        for variation in variation_sections:
-            attr_name_elem = variation.select_one('span.sku-title')
-            attr_name = attr_name_elem.text.strip().replace(':', '').lower() if attr_name_elem else None
+        attributes = data.get('attributes', [])
+        for attr in attributes:
+            attr_name = attr.get('sku-title', '').replace(':', '').lower()
             if not attr_name:
                 continue
-            logger.info(f"Found variation attribute: {attr_name}")
-
-            try:
-                attribute = Attribute.objects.filter(name__iexact=attr_name).first()
-                if not attribute:
-                    logger.info(f"Creating new attribute: {attr_name}")
-                    attribute = Attribute.objects.create(name=attr_name)
-            except Exception as e:
-                logger.error(f"Error creating attribute {attr_name}: {str(e)}")
-                continue
-
-            attr_values = variation.select('div.sku-item-option')
-            for value_elem in attr_values:
-                attr_value = value_elem.text.strip().lower()
+            attribute, _ = Attribute.objects.get_or_create(name=attr_name)
+            attr_values = attr.get('sku-item-option', [])
+            for value in attr_values:
+                attr_value = value.strip().lower()
                 if not attr_value:
                     continue
-                logger.info(f"Found attribute value: {attr_value} for attribute: {attr_name}")
-
-                try:
-                    attribute_value = AttributeValue.objects.filter(attribute=attribute, value__iexact=attr_value).first()
-                    if not attribute_value:
-                        logger.info(f"Creating new attribute value: {attr_value} for attribute: {attr_name}")
-                        attribute_value = AttributeValue.objects.create(attribute=attribute, value=attr_value)
-                    attribute_value_ids.append(attribute_value.id)
-                except Exception as e:
-                    logger.error(f"Error creating attribute value {attr_value} for {attr_name}: {str(e)}")
-                    continue
-
-        product_data['attribute_value_ids'] = attribute_value_ids
-        logger.info(f"Attribute value IDs: {attribute_value_ids}")
-
-        # Prepare metadata
-        logger.info("Preparing metadata")
-        meta_title = f"{product_data['name']} - Shop Now at Great Prices"
-        meta_description = f"Discover {product_data['name']} at our store. {product_data['description'][:150]}..."
-        logger.info(f"Meta title: {meta_title}, Meta description: {meta_description[:50]}...")
-
-        if product_data['name'] == "Unknown Product":
-            logger.warning("Product name not found, returning None")
-            return None
+                attribute_value, _ = AttributeValue.objects.get_or_create(attribute=attribute, value=attr_value)
+                attribute_value_ids.append(attribute_value.id)
 
         product = {
-            'name': product_data['name'],
-            'slug': product_data['name'].lower().replace(' ', '-').replace('/', '-')[:50],
-            'description': product_data['description'],
-            'price': product_data['price'],
-            'below_moq_price': product_data['below_moq_price'],
+            'name': data.get('name', 'Unknown Product'),
+            'slug': slugify(data.get('name', 'Unknown Product'))[:50],
+            'description': data.get('description', 'No description available'),
+            'price': price_kes,
+            'below_moq_price': below_moq_price_kes,
             'moq': 1,
             'moq_per_person': 1,
             'moq_status': 'not_applicable',
-            'category_id': default_category_id,
-            'supplier_id': default_supplier_id,
-            'meta_title': meta_title,
-            'meta_description': meta_description,
-            'attribute_value_ids': product_data['attribute_value_ids'],
-            'thumbnail': product_data['thumbnail'],
-            'images': [product_data['thumbnail']] if product_data['thumbnail'] else []
+            'category_id': category.id,
+            'supplier_id': None,
+            'meta_title': data.get('name', 'Unknown Product'),
+            'meta_description': data.get('description', 'No description available')[:150] + "...",
+            'attribute_value_ids': attribute_value_ids,
+            'thumbnail': data.get('thumbnail', ''),
+            'images': [data.get('thumbnail', '')] if data.get('thumbnail') else []
         }
-        logger.info(f"Returning product: {product_data['name']}")
         return product
+
+@api_view(['GET'])
+def get_shipping_methods(request):
+    try:
+        shipping_methods = ShippingMethod.objects.filter(is_active=True)
+        serializer = ShippingMethodSerializer(shipping_methods, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAdminUser])
+def shipping_methods1(request):
+    if request.method == 'GET':
+        try:
+            shipping_methods = ShippingMethod.objects.filter(is_active=True)
+            serializer = ShippingMethodSerializer(shipping_methods, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'POST':
+        try:
+            serializer = ShippingMethodSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAdminUser])
+def shipping_method_detail1(request, shipping_method_id):
+    try:
+        shipping_method = ShippingMethod.objects.get(id=shipping_method_id)
+    except ShippingMethod.DoesNotExist:
+        return Response({"error": "Shipping method not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'PATCH':
+        try:
+            serializer = ShippingMethodSerializer(shipping_method, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        try:
+            shipping_method.delete()
+            return Response({"message": "Shipping method deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

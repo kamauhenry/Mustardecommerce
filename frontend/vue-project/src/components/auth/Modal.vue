@@ -59,7 +59,7 @@ watch(
   z-index: 1000;
   overflow-y: auto; /* Allow scrolling if modal content overflows viewport */
   padding: 0.5rem; /* Minimal padding */
-  padding-top: 1rem; /* Slightly reduced to bring modal higher */
+  padding-top: 4rem; /* Slightly reduced to bring modal higher */
 }
 
 .modal-content {
@@ -94,7 +94,7 @@ watch(
 }
 
 .modal-close:hover {
-  color: #f28c38;
+  color:#D4A017;
 }
 
 /* Animation for modal entrance */
@@ -112,7 +112,7 @@ watch(
 @media (max-width: 540px) {
   .modal-overlay {
     padding: 0.25rem; /* Further reduced padding */
-    padding-top: 0.5rem; /* Minimal offset from top */
+    padding-top: 2.5rem; /* Minimal offset from top */
   }
 
   .modal-content {

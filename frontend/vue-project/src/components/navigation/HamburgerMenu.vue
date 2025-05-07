@@ -110,13 +110,22 @@
         <li><router-link to="/about" :class="isActive('/about')" itemprop="url"><span itemprop="name">About Us</span></router-link></li>
         <li><router-link to="/contact" :class="isActive('/contact')" itemprop="url"><span itemprop="name">Contact Us</span></router-link></li>
       </ul>
+
+      <hr />
+
+      <div class="contact-section">
+        <h3>Contact Us</h3>
+        <p>Email: <a href="mailto:mustardimports@gmail.com">mustardimports@gmail.com</a></p>
+        <p>Telephone: <a href="tel:+254724028971">+254 724 028971</a></p>
+        <router-link to="/contact" class="contact-link">Get in Touch</router-link>
+      </div>
     </nav>
   </aside>
   <div v-if="isSidebarOpen" class="overlay" @click="closeSidebar"></div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'; // Explicitly import inject
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import IconHamburger from '../icons/IconHamburger.vue';
@@ -528,12 +537,12 @@ onUnmounted(() => {
 
 .page-list a.active-link,
 .category-list a.active-link {
-  color: #f28c38;
+  color: #D4A017;
 }
 
 .page-list a:hover,
 .category-list a:hover {
-  color: #f28c38;
+  color: #D4A017;
 }
 
 .nav-link {
@@ -555,7 +564,7 @@ onUnmounted(() => {
   border: none;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #f28c38;
+  color: #D4A017;
   text-transform: uppercase;
   cursor: pointer;
   transition: color 0.2s;
@@ -583,7 +592,7 @@ onUnmounted(() => {
 .retry-button {
   margin-top: 0.5rem;
   padding: 0.5rem 1rem;
-  background-color: #f28c38;
+  background-color: #D4A017;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -602,9 +611,42 @@ hr {
 
 .loading,
 .error {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #666;
   padding: 0.5rem 0;
+}
+
+/* Contact Section */
+.contact-section {
+  margin-top: 1rem;
+  color: #333;
+}
+
+.contact-section h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #D4A017;
+  margin-bottom: 0.5rem;
+}
+
+.contact-section p {
+  font-size: 0.9rem;
+  margin: 0.3rem 0;
+}
+
+.contact-section a {
+  color: #D4A017;
+  text-decoration: none;
+}
+
+.contact-section a:hover {
+  color: #e67d21;
+}
+
+.contact-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-weight: 600;
 }
 
 /* Scrollbar */
@@ -677,6 +719,14 @@ hr {
     padding: 8px;
     font-size: 0.85rem;
   }
+
+  .contact-section h3 {
+    font-size: 1rem;
+  }
+
+  .contact-section p {
+    font-size: 0.85rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -731,6 +781,14 @@ hr {
   .search-icon {
     width: 20px;
     height: 20px;
+  }
+
+  .contact-section h3 {
+    font-size: 0.9rem;
+  }
+
+  .contact-section p {
+    font-size: 0.8rem;
   }
 }
 </style>

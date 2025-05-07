@@ -157,7 +157,7 @@ const switchToLogin = () => {
 }
 
 .input-group input:focus {
-  border-color: #f28c38;
+  border-color:#D4A017;
 }
 
 .input-group input::placeholder {
@@ -186,7 +186,7 @@ const switchToLogin = () => {
   font-weight: 700;
   text-transform: uppercase;
   color: #fff;
-  background-color: #f28c38;
+  background-color:#D4A017;
   border: none;
   border-radius: 4px;
   cursor: pointer;

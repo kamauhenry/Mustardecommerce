@@ -182,7 +182,7 @@ const login = async () => {
     await nextTick(); // Ensure state updates
     router.push('/admin-page/dashboard');
   } catch (err) {
-    loginError.value = err.response?.data?.error || err.message || 'Admin login failed';
+    loginError.value =  'Admin login failed Wrong Password or Username ';
     console.error('Admin login failed:', err);
   }
 };

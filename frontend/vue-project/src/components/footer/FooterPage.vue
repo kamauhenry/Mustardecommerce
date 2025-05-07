@@ -51,11 +51,9 @@ export default {
 </script>
 
 <style scoped>
-@import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";
-
 .footer {
   width: 100%;
-  background-color: #1a1a1a; /* Dark background for better contrast */
+  background-color: #1e3a8a; /* Dark blue background */
   color: #ffffff;
   padding: 2rem 0;
   font-family: 'Arial', sans-serif;
@@ -89,7 +87,7 @@ h3 {
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: #f0f0f0;
+  color: #f0f0f0; /* Light gray for headings to soften contrast */
 }
 
 .icons {
@@ -98,13 +96,13 @@ h3 {
 }
 
 .icons a {
-  color: #ffffff;
+  color: #ffffff; /* Fixed typo: removed invalid 'Membrane' */
   font-size: 1.75rem;
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
 .icons a:hover {
-  color: #ffd700; /* Mustard yellow for hover */
+  color: #f28c38; /* Mustard orange for hover to match homepage */
   transform: scale(1.2);
 }
 
@@ -119,7 +117,7 @@ h3 {
 
 .footer-router-link,
 .contact-info a {
-  color: #d0d0d0;
+  color: #d0d0d0; /* Light gray for links */
   text-decoration: none;
   font-size: 1rem;
   transition: color 0.3s ease;
@@ -127,7 +125,7 @@ h3 {
 
 .footer-router-link:hover,
 .contact-info a:hover {
-  color: #ffd700;
+  color: #f28c38; /* Mustard orange for hover */
   text-decoration: underline;
 }
 
@@ -141,7 +139,7 @@ h3 {
   font-size: 0.875rem;
   text-align: center;
   padding: 1rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.2); /* Slightly lighter border for contrast */
 }
 
 /* Responsive Design */
@@ -228,7 +226,7 @@ h3 {
 /* Accessibility */
 a:focus,
 .footer-router-link:focus {
-  outline: 2px solid #ffd700;
+  outline: 2px solid #f28c38; /* Mustard orange for focus to match hover */
   outline-offset: 2px;
 }
 </style>

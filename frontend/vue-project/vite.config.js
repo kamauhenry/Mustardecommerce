@@ -14,9 +14,9 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-    base: mode === 'production' ? '/static/' : '/', // Use / in development, /static/ in production
+    base: mode === 'production' ? '/frontend/vue-project/dist/' : '/', // Use correct path in production
     build: {
-      outDir: 'dist', // Output directly to Django's static directory
+      outDir: 'dist',
       assetsDir: 'assets',
       manifest: true,
       rollupOptions: {

@@ -33,6 +33,7 @@
           <button @click="uploadProducts" :disabled="importLoading || !importFile">
             {{ importLoading ? 'Importing...' : 'Upload' }}
           </button>
+          <p class="help-text">Note: For attributes, use a column 'attributes' with format "Color:Red,Blue;Size:Large"</p>
         </div>
 
         <!-- Loading State -->
@@ -231,6 +232,41 @@
         </div>
       </div>
 
+      <!-- Import from E-commerce Tab -->
+      <div v-if="activeTab === 'Import from E-commerce'" class="import-ecommerce">
+        <h3>Import Products from E-commerce</h3>
+        <div class="form-group">
+          <label>Platform</label>
+          <select v-model="importPlatform">
+            <option value="">Select Platform</option>
+            <option value="alibaba">Alibaba</option>
+            <option value="shein">Shein</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Import Type</label>
+          <div>
+            <input type="radio" id="single" value="single" v-model="importType" />
+            <label for="single">Single Product</label>
+          </div>
+          <div>
+            <input type="radio" id="category" value="category" v-model="importType" />
+            <label for="category">Category</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>URL</label>
+          <input v-model="importUrl" placeholder="Enter product or category URL" />
+        </div>
+        <div class="form-group" v-if="importType === 'category'">
+          <label>Number of Products to Import</label>
+          <input v-model="importCount" type="number" min="1" placeholder="Enter number of products" />
+        </div>
+        <button @click="importProducts" :disabled="importLoading || !importPlatform || !importUrl">
+          {{ importLoading ? 'Importing...' : 'Import' }}
+        </button>
+      </div>
+
       <!-- Product Modal -->
       <div v-if="showModal && modalType === 'product'" class="modal" @click="closeModal">
         <div class="modal-content" @click.stop>
@@ -242,7 +278,7 @@
                 v-model="form.name"
                 required
                 placeholder="Enter product name"
-                @input="generateSlug"
+                @input="generateMetaData"
               />
             </div>
             <div class="form-group">
@@ -256,7 +292,11 @@
             </div>
             <div class="form-group">
               <label>Description</label>
-              <textarea v-model="form.description" placeholder="Enter product description"></textarea>
+              <textarea
+                v-model="form.description"
+                placeholder="Enter product description"
+                @input="generateMetaData"
+              ></textarea>
             </div>
             <div class="form-group">
               <label>Price</label>
@@ -301,47 +341,36 @@
                 </option>
               </select>
             </div>
-            <div class="form-group">
-              <label for="attribute_id">Attribute Type</label>
-              <select
-                v-model="form.selectedAttributeId"
-                id="attribute_id"
-                @change="fetchAttributeValuesForProduct"
-              >
-                <option value="">Select Attribute Type</option>
-                <option v-for="attr in attributeTypes" :key="attr.id" :value="attr.id">
-                  {{ attr.name }}
-                </option>
-              </select>
-            </div>
-            <div class="form-group" v-if="form.selectedAttributeId">
-              <label>Attribute Values</label>
-              <select
-                v-model="form.attribute_value_ids"
-                multiple
-                size="5"
-              >
-                <option
-                  v-for="value in attributeValues"
-                  :key="value.id"
-                  :value="value.id"
-                >
-                  {{ value.value }}
-                </option>
-              </select>
-              <div class="new-values">
-                <label for="new_attribute_values">Add New Values (comma-separated)</label>
-                <input
-                  v-model="form.newAttributeValues"
-                  type="text"
-                  id="new_attribute_values"
-                  placeholder="e.g., Blue, Red, Green"
-                />
-                <button type="button" @click="addNewAttributeValues" :disabled="formLoading">
-                  Add Values
-                </button>
+            <div v-for="(attr, index) in form.attributes" :key="index" class="attribute-group">
+              <div class="form-group">
+                <label>Attribute Type</label>
+                <select v-model="attr.attribute_id" @change="fetchValuesForAttr(index)">
+                  <option value="">Select Attribute Type</option>
+                  <option
+                    v-for="attrType in availableAttributeTypes(index)"
+                    :key="attrType.id"
+                    :value="attrType.id"
+                  >
+                    {{ attrType.name }}
+                  </option>
+                </select>
+                <button type="button" @click="removeAttribute(index)" v-if="form.attributes.length > 1">Remove</button>
+              </div>
+              <div class="form-group" v-if="attr.attribute_id">
+                <label>Attribute Values</label>
+                <select v-model="attr.value_ids" multiple size="5">
+                  <option v-for="value in attr.values" :key="value.id" :value="value.id">
+                    {{ value.value }}
+                  </option>
+                </select>
+                <div class="new-values">
+                  <label>Add New Values (comma-separated)</label>
+                  <input v-model="attr.newValues" type="text" placeholder="e.g., Blue, Red, Green" />
+                  <button type="button" @click="addNewValuesForAttr(index)" :disabled="formLoading">Add Values</button>
+                </div>
               </div>
             </div>
+            <button type="button" @click="addAttribute">Add Attribute</button>
             <div class="form-group">
               <label>Product Images</label>
               <input type="file" multiple @change="handleFileUpload" accept="image/*" />
@@ -354,11 +383,11 @@
             </div>
             <div class="form-group">
               <label>Meta Title (for SEO)</label>
-              <input v-model="form.meta_title" placeholder="Enter meta title (optional)" />
+              <input v-model="form.meta_title" placeholder="Enter meta title" />
             </div>
             <div class="form-group">
               <label>Meta Description (for SEO)</label>
-              <textarea v-model="form.meta_description" placeholder="Enter meta description (optional)"></textarea>
+              <textarea v-model="form.meta_description" placeholder="Enter meta description"></textarea>
             </div>
             <button type="submit" :disabled="formLoading">
               {{ formLoading ? 'Saving...' : (editMode ? 'Update' : 'Add') }}
@@ -430,7 +459,7 @@ export default {
   setup() {
     const store = useEcommerceStore();
     const activeTab = ref('Products');
-    const tabs = ['Products', 'Attributes', 'Suppliers'];
+    const tabs = ['Products', 'Attributes', 'Suppliers', 'Import from E-commerce'];
     const products = ref([]);
     const categories = ref([]);
     const suppliers = ref([]);
@@ -449,6 +478,10 @@ export default {
     const error = ref(null);
     const newAttributeName = ref('');
     const newAttributeValues = ref('');
+    const importPlatform = ref('');
+    const importUrl = ref('');
+    const importType = ref('single');
+    const importCount = ref(1);
 
     const filteredProducts = computed(() => {
       if (!searchQuery.value) return products.value;
@@ -488,22 +521,6 @@ export default {
         attributeValues.value = response.data;
       } catch (error) {
         toast.error('Failed to load attribute values.');
-      }
-    };
-
-    const fetchAttributeValuesForProduct = async () => {
-      if (!form.value.selectedAttributeId) {
-        attributeValues.value = [];
-        form.value.attribute_value_ids = [];
-        return;
-      }
-      try {
-        const apiInstance = api.createApiInstance(store);
-        const response = await apiInstance.get(`/admin/attribute-values/by-attribute/${form.value.selectedAttributeId}/`);
-        attributeValues.value = response.data;
-      } catch (error) {
-        toast.error('Failed to load attribute values.');
-        attributeValues.value = [];
       }
     };
 
@@ -595,19 +612,50 @@ export default {
       }
     };
 
-    const addNewAttributeValues = async () => {
-      if (!form.value.newAttributeValues.trim() || !form.value.selectedAttributeId || formLoading.value) return;
+    const fetchValuesForAttr = async (index) => {
+      const attr = form.value.attributes[index];
+      if (!attr.attribute_id) {
+        attr.values = [];
+        attr.value_ids = [];
+        return;
+      }
+      try {
+        const apiInstance = api.createApiInstance(store);
+        const response = await apiInstance.get(`/admin/attribute-values/by-attribute/${attr.attribute_id}/`);
+        attr.values = response.data;
+      } catch (error) {
+        toast.error('Failed to load attribute values.');
+        attr.values = [];
+      }
+    };
+
+    const addAttribute = () => {
+      form.value.attributes.push({
+        attribute_id: '',
+        value_ids: [],
+        values: [],
+        newValues: '',
+      });
+    };
+
+    const removeAttribute = (index) => {
+      form.value.attributes.splice(index, 1);
+    };
+
+    const addNewValuesForAttr = async (index) => {
+      const attr = form.value.attributes[index];
+      if (!attr.newValues.trim() || !attr.attribute_id || formLoading.value) return;
       try {
         formLoading.value = true;
-        const values = form.value.newAttributeValues.split(',').map(v => v.trim()).filter(v => v);
+        const values = attr.newValues.split(',').map(v => v.trim()).filter(v => v);
         const apiInstance = api.createApiInstance(store);
         const response = await apiInstance.post('/admin/attribute-values/', {
-          attribute_id: form.value.selectedAttributeId,
+          attribute_id: attr.attribute_id,
           values,
         });
-        attributeValues.value.push(...response.data);
-        form.value.attribute_value_ids.push(...response.data.map(v => v.id));
-        form.value.newAttributeValues = '';
+        attr.values.push(...response.data);
+        attr.value_ids.push(...response.data.map(v => v.id));
+        attr.newValues = '';
         toast.success('Attribute values added successfully!');
       } catch (error) {
         toast.error('Failed to add attribute values.');
@@ -616,16 +664,29 @@ export default {
       }
     };
 
-    const handleSearch = () => {
-      // Filtering handled by computed property
-    };
+    const generateMetaData = () => {
+      if (!editMode.value && modalType.value === 'product') {
+        // Generate slug
+        if (form.value.name) {
+          form.value.slug = form.value.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+        }
 
-    const generateSlug = () => {
-      if (!editMode.value && form.value.name && modalType.value === 'product') {
-        form.value.slug = form.value.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
+        // Auto-generate meta_title
+        form.value.meta_title = form.value.name || '';
+
+        // Auto-generate meta_description
+        if (form.value.description) {
+          form.value.meta_description = form.value.description.length > 150
+            ? form.value.description.substring(0, 147) + '...'
+            : form.value.description;
+        } else {
+          form.value.meta_description = form.value.name
+            ? `${form.value.name} - High-quality product available at competitive prices.`
+            : '';
+        }
       }
     };
 
@@ -645,9 +706,7 @@ export default {
           moq_status: 'active',
           category_id: '',
           supplier_id: '',
-          attribute_value_ids: [],
-          selectedAttributeId: '',
-          newAttributeValues: '',
+          attributes: [{ attribute_id: '', value_ids: [], values: [], newValues: '' }],
           images: [],
           meta_title: '',
           meta_description: '',
@@ -662,6 +721,15 @@ export default {
       editMode.value = true;
       modalType.value = type;
       if (type === 'product') {
+        const attributesMap = {};
+        item.attributes.forEach(attr => {
+          attributesMap[attr.id] = {
+            attribute_id: attr.id,
+            value_ids: attr.values.map(v => v.id),
+            values: attr.values,
+            newValues: '',
+          };
+        });
         form.value = {
           id: item.id,
           name: item.name,
@@ -674,16 +742,13 @@ export default {
           moq_status: item.moq_status || 'active',
           category_id: item.category?.id || '',
           supplier_id: item.supplier?.id || '',
-          attribute_value_ids: item.attributes?.flatMap(attr => attr.values.map(val => val.id)) || [],
-          selectedAttributeId: item.attributes?.length ? item.attributes[0]?.id : '',
-          newAttributeValues: '',
+          attributes: Object.values(attributesMap).length
+            ? Object.values(attributesMap)
+            : [{ attribute_id: '', value_ids: [], values: [], newValues: '' }],
           images: item.images || [],
           meta_title: item.meta_title || '',
           meta_description: item.meta_description || '',
         };
-        if (form.value.selectedAttributeId) {
-          fetchAttributeValuesForProduct();
-        }
       } else if (type === 'supplier') {
         form.value = {
           id: item.id,
@@ -713,6 +778,15 @@ export default {
         const preview = URL.createObjectURL(file);
         form.value.images.push({ file, preview });
       });
+    };
+
+    const availableAttributeTypes = (currentIndex) => {
+      if (!form.value.attributes) return attributeTypes.value;
+      const selectedIds = form.value.attributes
+        .filter((_, index) => index !== currentIndex)
+        .map(attr => attr.attribute_id)
+        .filter(id => id);
+      return attributeTypes.value.filter(attrType => !selectedIds.includes(attrType.id));
     };
 
     const removeImage = (index) => {
@@ -747,6 +821,29 @@ export default {
       }
     };
 
+    const importProducts = async () => {
+      if (!importPlatform.value || !importUrl.value) return;
+      try {
+        importLoading.value = true;
+        const apiInstance = api.createApiInstance(store);
+        const data = {
+          platform: importPlatform.value,
+          url: importUrl.value,
+          import_type: importType.value,
+        };
+        if (importType.value === 'category') {
+          data.import_count = importCount.value;
+        }
+        const response = await apiInstance.post('/admin/scrape-products/', data);
+        toast.success(`Imported ${response.data.products.length} products successfully!`);
+        await fetchData();
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Failed to import products.');
+      } finally {
+        importLoading.value = false;
+      }
+    };
+
     const saveItem = async (type) => {
       try {
         formLoading.value = true;
@@ -757,17 +854,12 @@ export default {
         if (type === 'product') {
           const formData = new FormData();
           for (const key in form.value) {
-            if (key !== 'images' && key !== 'attribute_value_ids' && key !== 'selectedAttributeId' && key !== 'newAttributeValues' && form.value[key] != null) {
+            if (key !== 'attributes' && key !== 'images' && form.value[key] != null) {
               formData.append(key, form.value[key]);
             }
           }
-          if (form.value.attribute_value_ids) {
-            form.value.attribute_value_ids.forEach(id => {
-              if (Number.isInteger(Number(id))) {
-                formData.append('attribute_value_ids', id);
-              }
-            });
-          }
+          const allValueIds = form.value.attributes.flatMap(attr => attr.value_ids || []);
+          allValueIds.forEach(id => formData.append('attribute_value_ids', id));
           form.value.images.forEach(image => {
             if (image.file) {
               formData.append('images', image.file);
@@ -864,18 +956,24 @@ export default {
       error,
       newAttributeName,
       newAttributeValues,
+      importPlatform,
+      importUrl,
+      importType,
+      importCount,
       fetchData,
       fetchAttributeValues,
-      fetchAttributeValuesForProduct,
       createAttributeType,
       deleteAttributeType,
       selectAttributeType,
       createAttributeValues,
       openEditAttributeValueModal,
       deleteAttributeValue,
-      addNewAttributeValues,
-      handleSearch,
-      generateSlug,
+      fetchValuesForAttr,
+      addAttribute,
+      removeAttribute,
+      addNewValuesForAttr,
+      availableAttributeTypes,
+      generateMetaData,
       openAddModal,
       openEditModal,
       closeModal,
@@ -883,6 +981,7 @@ export default {
       removeImage,
       handleFileImport,
       uploadProducts,
+      importProducts,
       saveItem,
       deleteItem,
       formatPrice: (price) => {
@@ -896,6 +995,17 @@ export default {
 </script>
 
 <style scoped>
+.attribute-group {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+}
+
+.attribute-group button {
+  margin-left: 10px;
+}
+
 .admin-panel {
   padding: 20px;
   background-color: #f4f6f9;
@@ -920,7 +1030,6 @@ h4 {
   margin-bottom: 10px;
 }
 
-/* Tabs */
 .tabs {
   display: flex;
   gap: 10px;
@@ -948,7 +1057,6 @@ h4 {
   color: #5a32a3;
 }
 
-/* Search Bar */
 .search-bar {
   margin-bottom: 20px;
 }
@@ -968,26 +1076,26 @@ h4 {
   box-shadow: 0 0 5px rgba(111, 66, 193, 0.2);
 }
 
-/* Import Section */
-.import-section {
+.import-section, .import-ecommerce {
   margin-bottom: 20px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
 }
 
-.import-section label {
+.import-section label, .import-ecommerce label {
   font-weight: 500;
   color: #333;
+  display: block;
+  margin-bottom: 5px;
 }
 
-.import-section input {
+.import-section input, .import-ecommerce input, .import-ecommerce select {
   padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
+  width: 100%;
+  margin-bottom: 10px;
 }
 
-.import-section button {
+.import-section button, .import-ecommerce button {
   padding: 8px 16px;
   background-color: #6f42c1;
   color: white;
@@ -996,16 +1104,20 @@ h4 {
   cursor: pointer;
 }
 
-.import-section button:hover:not(:disabled) {
+.import-section button:hover:not(:disabled), .import-ecommerce button:hover:not(:disabled) {
   background-color: #5a32a3;
 }
 
-.import-section button:disabled {
+.import-section button:disabled, .import-ecommerce button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Add Button */
+.help-text {
+  font-size: 0.9rem;
+  color: #666;
+}
+
 .add-button {
   padding: 8px 16px;
   background-color: #6f42c1;
@@ -1026,7 +1138,6 @@ h4 {
   cursor: not-allowed;
 }
 
-/* Tables */
 .products-list, .attribute-types-list, .attribute-values-list, .suppliers-content {
   width: 100%;
   overflow-x: auto;
@@ -1059,7 +1170,6 @@ tbody td {
   background-color: #f8f9fa;
 }
 
-/* MOQ Progress Bar */
 .moq-progress-cell {
   width: 150px;
 }
@@ -1094,7 +1204,6 @@ tbody td {
   text-shadow: 0 0 2px #fff;
 }
 
-/* Action Buttons */
 .product-actions, .attribute-actions, .supplier-actions {
   white-space: nowrap;
 }
@@ -1131,7 +1240,6 @@ tbody td {
   cursor: not-allowed;
 }
 
-/* Modal Styling */
 .modal {
   position: fixed;
   top: 0;
@@ -1226,7 +1334,6 @@ tbody td {
   cursor: not-allowed;
 }
 
-/* Image Preview */
 .image-preview {
   display: flex;
   flex-wrap: wrap;
@@ -1259,7 +1366,6 @@ tbody td {
   cursor: pointer;
 }
 
-/* Attribute Types and Values */
 .attribute-types, .attribute-values {
   margin-bottom: 20px;
 }
@@ -1293,7 +1399,6 @@ tbody td {
   vertical-align: top;
 }
 
-/* Loading and Error States */
 .loading {
   display: flex;
   align-items: center;
@@ -1345,7 +1450,6 @@ tbody td {
   background-color: #5a32a3;
 }
 
-/* Responsive Adjustments */
 @media (max-width: 768px) {
   .admin-panel {
     padding: 15px;

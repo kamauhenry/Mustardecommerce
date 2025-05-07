@@ -214,7 +214,7 @@ export default {
 }
 
 .breadcrumb a {
-  color: #f28c38;
+  color:#D4A017;
   text-decoration: none;
   transition: color 0.3s ease;
 }
@@ -385,7 +385,7 @@ export default {
 .price-highlight {
   font-size: 1rem;
   font-weight: 700;
-  color: #f28c38;
+  color:#D4A017;
 }
 
 .below-moq-price {
@@ -470,7 +470,7 @@ export default {
 .retry-button {
   background: none;
   border: none;
-  color: #f28c38;
+  color:#D4A017;
   font-size: 1rem;
   font-weight: 500;
   text-decoration: underline;
@@ -493,7 +493,7 @@ export default {
 .cta-button {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background-color: #f28c38;
+  background-color:#D4A017;
   color: #fff;
   text-decoration: none;
   border-radius: 20px;

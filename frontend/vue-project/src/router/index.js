@@ -15,14 +15,18 @@ import CompletedOrders from '@/views/CompletedOrders.vue';
 import SearchResults from '@/views/SearchResults.vue';
 import Confirmation from '@/views/Confirmation.vue';
 import Checkout from '@/views/Checkout.vue';
+
 import PrivacyPolicy from '@/pages/PrivacyPolicy.vue';
 import CookiePolicy from '@/pages/CookiePolicy.vue';
+
+import OrderDetails from '@/views/OrderDetails.vue';
 
 // Admin components
 import AdminDashboard from '@/components/admin/Dashboard.vue';
 import Settings from '@/components/admin/Settings.vue';
 import Products from '@/components/admin/Products.vue';
 import AdminOrders from '@/components/admin/Orders.vue';
+
 import Categories from '@/components/admin/Categories.vue';
 import LoginAdmin from '@/components/admin/LoginAdmin.vue';
 import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
@@ -33,6 +37,7 @@ const routes = [
   { path: '/moq-campaigns', component: MOQCampaigns },
   { path: '/SearchResults', component: SearchResults, name: 'search-results' },
   { path: '/profile', component: Profile },
+  
   { path: '/orders', component: Orders },
   { path: '/completed-orders', component: CompletedOrders },
   { path: '/about', component: About },
@@ -42,6 +47,12 @@ const routes = [
     path: '/Checkout',
     name: 'Checkout',
     component: Checkout,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/profile/orders/:orderId',
+    name: 'OrderDetailsCustomer',
+    component: OrderDetails,
     meta: { requiresAuth: true },
   },
   {
@@ -71,7 +82,7 @@ const routes = [
     component: AdminDashboard,
     meta: { requiresAdmin: true },
     beforeEnter: (to, from, next) => {
-      const store = useEcommerceStore(); // This will now work after Pinia is initialized
+      const store = useEcommerceStore();
       if (store.isAdmin) {
         next();
       } else {
@@ -86,7 +97,12 @@ const routes = [
   { path: '/admin-page/login', component: LoginAdmin, meta: { requiresGuest: true } },
   { path: '/admin-page/register', component: RegistrationAdmin, meta: { requiresGuest: true } },
   { path: '/admin-page', redirect: '/admin-page/login' },
-
+  {
+    path: '/admin-page/orders/:orderId',
+    name: 'OrderDetailsAdmin',
+    component: OrderDetails,
+    meta: { requiresAdmin: true },
+  },
   // **Catch-All Route**
   { path: '/:catchAll(.*)', redirect: '/' },
 ];
@@ -97,44 +113,51 @@ export default function createMyRouter(pinia) {
     routes,
   });
 
-  // **Navigation Guard**
-  router.beforeEach((to, from, next) => {
-    // Handle API and media requests by passing them to the backend
+  // Navigation Guard
+  router.beforeEach(async (to, from, next) => {
+    // Pass API and media requests to the backend
     if (to.path.startsWith('/api/') || to.path.startsWith('/media/')) {
       window.location.href = to.fullPath;
       return;
     }
 
-    // Access the store to check authentication status
-    const store = useEcommerceStore(pinia); // Use the pinia instance passed from main.js
-    const isAuthenticated = store.isAuthenticated;
-    const isAdmin = store.isAdmin;
-
-    // **Admin Routes**: Require admin privileges
-    if (to.meta.requiresAdmin) {
-      if (!isAuthenticated || !isAdmin) {
-        next('/admin-page/login');
-      } else {
-        next();
+    const store = useEcommerceStore(pinia);
+    
+    // Ensure user info is fetched if authenticated
+    if (store.isAuthenticated && !store.currentUser) {
+      try {
+        await store.fetchCurrentUserInfo();
+      } catch (error) {
+        console.error('Failed to fetch user info:', error);
+        store.logout();
       }
     }
-    // **Guest Routes**: Redirect authenticated admins to dashboard
+
+    // Admin Routes
+    if (to.meta.requiresAdmin) {
+      if (store.isAuthenticated && store.isAdmin) {
+        next();
+      } else {
+        next('/admin-page/login');
+      }
+    }
+    // Guest Routes
     else if (to.meta.requiresGuest) {
-      if (isAuthenticated && isAdmin) {
+      if (store.isAuthenticated && store.isAdmin) {
         next('/admin-page/dashboard');
       } else {
         next();
       }
     }
-    // **Authenticated Routes**: Require user authentication
+    // Authenticated Routes
     else if (to.meta.requiresAuth) {
-      if (!isAuthenticated) {
-        next('/');
-      } else {
+      if (store.isAuthenticated) {
         next();
+      } else {
+        next('/');
       }
     }
-    // **Public Routes**: Allow access
+    // Public Routes
     else {
       next();
     }

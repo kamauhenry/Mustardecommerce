@@ -8,7 +8,7 @@ class PaymentAdmin(admin.ModelAdmin):
 admin.site.register(User)   
 admin.site.register(Category)
 admin.site.register(Product)
-admin.site.register(ProductVariant)
+
 admin.site.register(Order)
 admin.site.register(CompletedOrder)
 admin.site.register(CustomerReview)

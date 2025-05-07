@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <MainLayout>
     <div class="orders-container">
@@ -31,7 +30,6 @@
               <option value="paid">Paid</option>
               <option value="pending">Pending MOQ</option>
               <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -40,7 +38,7 @@
           <input
             type="text"
             v-model="searchQuery"
-            placeholder="Search for orders...."
+            placeholder="Search by order number (e.g., MI123)"
             class="search-input"
           />
         </div>
@@ -82,10 +80,10 @@
         <div v-for="order in filteredOrders" :key="order.id" class="order-item">
           <div class="order-header">
             <div class="order-info">
-              <div class="order-number">Order : #MI{{ order.id }}</div>
+              <div class="order-number">Order: {{ order.order_number }}</div>
               <div class="order-placed">Placed on: {{ formatDate(order.created_at) }}</div>
-              <div class="order-items-count">Included Items: {{ order.items.length }}</div>
-              <div class="order-total">Total: KES{{ order.total_price }}</div>
+              <div class="order-items-count">Items: {{ order.items.length }}</div>
+              <div class="order-total">Total: KES {{ formatPrice(order.total_price) }}</div>
             </div>
             <div class="order-actions">
               <button @click="openOrderDetails(order.id)" class="view-details-btn">
@@ -123,7 +121,7 @@
 
           <div v-else class="modal-receipt">
             <div class="receipt-header">
-              <h2>Receipt #MI{{ selectedOrder.id }}</h2>
+              <h2>Receipt {{ selectedOrder.order_number }}</h2>
               <p class="receipt-date">Placed on: {{ formatDate(selectedOrder.created_at) }}</p>
             </div>
 
@@ -151,7 +149,7 @@
                   <p class="item-quantity">Qty: {{ item.quantity }}</p>
                   <p class="item-price">KES {{ formatPrice(item.price) }}</p>
                 </div>
-                <p class="item-line-total">KES {{ formatPrice(item.quantity * item.price) }}</p>
+                <p class="item-line-total">KES {{ formatPrice(item.line_total) }}</p>
               </div>
             </div>
 
@@ -162,8 +160,14 @@
                 <span class="info-label">Name:</span> {{ selectedOrder.delivery_location.name }}
               </p>
               <p v-else>No delivery location specified.</p>
-              <p><span class="info-label">Shipping Method:</span> {{ selectedOrder.shipping_method?.name || 'Not specified' }}</p>
-              <p><span class="info-label">Shipping Cost:</span> KES {{ formatPrice(selectedOrder.shipping_cost) }}</p>
+              <p>
+                <span class="info-label">Shipping Method:</span>
+                {{ selectedOrder.shipping_method?.name || 'Not specified' }}
+              </p>
+              <p>
+                <span class="info-label">Shipping Cost:</span>
+                KES {{ formatPrice(selectedOrder.shipping_cost) }}
+              </p>
             </div>
 
             <div class="receipt-section">
@@ -200,6 +204,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import { useRouter } from 'vue-router';
+import { toast } from 'vue3-toastify';
+import api from '@/services/api';
 import logo from '../assets/images/mustard-imports.png';
 
 const store = useEcommerceStore();
@@ -222,7 +228,6 @@ const statusTabs = [
   { label: 'Unpaid', value: 'unpaid' },
   { label: 'Paid', value: 'paid' },
   { label: 'Completed', value: 'completed' },
-  { label: 'Cancelled', value: 'cancelled' },
 ];
 
 const formatDate = (dateString) => {
@@ -234,23 +239,9 @@ const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
 
 const orderSubtotal = computed(() =>
   selectedOrder.value
-    ? selectedOrder.value.items.reduce((sum, item) => sum + item.quantity * item.price, 0)
+    ? selectedOrder.value.items.reduce((sum, item) => sum + item.line_total, 0)
     : 0
 );
-
-onMounted(async () => {
-  if (!store.isAuthenticated) {
-    router.push('/login');
-    return;
-  }
-  try {
-    await store.fetchOrdersData();
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-  } finally {
-    loading.value = false;
-  }
-});
 
 const filteredOrders = computed(() => {
   let result = store.orders;
@@ -280,31 +271,45 @@ const filteredOrders = computed(() => {
   }
 
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase();
-    result = result.filter((order) => order.id.toString().includes(query));
+    const query = searchQuery.value.toLowerCase().replace(/^mi/, '');
+    result = result.filter((order) => order.order_number.toLowerCase().includes(query));
   }
 
   return result;
 });
 
-const openOrderDetails = async (orderId) => {
-  selectedOrderId.value = orderId;
-  showModal.value = true;
-  modalLoading.value = true;
-  modalError.value = null;
-  await fetchOrderDetails(orderId);
+const fetchOrdersData = async () => {
+  try {
+    loading.value = true;
+    const apiInstance = api.createApiInstance(store);
+    const orders = await api.fetchOrders(apiInstance);
+    store.setOrders(orders);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    toast.error(error.response?.data?.error || 'Failed to load orders.');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const fetchOrderDetails = async (orderId) => {
   try {
-    const response = await store.fetchOrder(orderId);
-    selectedOrder.value = response;
-  } catch (err) {
-    modalError.value = 'Failed to load order details. Please try again.';
-    console.error('Error fetching order details:', err);
+    modalLoading.value = true;
+    modalError.value = null;
+    const apiInstance = api.createApiInstance(store);
+    selectedOrder.value = await api.fetchOrder(apiInstance, orderId);
+  } catch (error) {
+    console.error('Error fetching order details:', error);
+    modalError.value = error.response?.data?.error || 'Failed to load order details.';
   } finally {
     modalLoading.value = false;
   }
+};
+
+const openOrderDetails = async (orderId) => {
+  selectedOrderId.value = orderId;
+  showModal.value = true;
+  await fetchOrderDetails(orderId);
 };
 
 const closeOrderDetails = () => {
@@ -315,28 +320,28 @@ const closeOrderDetails = () => {
 };
 
 const printReceipt = () => {
-  const orderId = selectedOrder.value.id;
+  const orderNumber = selectedOrder.value.order_number;
   const printWindow = window.open('', '_blank');
   printWindow.document.write(`
     <html>
       <head>
-        <link href=${logo} rel="icon">
-        <title>Receipt #MI${orderId}</title>
+        <link href="${logo}" rel="icon">
+        <title>Receipt ${orderNumber}</title>
         <style>
           body {
             font-family: 'Courier New', monospace;
             margin: 0;
-            padding: 20px;
+            padding: 1rem;
             background: #f0f0f0;
           }
           .receipt {
-            max-width: 350px;
+            max-width: 21.875rem;
             margin: 0 auto;
-            padding: 20px;
+            padding: 1rem;
             background: #fff;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 0.125rem 0.625rem rgba(0, 0, 0, 0.1);
             position: relative;
-            border-radius: 4px;
+            border-radius: 0.25rem;
           }
           .receipt::before,
           .receipt::after {
@@ -344,101 +349,117 @@ const printReceipt = () => {
             position: absolute;
             left: 0;
             right: 0;
-            height: 10px;
+            height: 0.625rem;
             background: repeating-linear-gradient(
               90deg,
               #fff 0px,
-              #fff 5px,
-              #ddd 5px,
-              #ddd 10px
+              #fff 0.3125rem,
+              #ddd 0.3125rem,
+              #ddd 0.625rem
             );
           }
           .receipt::before {
-            top: -5px;
+            top: -0.3125rem;
           }
           .receipt::after {
-            bottom: -5px;
+            bottom: -0.3125rem;
           }
           .receipt-header {
             text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px dashed #ccc;
-            padding-bottom: 15px;
+            margin-bottom: 1rem;
+            border-bottom: 0.125rem dashed #ccc;
+            padding-bottom: 0.75rem;
           }
           .receipt-header img {
-            max-width: 120px;
+            max-width: 7.5rem;
             height: auto;
-            margin-bottom: 10px;
+            margin-bottom: 0.625rem;
           }
           .receipt-header h2 {
-            font-size: 18px;
+            font-size: 1rem;
             margin: 0;
             color: #333;
           }
           .receipt-date {
-            font-size: 12px;
+            font-size: 0.75rem;
             color: #666;
-            margin-top: 5px;
+            margin-top: 0.3125rem;
           }
           .receipt-section {
-            margin-bottom: 20px;
+            margin-bottom: 1rem;
           }
           .receipt-section h3 {
-            font-size: 14px;
+            font-size: 0.875rem;
             font-weight: 600;
             color: #333;
-            margin-bottom: 10px;
-            border-left: 3px solid #f28c38;
-            padding-left: 8px;
+            margin-bottom: 0.625rem;
+            border-left: 0.1875rem solid#D4A017;
+            padding-left: 0.5rem;
           }
           .receipt-row,
           .item-details {
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
+            font-size: 0.75rem;
             color: #333;
-            padding: 5px 0;
+            padding: 0.3125rem 0;
           }
           .receipt-item {
-            border-bottom: 1px dashed #ddd;
-            padding: 8px 0;
+            border-bottom: 0.0625rem dashed #ddd;
+            padding: 0.5rem 0;
           }
           .receipt-section p {
-            font-size: 12px;
+            font-size: 0.75rem;
             color: #666;
             line-height: 1.5;
           }
           .receipt-footer {
-            border-top: 2px dashed #ccc;
-            padding-top: 15px;
-            margin-top: 20px;
+            border-top: 0.125rem dashed #ccc;
+            padding-top: 0.75rem;
+            margin-top: 1rem;
             text-align: center;
-          }
-          .receipt-total {
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 15px;
           }
           .barcode {
             width: 100%;
-            height: 40px;
+            height: 2.5rem;
             background: repeating-linear-gradient(
               90deg,
               #000 0px,
-              #000 3px,
-              #fff 3px,
-              #fff 6px
+              #000 0.1875rem,
+              #fff 0.1875rem,
+              #fff 0.375rem
             );
-            margin-top: 15px;
+            margin-top: 0.75rem;
+          }
+          @media (max-width: 650px) {
+            body {
+              padding: 0.5rem;
+            }
+            .receipt {
+              padding: 0.75rem;
+            }
+            .receipt-header h2 {
+              font-size: 0.875rem;
+            }
+            .receipt-date {
+              font-size: 0.6875rem;
+            }
+            .receipt-section h3 {
+              font-size: 0.8125rem;
+            }
+            .receipt-row,
+            .item-details,
+            .receipt-section p {
+              font-size: 0.6875rem;
+            }
           }
         </style>
       </head>
       <body>
         <div class="receipt">
           <div class="receipt-header">
-            <img src=${logo} alt="Mustard Imports Logo" />
-            <h2>Receipt #MI${orderId}</h2>
+            <img src="${logo}" alt="Mustard Imports Logo" />
+            <h2>Receipt ${orderNumber}</h2>
             <p class="receipt-date">Placed on: ${formatDate(selectedOrder.value.created_at)}</p>
           </div>
           <div class="receipt-section">
@@ -463,7 +484,7 @@ const printReceipt = () => {
                   <span>Qty: ${item.quantity}</span>
                   <span>KES ${formatPrice(item.price)}</span>
                 </div>
-                <span>KES ${formatPrice(item.quantity * item.price)}</span>
+                <span>KES ${formatPrice(item.line_total)}</span>
               </div>`
               )
               .join('')}
@@ -504,25 +525,39 @@ const printReceipt = () => {
   printWindow.document.close();
   printWindow.print();
 };
+
+onMounted(async () => {
+  if (!store.isAuthenticated) {
+    router.push('/login');
+    return;
+  }
+  const apiInstance = api.createApiInstance(store);
+  try {
+    // Removed: await api.autocomplete(apiInstance, '');
+    await fetchOrdersData();
+  } catch (error) {
+    console.error('Initialization error:', error);
+    toast.error('Failed to initialize data.');
+  }
+});
 </script>
 
 <style scoped>
 .orders-container {
-    margin: 0 auto;
-  max-width: 1200px;
+  max-width: 75rem;
   margin: 0 auto;
-  padding: 30px 20px;
+  padding: 1.875rem 1.25rem;
   font-family: 'Roboto', Arial, sans-serif;
 }
 
 .breadcrumb {
-  margin-bottom: 20px;
-  font-size: 14px;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
 }
 
 .breadcrumb a {
   text-decoration: none;
-  color: #f28c38;
+  color:#D4A017;
   transition: color 0.2s ease;
 }
 
@@ -531,33 +566,36 @@ const printReceipt = () => {
   color: #e67e22;
 }
 
+.page-title {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+}
+
 .order-count {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #7f8c8d;
   font-weight: 500;
 }
 
 .filter-container {
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 1.5rem;
-  margin-bottom: 25px;
-  flex-wrap: wrap;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border-radius: 0.625rem;
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.08);
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
-  min-width: 180px;
+  width: 100%;
 }
 
 .filter-group label {
-  font-size: 14px;
-  margin-bottom: 8px;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
   font-weight: 500;
 }
 
@@ -567,27 +605,26 @@ const printReceipt = () => {
 
 .filter-select {
   width: 100%;
-  padding: 10px 15px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  border: 1px solid #ddd;
+  padding: 0.625rem;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.375rem;
   appearance: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #333;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 .filter-select:focus {
   border-color: #34495e;
-  box-shadow: 0 0 0 2px rgba(242, 140, 56, 0.2);
+  box-shadow: 0 0 0 0.125rem rgba(242, 140, 56, 0.2);
   outline: none;
 }
 
 .select-wrapper::after {
   content: '▼';
-  font-size: 12px;
+  font-size: 0.75rem;
   position: absolute;
-  right: 15px;
+  right: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
@@ -595,36 +632,34 @@ const printReceipt = () => {
 }
 
 .search-group {
-  flex-grow: 1;
-  min-width: 250px;
-  border: 1px solid transparent;
+  width: 100%;
 }
 
 .search-input {
   width: 100%;
-  padding: 10px 15px;
-  border: 1px solid #ddd;
-  border-radius: 25px;
+  padding: 0.625rem 0.9375rem;
+  border: 0.0625rem solid #ddd;
+  border-radius: 1.5625rem;
   outline: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: border-color 0.3s, box-shadow 0.3s;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'%3E%3C/path%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 15px center;
-  padding-left: 40px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'%3E%3C/path%3E%3C/svg%3E") no-repeat 0.9375rem center;
+  padding-left: 2.5rem;
 }
 
 .search-input:focus {
-  border-color: #f28c38;
-  box-shadow: 0 0 0 2px rgba(242, 140, 56, 0.2);
+  border-color:#D4A017;
+  box-shadow: 0 0 0 0.125rem rgba(242, 140, 56, 0.2);
 }
 
 .status-tabs {
   display: flex;
-  margin-bottom: 25px;
+  margin-bottom: 1.25rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  gap: 0.5rem;
+  padding-bottom: 0.3125rem;
 }
 
 .status-tabs::-webkit-scrollbar {
@@ -632,102 +667,109 @@ const printReceipt = () => {
 }
 
 .tab-button {
-  padding: 12px 20px;
+  padding: 0.625rem 1rem;
   background: none;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 0.1875rem solid transparent;
   cursor: pointer;
   font-weight: 500;
   color: #7f8c8d;
   white-space: nowrap;
   transition: all 0.3s ease;
+  font-size: 0.875rem;
 }
 
 .tab-button:hover {
-  color: #f28c38;
+  color:#D4A017;
 }
 
 .tab-button.active {
-  color: #f28c38;
-  border-bottom-color: #f28c38;
+  color:#D4A017;
+  border-bottom-color:#D4A017;
 }
 
 .no-orders {
-  padding: 50px;
+  padding: 2rem;
   text-align: center;
-  border-radius: 10px;
+  border-radius: 0.625rem;
   color: #7f8c8d;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.08);
   font-weight: 500;
-  font-size: 16px;
+  font-size: 0.875rem;
 }
 
 .orders-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0.75rem;
 }
 
 .order-item {
-  border-radius: 10px;
+  border-radius: 0.625rem;
   overflow: hidden;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.1875rem 0.625rem rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .order-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.375rem 0.9375rem rgba(0, 0, 0, 0.15);
 }
 
 .order-header {
-  padding: 20px;
+  padding: 1rem;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .order-info {
   display: grid;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .order-number {
-  font-size: 16px;
+  font-size: 0.9375rem;
   font-weight: 600;
 }
 
 .order-placed,
 .order-items-count,
 .order-total {
-  font-size: 14px;
+  font-size: 0.8125rem;
+}
+
+.order-actions {
+  align-self: stretch;
 }
 
 .view-details-btn {
-  padding: 8px 15px;
+  width: 100%;
+  padding: 0.5rem 0.9375rem;
   cursor: pointer;
-  color: #f28c38;
+  color:#D4A017;
   font-weight: 500;
-  display: inline-block;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   background: none;
   border: none;
   transition: all 0.3s ease;
+  font-size: 0.875rem;
+  min-height: 2.75rem;
 }
 
 .view-details-btn:hover {
   background-color: rgba(242, 140, 56, 0.1);
-  transform: translateY(-2px);
+  transform: translateY(-0.125rem);
 }
 
 .order-status-badge {
   display: inline-block;
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 13px;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 1.25rem;
+  font-size: 0.8125rem;
   font-weight: 500;
-  margin: 0 20px 20px;
+  margin: 0 1rem 1rem;
 }
 
 .order-status-badge.pending {
@@ -738,11 +780,6 @@ const printReceipt = () => {
 .order-status-badge.paid {
   background-color: #e8f5e9;
   color: #4caf50;
-}
-
-.order-status-badge.cancelled {
-  background-color: #ffebee;
-  color: #f44336;
 }
 
 .order-status-badge.processing {
@@ -760,7 +797,6 @@ const printReceipt = () => {
   color: #ff9800;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -777,90 +813,91 @@ const printReceipt = () => {
 
 .modal-content {
   background: #fff;
-  border-radius: 16px;
-  max-width: 600px;
-  width: 90%;
+  border-radius: 1rem;
+  width: 95%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.2);
   position: relative;
   animation: slideIn 0.3s ease;
+  padding: 1rem;
 }
 
 .modal-loading,
 .modal-error {
-  padding: 30px;
+  padding: 1.25rem;
   text-align: center;
 }
 
 .modal-error {
   color: #e74c3c;
-  font-size: 16px;
+  font-size: 0.875rem;
 }
 
 .retry-button {
-  margin-top: 15px;
-  padding: 8px 20px;
-  background-color: #f28c38;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  background-color:#D4A017;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  font-size: 0.875rem;
+  min-height: 2.75rem;
 }
 
 .retry-button:hover {
   background-color: #e67e22;
 }
 
-/* Receipt Styles */
 .modal-receipt {
   font-family: 'Courier New', monospace;
   background: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+  border: 0.0625rem solid #e0e0e0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: inset 0 0 0.625rem rgba(0, 0, 0, 0.05);
 }
 
 .receipt-header {
   text-align: center;
-  border-bottom: 2px dashed #ccc;
-  padding-bottom: 15px;
-  margin-bottom: 20px;
+  border-bottom: 0.125rem dashed #ccc;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .receipt-header h2 {
-  font-size: 22px;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #333;
   margin: 0;
 }
 
 .receipt-date {
-  font-size: 14px;
+  font-size: 0.8125rem;
   color: #666;
-  margin-top: 5px;
+  margin-top: 0.3125rem;
 }
 
 .receipt-section {
-  margin-bottom: 25px;
+  margin-bottom: 1rem;
 }
 
 .receipt-section h3 {
-  font-size: 16px;
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: #f28c38;
-  margin-bottom: 15px;
-  border-left: 3px solid #f28c38;
-  padding-left: 10px;
+  color:#D4A017;
+  margin-bottom: 0.75rem;
+  border-left: 0.1875rem solid#D4A017;
+  padding-left: 0.625rem;
 }
 
 .receipt-row {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  font-size: 14px;
+  padding: 0.5rem 0;
+  font-size: 0.8125rem;
   color: #333;
 }
 
@@ -869,9 +906,9 @@ const printReceipt = () => {
 }
 
 .status-badge {
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
@@ -883,11 +920,6 @@ const printReceipt = () => {
 .status-badge.paid {
   background-color: #e8f5e9;
   color: #4caf50;
-}
-
-.status-badge.cancelled {
-  background-color: #ffebee;
-  color: #f44336;
 }
 
 .status-badge.processing {
@@ -909,31 +941,31 @@ const printReceipt = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px dashed #ddd;
+  padding: 0.5rem 0;
+  border-bottom: 0.0625rem dashed #ddd;
 }
 
 .item-details {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .item-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.8125rem;
   color: #333;
 }
 
 .item-quantity,
 .item-price {
-  font-size: 13px;
+  font-size: 0.75rem;
   color: #666;
 }
 
 .item-line-total {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.8125rem;
   color: #333;
 }
 
@@ -943,48 +975,40 @@ const printReceipt = () => {
 }
 
 .receipt-section p {
-  font-size: 14px;
+  font-size: 0.8125rem;
   color: #666;
   line-height: 1.6;
 }
 
 .receipt-footer {
-  border-top: 2px dashed #ccc;
-  padding-top: 15px;
-  margin-top: 20px;
+  border-top: 0.125rem dashed #ccc;
+  padding-top: 0.75rem;
+  margin-top: 1rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.receipt-total {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-
-.total-amount {
-  color: #f28c38;
+  justify-content: center;
 }
 
 .receipt-actions {
   display: flex;
-  gap: 10px;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .print-button,
 .close-button {
-  padding: 8px 20px;
+  padding: 0.5rem 1.25rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s ease;
+  min-height: 2.75rem;
 }
 
 .print-button {
-  background-color: #f28c38;
+  background-color:#D4A017;
   color: #fff;
 }
 
@@ -1002,26 +1026,18 @@ const printReceipt = () => {
 }
 
 .modal-content::-webkit-scrollbar {
-  width: 0px;
-}
-.modal-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-.modal-content::-webkit-scrollbar-thumb {
-  background: #f28c38;
-  border-radius: 4px;
+  width: 0;
 }
 
-/* Skeleton Loader for Modal */
 .skeleton-section {
-  margin-bottom: 30px;
+  margin-bottom: 1.25rem;
 }
 
 .skeleton-text {
   background: #e0e0e0;
-  height: 16px;
-  border-radius: 4px;
-  margin-bottom: 12px;
+  height: 0.875rem;
+  border-radius: 0.25rem;
+  margin-bottom: 0.5rem;
   position: relative;
   overflow: hidden;
 }
@@ -1039,13 +1055,13 @@ const printReceipt = () => {
 
 .skeleton-title {
   width: 60%;
-  height: 24px;
-  margin-bottom: 20px;
+  height: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .skeleton-item {
-  padding: 15px 0;
-  border-bottom: 1px dashed #ddd;
+  padding: 0.75rem 0;
+  border-bottom: 0.0625rem dashed #ddd;
 }
 
 .skeleton-item:last-child {
@@ -1064,7 +1080,6 @@ const printReceipt = () => {
   width: 80%;
 }
 
-/* Skeleton Loader for Orders List */
 .skeleton {
   background: #f6f7f8;
   position: relative;
@@ -1083,34 +1098,34 @@ const printReceipt = () => {
 }
 
 .skeleton-order-number {
-  width: 120px;
+  width: 7.5rem;
 }
 
 .skeleton-order-placed {
-  width: 180px;
+  width: 10rem;
 }
 
 .skeleton-order-items {
-  width: 140px;
+  width: 8.75rem;
 }
 
 .skeleton-order-total {
-  width: 100px;
+  width: 6.25rem;
 }
 
 .skeleton-button {
-  width: 120px;
-  height: 35px;
+  width: 100%;
+  height: 2rem;
   background: #e0e0e0;
-  border-radius: 6px;
+  border-radius: 0.375rem;
 }
 
 .skeleton-badge {
-  width: 90px;
-  height: 26px;
+  width: 5rem;
+  height: 1.5rem;
   background: #e0e0e0;
-  border-radius: 20px;
-  margin: 20px;
+  border-radius: 1.25rem;
+  margin: 0.75rem;
 }
 
 @keyframes shimmer {
@@ -1128,100 +1143,312 @@ const printReceipt = () => {
 }
 
 @keyframes slideIn {
-  from { transform: translateY(20px); opacity: 0; }
+  from { transform: translateY(1.25rem); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 765px) {
   .orders-container {
-    padding: 20px 15px;
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
   }
 
   .filter-container {
-    padding: 15px;
-  }
-
-  .filter-group {
-    width: calc(50% - 0.75rem);
-    min-width: auto;
-  }
-
-  .search-group {
-    width: 100%;
-  }
-
-  .order-header {
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .order-actions {
-    align-self: flex-end;
-  }
-
-  .modal-content {
-    width: 95%;
-    max-height: 85vh;
-  }
-
-  .modal-receipt {
-    padding: 20px;
-  }
-
-  .receipt-header h2 {
-    font-size: 20px;
-  }
-
-  .receipt-section h3 {
-    font-size: 15px;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-title {
-    font-size: 24px;
-  }
-
-  .order-count {
-    font-size: 16px;
+    padding: 0.75rem;
   }
 
   .filter-group {
     width: 100%;
   }
 
-  .status-tabs {
-    padding-bottom: 5px;
+  .filter-select,
+  .search-input {
+    font-size: 0.8125rem;
+    padding: 0.5rem;
+  }
+
+  .search-input {
+    padding-left: 2rem;
+    background-position: 0.625rem center;
   }
 
   .tab-button {
-    padding: 10px 15px;
-    font-size: 13px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .order-item {
+    padding: 0.75rem;
+  }
+
+  .order-number {
+    font-size: 0.875rem;
+  }
+
+  .order-placed,
+  .order-items-count,
+  .order-total {
+    font-size: 0.75rem;
   }
 
   .view-details-btn {
-    padding: 6px 12px;
-    font-size: 13px;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+  }
+
+  .order-status-badge {
+    font-size: 0.75rem;
+    margin: 0 0.75rem 0.75rem;
+  }
+
+  .modal-content {
+    width: 98%;
+    padding: 0.75rem;
   }
 
   .modal-receipt {
-    padding: 15px;
+    padding: 0.75rem;
+  }
+
+  .receipt-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .receipt-date {
+    font-size: 0.75rem;
+  }
+
+  .receipt-section h3 {
+    font-size: 0.875rem;
   }
 
   .receipt-row,
+  .item-name,
+  .item-line-total,
+  .receipt-section p {
+    font-size: 0.75rem;
+  }
+
+  .item-quantity,
+  .item-price {
+    font-size: 0.6875rem;
+  }
+
+  .status-badge {
+    font-size: 0.6875rem;
+  }
+
+  .print-button,
+  .close-button {
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+  }
+
+  .skeleton-text {
+    height: 0.75rem;
+  }
+
+  .skeleton-title {
+    height: 1rem;
+  }
+
+  .skeleton-button {
+    height: 1.75rem;
+  }
+
+  .skeleton-badge {
+    width: 4rem;
+    height: 1.25rem;
+  }
+}
+
+@media (max-width: 650px) {
+  .orders-container {
+    padding: 0.75rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .order-count {
+    font-size: 0.6875rem;
+  }
+
+  .breadcrumb {
+    font-size: 0.75rem;
+  }
+
+  .filter-container {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .filter-group label {
+    font-size: 0.8125rem;
+  }
+
+  .filter-select,
+  .search-input {
+    font-size: 0.75rem;
+    padding: 0.375rem;
+  }
+
+  .search-input {
+    padding-left: 1.75rem;
+    background-size: 0.875rem;
+    background-position: 0.5rem center;
+  }
+
+  .select-wrapper::after {
+    font-size: 0.625rem;
+    right: 0.5rem;
+  }
+
+  .tab-button {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .no-orders {
+    padding: 1.25rem;
+    font-size: 0.8125rem;
+  }
+
+  .order-item {
+    padding: 0.5rem;
+  }
+
+  .order-header {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .order-number {
+    font-size: 0.8125rem;
+  }
+
+  .order-placed,
+  .order-items-count,
+  .order-total {
+    font-size: 0.6875rem;
+  }
+
+  .view-details-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .order-status-badge {
+    font-size: 0.6875rem;
+    padding: 0.25rem 0.5rem;
+    margin: 0 0.5rem 0.5rem;
+  }
+
+  .modal-content {
+    width: 100%;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .modal-receipt {
+    padding: 0.5rem;
+  }
+
+  .receipt-header h2 {
+    font-size: 1rem;
+  }
+
+  .receipt-date {
+    font-size: 0.6875rem;
+  }
+
+  .receipt-section {
+    margin-bottom: 0.75rem;
+  }
+
+  .receipt-section h3 {
+    font-size: 0.8125rem;
+    padding-left: 0.5rem;
+  }
+
+  .receipt-row {
+    padding: 0.375rem 0;
+  }
+
+  .receipt-row,
+  .item-name,
+  .item-line-total,
+  .receipt-section p {
+    font-size: 0.6875rem;
+  }
+
+  .item-quantity,
+  .item-price {
+    font-size: 0.625rem;
+  }
+
+  .status-badge {
+    font-size: 0.625rem;
+    padding: 0.1875rem 0.5rem;
+  }
+
   .receipt-item {
-    font-size: 13px;
+    padding: 0.375rem 0;
   }
 
   .receipt-footer {
-    flex-direction: column;
-    gap: 10px;
-    text-align: center;
+    padding-top: 0.5rem;
+    margin-top: 0.75rem;
   }
 
   .receipt-actions {
-    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .print-button,
+  .close-button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    min-height: 2.25rem;
+  }
+
+  .modal-loading,
+  .modal-error {
+    padding: 0.75rem;
+  }
+
+  .modal-error {
+    font-size: 0.8125rem;
+  }
+
+  .retry-button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+  }
+
+  .skeleton-text {
+    height: 0.625rem;
+  }
+
+  .skeleton-title {
+    height: 0.875rem;
+  }
+
+  .skeleton-item {
+    padding: 0.5rem 0;
+  }
+
+  .skeleton-button {
+    height: 1.5rem;
+  }
+
+  .skeleton-badge {
+    width: 3.5rem;
+    height: 1rem;
   }
 }
 </style>

@@ -7,13 +7,12 @@
           <div v-for="n in 4" :key="n" class="skeleton-sidebar-item"></div>
         </div>
         <div class="skeleton-content">
-          <!-- User Info Skeleton -->
-          <div class="skeleton-profile-section">
+          <div class="skeleton-section">
             <div class="skeleton-section-top">
               <div class="skeleton-title"></div>
               <div class="skeleton-button"></div>
             </div>
-            <div class="skeleton-profile-details">
+            <div class="skeleton-details">
               <div class="skeleton-photo"></div>
               <div class="skeleton-info">
                 <div v-for="n in 5" :key="n" class="skeleton-text"></div>
@@ -23,42 +22,26 @@
         </div>
       </div>
       <div v-else class="profile-container">
-        <!-- Left Sidebar -->
+        <!-- Sidebar -->
         <aside class="sidebar">
           <nav class="sidebar-nav">
             <ul>
               <li
-                :class="{ active: activeTab === 'user-info' }"
-                @click="setActiveTab('user-info')"
+                v-for="tab in tabs"
+                :key="tab.id"
+                :class="{ active: activeTab === tab.id }"
+                @click="setActiveTab(tab.id)"
               >
-                User Information
-              </li>
-              <li
-                :class="{ active: activeTab === 'orders' }"
-                @click="setActiveTab('orders')"
-              >
-                Order History
-              </li>
-              <li
-                :class="{ active: activeTab === 'security' }"
-                @click="setActiveTab('security')"
-              >
-                Security
-              </li>
-              <li
-                :class="{ active: activeTab === 'locations' }"
-                @click="setActiveTab('locations')"
-              >
-                Location Information
+                {{ tab.label }}
               </li>
             </ul>
             <span class="tab-indicator" :style="activeTabStyle"></span>
           </nav>
         </aside>
 
-        <!-- Right Content Area -->
+        <!-- Content Area -->
         <div class="content-area">
-          <!-- User Information Tab -->
+          <!-- User Information -->
           <div v-if="activeTab === 'user-info'" class="tab-content">
             <div class="profile-section">
               <div class="profile-section-top">
@@ -67,32 +50,31 @@
               </div>
               <div class="profile-section-next">
                 <div class="profile-photo">
-                  <div class="profile-photo-img">
-                    <img
-                      v-if="user.profile_photo"
-                      :src="user.profile_photo"
-                      alt="Profile Photo"
-                      class="photo"
-                    />
-                    <img
-                      v-else
-                      src="@/assets/default_avatar.jpg"
-                      alt="Default Avatar"
-                      class="photo"
-                    />
-                  </div>
+                  <img
+                    v-if="user.profile_photo"
+                    :src="user.profile_photo"
+                    alt="Profile Photo"
+                    class="photo"
+                  />
+                  <img
+                    v-else
+                    src="@/assets/default_avatar.jpg"
+                    alt="Default Avatar"
+                    class="photo"
+                  />
                 </div>
                 <div class="profile-info">
                   <p><span>Username:</span> {{ user.username || 'N/A' }}</p>
                   <p><span>Email:</span> {{ user.email || 'N/A' }}</p>
+                  <p><span>First Name:</span> {{ user.first_name || 'N/A' }}</p>
+                  <p><span>Last Name:</span> {{ user.last_name || 'N/A' }}</p>
+                  <p><span>Phone Number:</span> {{ user.phone_number || 'N/A' }}</p>
                   <p><span>Points:</span> {{ user.points || 0 }}</p>
                   <p><span>Affiliate Code:</span> {{ user.affiliate_code || 'N/A' }}</p>
-                  <p><span>Phone Number:</span> {{ user.phone_number }}</p>
                   <p><span>Join Date:</span> {{ formatDate(user.date_joined) }}</p>
                 </div>
               </div>
             </div>
-
             <!-- Edit Profile Form -->
             <div v-if="showEditProfile" class="edit-profile-form">
               <h3>Edit Profile</h3>
@@ -104,6 +86,7 @@
                     id="username"
                     v-model="editProfileForm.username"
                     required
+                    :disabled="isSubmittingProfile"
                   />
                 </div>
                 <div class="form-group">
@@ -113,6 +96,7 @@
                     id="email"
                     v-model="editProfileForm.email"
                     required
+                    :disabled="isSubmittingProfile"
                   />
                 </div>
                 <div class="form-group">
@@ -122,6 +106,7 @@
                     id="first_name"
                     v-model="editProfileForm.first_name"
                     required
+                    :disabled="isSubmittingProfile"
                   />
                 </div>
                 <div class="form-group">
@@ -131,6 +116,7 @@
                     id="last_name"
                     v-model="editProfileForm.last_name"
                     required
+                    :disabled="isSubmittingProfile"
                   />
                 </div>
                 <div class="form-group">
@@ -140,11 +126,23 @@
                     id="phone_number"
                     v-model="editProfileForm.phone_number"
                     required
+                    :disabled="isSubmittingProfile"
                   />
                 </div>
                 <div class="form-actions">
-                  <button type="submit" class="save-btn">Save</button>
-                  <button type="button" @click="cancelEditProfile" class="cancel-btn">
+                  <button
+                    type="submit"
+                    class="save-btn"
+                    :disabled="isSubmittingProfile"
+                  >
+                    {{ isSubmittingProfile ? 'Saving...' : 'Save' }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="cancelEditProfile"
+                    class="cancel-btn"
+                    :disabled="isSubmittingProfile"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -152,7 +150,7 @@
             </div>
           </div>
 
-          <!-- Order History Tab -->
+          <!-- Order History -->
           <div v-if="activeTab === 'orders'" class="tab-content">
             <div class="orders-section">
               <h2 class="profile-tabs-title">Order History</h2>
@@ -163,10 +161,10 @@
                 <ul class="orders-list">
                   <li v-for="order in completedOrders" :key="order.id">
                     <div class="order-details">
-                      <span class="order-number">Order #{{ order.id }}</span>
+                      <span class="order-number">Order {{ order.order_number }}</span>
                       <span class="order-date">{{ formatDate(order.created_at) }}</span>
                       <span class="order-status">{{ order.delivery_status }}</span>
-                      <span class="order-total">${{ order.total_price }}</span>
+                      <span class="order-total">KES {{ formatPrice(order.total_price) }}</span>
                     </div>
                   </li>
                 </ul>
@@ -174,11 +172,15 @@
             </div>
           </div>
 
-          <!-- Security Tab -->
+          <!-- Security -->
           <div v-if="activeTab === 'security'" class="tab-content">
             <div class="security-section">
               <h2 class="profile-tabs-title">Security</h2>
-                  <button @click="showChangePasswordForm" class="change-password-btn">
+              <button
+                @click="showChangePasswordForm"
+                class="change-password-btn"
+                :disabled="isSubmittingPassword"
+              >
                 Change Password
               </button>
               <div v-if="showChangePassword" class="change-password-form">
@@ -191,6 +193,7 @@
                       id="current-password"
                       v-model="changePasswordForm.currentPassword"
                       required
+                      :disabled="isSubmittingPassword"
                     />
                   </div>
                   <div class="form-group">
@@ -200,6 +203,7 @@
                       id="new-password"
                       v-model="changePasswordForm.newPassword"
                       required
+                      :disabled="isSubmittingPassword"
                     />
                   </div>
                   <div class="form-group">
@@ -209,11 +213,23 @@
                       id="confirm-password"
                       v-model="changePasswordForm.confirmPassword"
                       required
+                      :disabled="isSubmittingPassword"
                     />
                   </div>
                   <div class="form-actions">
-                    <button type="submit" class="save-btn">Save</button>
-                    <button type="button" @click="cancelChangePassword" class="cancel-btn">
+                    <button
+                      type="submit"
+                      class="save-btn"
+                      :disabled="isSubmittingPassword"
+                    >
+                      {{ isSubmittingPassword ? 'Saving...' : 'Save' }}
+                    </button>
+                    <button
+                      type="button"
+                      @click="cancelChangePassword"
+                      class="cancel-btn"
+                      :disabled="isSubmittingPassword"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -222,16 +238,22 @@
             </div>
           </div>
 
-          <!-- Location Information Tab -->
+          <!-- Locations -->
           <div v-if="activeTab === 'locations'" class="tab-content">
             <div class="locations-section">
               <div class="locations-section-top">
                 <h2 class="profile-tabs-title">Delivery Locations</h2>
-                <button @click="showAddLocationPopup" class="add-location-btn">
+                <button
+                  @click="showAddLocationPopup"
+                  class="add-location-btn"
+                  :disabled="isSubmittingLocation"
+                >
                   Add New Location
                 </button>
               </div>
-              <ul class="locations-list">
+              <div v-if="locationsLoading" class="loading">Loading locations...</div>
+              <div v-else-if="locationsError" class="error">{{ locationsError }}</div>
+              <ul v-else class="locations-list">
                 <li v-for="location in deliveryLocations" :key="location.id">
                   <div class="location-details">
                     <span class="location-name">{{ location.name }}</span>
@@ -241,12 +263,16 @@
                   <div class="location-actions">
                     <button
                       @click="setAsDefault(location.id)"
-                      :disabled="location.is_default"
+                      :disabled="location.is_default || isSubmittingLocation"
                       class="set-default-btn"
                     >
                       Set as Default
                     </button>
-                    <button @click="confirmDeleteLocation(location.id)" class="delete-btn">
+                    <button
+                      @click="confirmDeleteLocation(location.id)"
+                      class="delete-btn"
+                      :disabled="isSubmittingLocation"
+                    >
                       Delete
                     </button>
                   </div>
@@ -270,8 +296,20 @@
           <h3 class="profile-tabs-title">Confirm Deletion</h3>
           <p>Are you sure you want to delete this location?</p>
           <div class="modal-actions">
-            <button @click="cancelDeleteLocation" class="cancel-btn">Cancel</button>
-            <button @click="deleteLocation" class="confirm-btn">Delete</button>
+            <button
+              @click="cancelDeleteLocation"
+              class="cancel-btn"
+              :disabled="isSubmittingLocation"
+            >
+              Cancel
+            </button>
+            <button
+              @click="deleteLocation"
+              class="confirm-btn"
+              :disabled="isSubmittingLocation"
+            >
+              {{ isSubmittingLocation ? 'Deleting...' : 'Delete' }}
+            </button>
           </div>
         </div>
       </div>
@@ -279,265 +317,272 @@
   </MainLayout>
 </template>
 
-<script>
+<script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { toast } from 'vue3-toastify';
 import MainLayout from '@/components/navigation/MainLayout.vue';
-import AddDeliveryLocationPopup from '@/components/auth/AddDeliveryLocationPopup.vue';
-import { getCurrentInstance } from 'vue';
+import AddDeliveryLocationPopup from '@/views/AddDeliveryLocationPopup.vue';
 
-export default {
-  name: 'ProfilePage',
-  components: {
-    MainLayout,
-    AddDeliveryLocationPopup,
-  },
-  setup() {
-    const store = useEcommerceStore();
-    const { proxy } = getCurrentInstance();
+// Store
+const store = useEcommerceStore();
 
-    // State variables
-    const showPopup = ref(false);
-    const isLoading = ref(true);
-    const showDeleteModal = ref(false);
-    const locationToDeleteId = ref(null);
-    const activeTab = ref('user-info');
-    const showEditProfile = ref(false);
-    const showChangePassword = ref(false);
+// Tabs
+const tabs = [
+  { id: 'user-info', label: 'User Information' },
+  { id: 'orders', label: 'Order History' },
+  { id: 'security', label: 'Security' },
+  { id: 'locations', label: 'Location Information' },
+];
+const activeTab = ref('user-info');
 
-    // Edit Profile Form
-    const editProfileForm = ref({
-      username: '',
-      email: '',
-      first_name: '',
-      last_name: '',
-      phone_number: '',
-    });
+// State
+const isLoading = ref(true);
+const showPopup = ref(false);
+const showDeleteModal = ref(false);
+const locationToDeleteId = ref(null);
+const showEditProfile = ref(false);
+const showChangePassword = ref(false);
+const isSubmittingProfile = ref(false);
+const isSubmittingPassword = ref(false);
+const isSubmittingLocation = ref(false);
 
-    // Change Password Form
-    const changePasswordForm = ref({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
+// Forms
+const editProfileForm = ref({
+  username: '',
+  email: '',
+  first_name: '',
+  last_name: '',
+  phone_number: '',
+});
+const changePasswordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
 
-    // Computed properties from store
-    const user = computed(() => store.currentUser || {});
-    const deliveryLocations = computed(() => store.deliveryLocations || []);
-    const orders = computed(() => store.orders || []);
-    const completedOrders = computed(() =>
-      store.orders.filter(order => order.delivery_status === 'delivered')
-    );
-    const ordersLoading = computed(() => store.loading.orders);
-    const ordersError = computed(() => store.error.orders);
+// Computed
+const user = computed(() => store.currentUser || {});
+const deliveryLocations = computed(() => store.deliveryLocations || []);
+const completedOrders = computed(() =>
+  store.orders.filter(order => order.delivery_status === 'delivered')
+);
+const ordersLoading = computed(() => store.loading.orders);
+const ordersError = computed(() => store.error.orders);
+const locationsLoading = computed(() => store.loading.deliveryLocations);
+const locationsError = computed(() => store.error.deliveryLocations);
 
-    // Fetch initial data
-    onMounted(async () => {
-      try {
-        isLoading.value = true;
-        await store.fetchUserProfile();
-        await store.fetchDeliveryLocations();
-      } catch (error) {
-        console.error('Error loading profile data:', error);
-        proxy.$toast.error('Failed to load profile data');
-      } finally {
-        isLoading.value = false;
-      }
-    });
-
-    // Utility Functions
-    const formatDate = (dateString) => {
-      if (!dateString) return 'N/A';
-      const date = new Date(dateString);
-      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}/${date.getFullYear()}`;
-    };
-
-    // Edit Profile Methods
-    const showEditProfileForm = () => {
-      editProfileForm.value = { ...user.value }; // Populate form with current user data
-      showEditProfile.value = true;
-    };
-
-    const cancelEditProfile = () => {
-      showEditProfile.value = false;
-    };
-
-
-    const updateProfile = async () => {
-      try {
-        await store.updateUserProfile(editProfileForm.value);
-        showEditProfile.value = false;
-        proxy.$toast.success('Profile updated successfully!');
-      } catch (error) {
-        console.error('Update profile error:', error);
-        proxy.$toast.error('Failed to update profile');
-      }
-    };
-
-    // Change Password Methods
-    const showChangePasswordForm = () => {
-      showChangePassword.value = true;
-    };
-
-    const cancelChangePassword = () => {
-      changePasswordForm.value = {
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      };
-      showChangePassword.value = false;
-    };
-
-    const updatePassword = async () => {
-      if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
-        proxy.$toast.error('New passwords do not match');
-        return;
-      }
-      try {
-        await store.changePassword(
-          changePasswordForm.value.currentPassword,
-          changePasswordForm.value.newPassword,
-          changePasswordForm.value.confirmPassword
-        );
-        showChangePassword.value = false;
-        proxy.$toast.success('Password changed successfully!');
-        cancelChangePassword(); // Reset form
-      } catch (error) {
-        console.error('Change password error:', error);
-        proxy.$toast.error(error.message || 'Failed to change password');
-      }
-    };
-
-    // Location Methods
-    const showAddLocationPopup = () => {
-      showPopup.value = true;
-    };
-
-    const closePopup = () => {
-      showPopup.value = false;
-    };
-
-    const addLocation = async (newLocation) => {
-      try {
-        await store.addDeliveryLocation(newLocation);
-        proxy.$toast.success('Location added successfully!');
-        closePopup();
-      } catch (error) {
-        proxy.$toast.error('Failed to add location');
-        console.error('Failed to add location:', error);
-      }
-    };
-
-    const setAsDefault = async (locationId) => {
-      try {
-        await store.setDefaultDeliveryLocation(locationId);
-        proxy.$toast.success('Default delivery location changed successfully!');
-      } catch (error) {
-        proxy.$toast.error('Failed to set default location');
-        console.error('Failed to set default location:', error);
-      }
-    };
-
-    const confirmDeleteLocation = (locationId) => {
-      locationToDeleteId.value = locationId;
-      showDeleteModal.value = true;
-    };
-
-    const deleteLocation = async () => {
-      try {
-        await store.deleteDeliveryLocation(locationToDeleteId.value);
-        proxy.$toast.success('Location deleted successfully!');
-      } catch (error) {
-        console.error('Failed to delete location:', error);
-        proxy.$toast.error(`Failed to delete location: ${error.message || 'Unknown error'}`);
-      } finally {
-        closeDeleteModal();
-      }
-    };
-
-    const cancelDeleteLocation = () => {
-      closeDeleteModal();
-    };
-
-    const closeDeleteModal = () => {
-      showDeleteModal.value = false;
-      locationToDeleteId.value = null;
-    };
-
-    // Tab Navigation
-    const setActiveTab = (tab) => {
-      activeTab.value = tab;
-      if (tab === 'orders' && !orders.value.length) {
-        store.fetchOrdersData();
-      }
-    };
-
-    const activeTabStyle = computed(() => {
-      const tabHeight = 50;
-      const tabIndex = {
-        'user-info': 0,
-        orders: 1,
-        security: 2,
-        locations: 3,
-      }[activeTab.value];
-      return {
-        top: `${tabIndex * tabHeight}px`,
-        transition: 'top 0.3s ease',
-      };
-    });
-
-    return {
-      user,
-      deliveryLocations,
-      showPopup,
-      isLoading,
-      showDeleteModal,
-      activeTab,
-      activeTabStyle,
-      formatDate,
-      showAddLocationPopup,
-      closePopup,
-      addLocation,
-      setAsDefault,
-      confirmDeleteLocation,
-      deleteLocation,
-      cancelDeleteLocation,
-      setActiveTab,
-      showEditProfile,
-      showChangePassword,
-      editProfileForm,
-      changePasswordForm,
-      showEditProfileForm,
-      cancelEditProfile,
-      updateProfile,
-      showChangePasswordForm,
-      cancelChangePassword,
-      updatePassword,
-      orders,
-      completedOrders,
-      ordersLoading,
-      ordersError,
-    };
-  },
+// Utility Functions
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
+
+const formatPrice = (price) => {
+  if (price == null) return 'N/A';
+  return (Math.round(price * 100) / 100).toFixed(2);
+};
+
+// Profile Methods
+const showEditProfileForm = () => {
+  editProfileForm.value = { ...user.value };
+  showEditProfile.value = true;
+};
+
+const cancelEditProfile = () => {
+  showEditProfile.value = false;
+};
+
+const updateProfile = async () => {
+  isSubmittingProfile.value = true;
+  try {
+    await store.updateUserProfile(editProfileForm.value);
+    showEditProfile.value = false;
+    toast.success('Profile updated successfully!');
+  } catch (error) {
+    console.error('Update profile error:', error);
+    toast.error(error.message || 'Failed to update profile');
+  } finally {
+    isSubmittingProfile.value = false;
+  }
+};
+
+// Password Methods
+const showChangePasswordForm = () => {
+  showChangePassword.value = true;
+};
+
+const cancelChangePassword = () => {
+  changePasswordForm.value = {
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  };
+  showChangePassword.value = false;
+};
+
+const updatePassword = async () => {
+  if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
+    toast.error('New passwords do not match');
+    return;
+  }
+  isSubmittingPassword.value = true;
+  try {
+    await store.changePassword(
+      changePasswordForm.value.currentPassword,
+      changePasswordForm.value.newPassword,
+      changePasswordForm.value.confirmPassword
+    );
+    showChangePassword.value = false;
+    toast.success('Password changed successfully!');
+    cancelChangePassword();
+  } catch (error) {
+    console.error('Change password error:', error);
+    toast.error(error.message || 'Failed to change password');
+  } finally {
+    isSubmittingPassword.value = false;
+  }
+};
+
+// Location Methods
+const showAddLocationPopup = () => {
+  console.log('showAddLocationPopup: Setting showPopup to true');
+  showPopup.value = true;
+};
+
+const closePopup = () => {
+  showPopup.value = false;
+  console.log('closePopup: Popup closed');
+};
+
+const addLocation = async (newLocation) => {
+  isSubmittingLocation.value = true;
+  try {
+    await store.addDeliveryLocation(newLocation);
+    toast.success('Location added successfully!');
+    closePopup();
+  } catch (error) {
+    console.error('Failed to add location:', error);
+    toast.error(error.message || 'Failed to add location');
+  } finally {
+    isSubmittingLocation.value = false;
+  }
+};
+
+const setAsDefault = async (locationId) => {
+  isSubmittingLocation.value = true;
+  try {
+    await store.setDefaultDeliveryLocation(locationId);
+    toast.success('Default delivery location set!');
+  } catch (error) {
+    console.error('Failed to set default location:', error);
+    toast.error(error.message || 'Failed to set default location');
+  } finally {
+    isSubmittingLocation.value = false;
+  }
+};
+
+const confirmDeleteLocation = (locationId) => {
+  locationToDeleteId.value = locationId;
+  showDeleteModal.value = true;
+};
+
+const deleteLocation = async () => {
+  isSubmittingLocation.value = true;
+  try {
+    await store.deleteDeliveryLocation(locationToDeleteId.value);
+    toast.success('Location deleted successfully!');
+  } catch (error) {
+    console.error('Failed to delete location:', error);
+    toast.error(error.message || 'Failed to delete location');
+  } finally {
+    showDeleteModal.value = false;
+    locationToDeleteId.value = null;
+    isSubmittingLocation.value = false;
+  }
+};
+
+const cancelDeleteLocation = () => {
+  showDeleteModal.value = false;
+  locationToDeleteId.value = null;
+};
+
+// Tab Navigation
+const setActiveTab = (tab) => {
+  activeTab.value = tab;
+  if (tab === 'orders' && !store.orders.length) {
+    store.fetchOrdersData();
+  }
+};
+
+const activeTabStyle = computed(() => {
+  const tabHeight = 50;
+  const tabIndex = tabs.findIndex(tab => tab.id === activeTab.value);
+  return {
+    top: `${tabIndex * tabHeight}px`,
+    transition: 'top 0.3s ease',
+  };
+});
+
+// Lifecycle
+onMounted(async () => {
+  try {
+    isLoading.value = true;
+    await Promise.all([
+      store.fetchUserProfile(),
+      store.fetchDeliveryLocations(),
+      store.fetchOrdersData(),
+    ]);
+  } catch (error) {
+    console.error('Error loading profile data:', error);
+    toast.error('Failed to load profile data');
+  } finally {
+    isLoading.value = false;
+  }
+});
 </script>
 
 <style scoped>
+.profile-page {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.profile-title {
+  font-family: cursive;
+  color:#D4A017;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1rem 0 2rem;
+  text-align: left;
+}
+
+.loading, .error {
+  text-align: center;
+  font-size: 1rem;
+  color: #666;
+  margin: 1rem 0;
+}
+
+/* Skeleton Loader */
 .skeleton-container {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
+  padding: 1rem;
 }
 
 .skeleton-sidebar {
-  width: 20vw;
-  padding-top: 1rem;
+  width: 200px;
 }
 
 .skeleton-sidebar-item {
   height: 50px;
-  margin: 0 1.5rem;
+  margin: 0.5rem 0;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -546,11 +591,10 @@ export default {
 
 .skeleton-content {
   flex: 1;
-  padding: 1.5rem;
 }
 
-.skeleton-profile-section {
-  padding: 1.5rem;
+.skeleton-section {
+  padding: 1rem;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -563,7 +607,7 @@ export default {
 }
 
 .skeleton-title {
-  width: 150px;
+  width: 120px;
   height: 20px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
@@ -580,14 +624,14 @@ export default {
   border-radius: 4px;
 }
 
-.skeleton-profile-details {
+.skeleton-details {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .skeleton-photo {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -599,9 +643,9 @@ export default {
 }
 
 .skeleton-text {
-  width: 60%;
-  height: 20px;
-  margin: 1rem 0;
+  width: 70%;
+  height: 16px;
+  margin: 0.5rem 0;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -613,52 +657,15 @@ export default {
   100% { background-position: -200% 0; }
 }
 
-@media (max-width: 768px) {
-  .skeleton-container {
-    flex-direction: column;
-  }
-
-  .skeleton-sidebar {
-    width: 100%;
-  }
-
-  .skeleton-sidebar-item {
-    margin: 0 1rem;
-  }
-}
-.profile-title {
-  font-family: cursive;
-  color: var(--text-color-thirteen);
-  font-size: 1.2rem;
-  font-weight: 700;
-  text-align: left;
-  margin: 2rem;
-}
-
-.loading {
-  text-align: center;
-  font-size: 1.2rem;
-  color: #666;
-}
-
+/* Profile Container */
 .profile-container {
-  margin: 0 auto;
-  max-width: 1200px;
   display: flex;
-  justify-content: center;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 /* Sidebar */
 .sidebar {
-  width: 20vw;
-  height: 50vh;
-  position: relative;
-  padding-top: 1rem;
-  border-radius: 10px;
-}
-
-.sidebar-nav {
+  width: 200px;
   position: relative;
 }
 
@@ -669,28 +676,27 @@ export default {
 }
 
 .sidebar-nav li {
-  padding: 1rem 1.5rem;
-  font-size: 1.1rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
   cursor: pointer;
-  transition: background 0.2s ease;
-  height: 50px; /* Fixed height for consistent indicator positioning */
+  height: 50px;
   display: flex;
   align-items: center;
+  transition: background 0.2s;
 }
 
 .sidebar-nav li.active {
   font-weight: 600;
-  color: #f28c38;
+  color:#D4A017;
+  background: #f9f9f9;
 }
 
-/* Tab Indicator */
 .tab-indicator {
   position: absolute;
-  right: -2px; /* Align with the border-right of the sidebar */
+  right: 0;
   width: 4px;
-  height: 50px; /* Match the height of each tab */
-  background: #f28c38;
-  display: block;
+  height: 50px;
+  background:#D4A017;
 }
 
 /* Content Area */
@@ -700,133 +706,57 @@ export default {
 }
 
 .tab-content {
+  background: #fff;
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.about-h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-/* Profile Section */
-.profile-section {
-  margin-bottom: 2rem;
-}
-
 .profile-section-top, .locations-section-top {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
 }
 
 .profile-section-next {
   display: flex;
+  gap: 1.5rem;
   flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 2rem;
 }
 
 .profile-tabs-title {
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #f28c38;
-  text-transform: uppercase;
-  margin: 0.5rem 0;
+  color:#D4A017;
+  margin: 0;
 }
 
-.profile-photo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  margin: 0 1rem 1rem;
-}
-
-.profile-info p {
-  margin: 1rem 0;
-}
-
-.profile-info p span {
-  font-weight: 700;
-  color: #666;
-}
-
-.photo,
-.photo-placeholder {
-  width: 100px;
-  height: 100px;
+.profile-photo img {
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   object-fit: cover;
 }
 
-.photo-placeholder {
-  background: #ddd;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.profile-info p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.profile-info p span {
+  font-weight: 600;
   color: #666;
-  font-size: 0.9rem;
+  display: inline-block;
+  width: 120px;
 }
 
-.change-photo-btn,
-.change-password-btn,
-.set-default-btn,
-.delete-btn,
-.save-btn
-{
-  padding: 0.5rem .7rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.change-photo-btn:hover,
-.change-password-btn:hover,
-.set-default-btn:hover:not(:disabled),
-.delete-btn:hover,
-.save-btn:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.change-photo-btn {
-  background: #f28c38;
-  color: white;
-}
-.edit-btn, .add-location-btn {
-  color: rgb(206, 102, 61);
-  font-size: 1rem;
-  font-weight: 700;
-  background-color: inherit;
-  padding: 0 .7rem;
-  border: none;
-  cursor: pointer;
-}
-
-.edit-btn:hover, .add-location-btn:hover {
-  box-shadow: 0 1px rgba(242, 140, 56, 0.4);
-}
-
-.change-password-btn {
-  background: #f28c38dc;
-  color: white;
-}
-
-.change-password-btn:hover {
-  background: #f28c38;
-}
-
-/* Edit Profile Form */
-.edit-profile-form,
-.change-password-form {
-  margin-top: 2rem;
+/* Forms */
+.edit-profile-form, .change-password-form {
+  margin-top: 1.5rem;
   padding: 1rem;
-  background: #fff;
+  background: #f9f9f9;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .form-group {
@@ -837,14 +767,16 @@ export default {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .form-group input {
   width: 100%;
+  max-width: 300px;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .form-actions {
@@ -853,34 +785,22 @@ export default {
   justify-content: flex-end;
 }
 
-.save-btn {
-  background: #4CAF50;
-  color: white;
-}
-
-.save-btn:hover {
-  background: #45a049;
-}
-
-/* Orders Section */
-.orders-section {
-  margin-bottom: 2rem;
-}
-
+/* Orders */
 .orders-list {
   list-style: none;
   padding: 0;
 }
 
 .orders-list li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #ddd;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
 }
 
 .order-details {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
-  align-items: center;
+  font-size: 0.9rem;
 }
 
 .order-number {
@@ -895,12 +815,7 @@ export default {
   font-weight: 600;
 }
 
-/* Security Section */
-.security-section {
-  margin-bottom: 2rem;
-}
-
-/* Locations Section */
+/* Locations */
 .locations-list {
   list-style: none;
   padding: 0;
@@ -910,21 +825,30 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .location-details {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  max-width: 60%;
 }
 
 .location-name {
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .location-address {
   color: #666;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .default-tag {
@@ -937,13 +861,49 @@ export default {
   gap: 0.5rem;
 }
 
+/* Buttons */
+.edit-btn, .add-location-btn {
+  background:#D4A017;
+  border: none;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  min-height: 2.75rem;
+  transition: background 0.2s;
+}
+
+.edit-btn:hover, .add-location-btn:hover:not(:disabled) {
+  background: #e07b30;
+}
+
+.change-password-btn, .set-default-btn, .delete-btn, .save-btn, .cancel-btn, .confirm-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  min-height: 2.75rem;
+}
+
+.change-password-btn {
+  background:#D4A017;
+  color: white;
+}
+
+.change-password-btn:hover:not(:disabled) {
+  background: #e07b30;
+}
+
 .set-default-btn {
-  background: #f28c38dc;
+  background:#D4A017;
   color: white;
 }
 
 .set-default-btn:hover:not(:disabled) {
-  background: #f28c38;
+  background: #e07b30;
 }
 
 .set-default-btn:disabled {
@@ -951,13 +911,36 @@ export default {
   cursor: not-allowed;
 }
 
-.delete-btn {
+.delete-btn, .confirm-btn {
   background: #f44336;
   color: white;
 }
 
-.delete-btn:hover {
+.delete-btn:hover:not(:disabled), .confirm-btn:hover:not(:disabled) {
   background: #da190b;
+}
+
+.save-btn {
+  background: #4CAF50;
+  color: white;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.cancel-btn {
+  background: #3f3f3f;
+  color: #d3d3d3;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: #2f2f2f;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Modal */
@@ -986,36 +969,13 @@ export default {
 .modal-content h3 {
   font-size: 1.25rem;
   margin-bottom: 1rem;
+  color:#D4A017;
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.cancel-btn,
-.confirm-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.cancel-btn {
-  background: #3f3f3f;
-  color: #d3d3d3;
-}
-
-.cancel-btn:hover, .confirm-btn:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.confirm-btn {
-  background: #f44336;
-  color: white;
 }
 
 /* Responsive Design */
@@ -1026,21 +986,98 @@ export default {
 
   .sidebar {
     width: 100%;
-    border-right: none;
-    border-bottom: 2px solid #ddd;
+  }
+
+  .sidebar-nav ul {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 0.5rem;
   }
 
   .sidebar-nav li {
-    padding: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
     height: auto;
   }
 
   .tab-indicator {
-    display: none; /* Hide indicator on mobile for simplicity */
+    display: none;
   }
 
-  .content-area {
-    padding: 1rem 0;
+  .skeleton-container {
+    flex-direction: column;
+  }
+
+  .skeleton-sidebar {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .skeleton-sidebar-item {
+    width: 120px;
+    flex-shrink: 0;
+    margin: 0.5rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .profile-page {
+    padding: 0.5rem;
+  }
+
+  .profile-title {
+    font-size: 1.25rem;
+    margin: 0.5rem 0 1rem;
+  }
+
+  .profile-tabs-title {
+    font-size: 1.1rem;
+  }
+
+  .profile-info p,
+  .order-details,
+  .location-details,
+  .location-actions,
+  .form-group label,
+  .form-group input {
+    font-size: 0.85rem;
+  }
+
+  .profile-photo img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .profile-info p span {
+    width: 100px;
+  }
+
+  .form-group input {
+    max-width: 100%;
+  }
+
+  .edit-btn,
+  .add-location-btn,
+  .change-password-btn,
+  .set-default-btn,
+  .delete-btn,
+  .save-btn,
+  .cancel-btn,
+  .confirm-btn {
+    padding: 0.4rem 0.8rem;
+    min-height: 2.5rem;
+    font-size: 0.85rem;
+  }
+
+  .skeleton-photo {
+    width: 60px;
+    height: 60px;
+  }
+
+  .skeleton-text {
+    height: 14px;
   }
 }
 </style>

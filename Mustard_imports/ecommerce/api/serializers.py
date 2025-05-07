@@ -4,7 +4,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -26,9 +25,7 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
-        validated_data.pop('user_type', None)  # Ensure user_type is always 'admin'
-
-        # Create user with superuser and staff status
+        validated_data.pop('user_type', None)
         user = User.objects.create_superuser(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -37,13 +34,10 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data.get('last_name', ''),
             phone_number=validated_data.get('phone_number', None),
         )
-
-        # Create AdminUser profile with senior admin level
         AdminUser.objects.create(
             user=user,
             admin_level='senior'
         )
-
         return user
 
 class AdminLoginSerializer(serializers.Serializer):
@@ -58,8 +52,6 @@ class AdminLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Only admins can use this endpoint')
         return {'user': user}
 
-
-
 class DeliveryLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryLocation
@@ -71,7 +63,6 @@ class ShippingMethodSerializer(serializers.ModelSerializer):
         model = ShippingMethod
         fields = ['id', 'name', 'price', 'description', 'is_active']
         read_only_fields = ['id']
-
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -89,21 +80,14 @@ class SupplierSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'contact_email', 'phone', 'address']
 
     def validate(self, data):
-        # Ensure unique name
         name = data.get('name')
         instance = self.instance
         if name and Supplier.objects.filter(name=name).exclude(id=instance.id if instance else None).exists():
             raise serializers.ValidationError({"name": "A supplier with this name already exists."})
-        
-        # Validate email if provided
         contact_email = data.get('contact_email')
         if contact_email and not contact_email.strip():
             raise serializers.ValidationError({"contact_email": "Email cannot be empty if provided."})
-        
         return data
-
-
-
 
 class AttributeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -112,7 +96,6 @@ class AttributeSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
     def validate_name(self, value):
-        # Normalize: trim whitespace and capitalize
         normalized = value.strip().capitalize()
         if not normalized:
             raise serializers.ValidationError("Attribute name cannot be empty.")
@@ -134,11 +117,8 @@ class AttributeValueSerializer(serializers.ModelSerializer):
         attribute = data.get('attribute')
         value = data.get('value').strip()
         instance = self.instance
-
         if not value:
             raise serializers.ValidationError({"value": "Value cannot be empty."})
-
-        # Check for duplicate attribute value
         if AttributeValue.objects.filter(
             attribute=attribute,
             value=value
@@ -157,34 +137,13 @@ class AttributeValueSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-        
-class VariantAttributeValueSerializer(serializers.ModelSerializer):
-    attribute_name = serializers.CharField(source='attribute.name', read_only=True)
-    value = serializers.CharField(source='value.value', read_only=True)
-
-    class Meta:
-        model = VariantAttributeValue
-        fields = ['attribute_name', 'value']
-
-class ProductVariantSerializer(serializers.ModelSerializer):
-    attribute_values = VariantAttributeValueSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ProductVariant
-        fields = ['id', 'attribute_values']
-
 class CustomerReviewSerializer(serializers.ModelSerializer):
     username = serializers.ReadOnlyField(source='user.username')
 
     class Meta:
         model = CustomerReview
-        fields = ['id', 'user', 'username', 'product', 'content',
-                  'rating', 'created_at']
-        read_only_fields = ['user','product']
-
-    
-
-
+        fields = ['id', 'user', 'username', 'product', 'content', 'rating', 'created_at']
+        read_only_fields = ['user', 'product']
 
 class CategoryImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -204,7 +163,6 @@ class CategorySerializer(serializers.ModelSerializer):
         if image and image.image:
             return request.build_absolute_uri(image.image.url) if request else image.image.url
         return None
-
 
 class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -236,7 +194,6 @@ class ProductSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
-    variants = ProductVariantSerializer(many=True, read_only=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     moq_progress = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
@@ -248,11 +205,11 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'description', 'price', 'below_moq_price',
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
-            'category_id', 'category_slug', 'created_at', 'variants', 'thumbnail',
+            'category_id', 'category_slug', 'created_at', 'thumbnail',
             'rating', 'attributes', 'attribute_value_ids', 'supplier', 'supplier_id',
             'images', 'meta_title', 'meta_description'
         ]
-        read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images', 'variants']
+        read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images']
 
     def validate_attribute_value_ids(self, value):
         logger.info(f"Validating attribute_value_ids: {value}")
@@ -262,8 +219,6 @@ class ProductSerializer(serializers.ModelSerializer):
                 logger.error(f"Invalid attribute_value_ids: {value}")
                 raise serializers.ValidationError("One or more attribute value IDs are invalid.")
         return value
-
-   
 
     def create(self, validated_data):
         attribute_value_ids = validated_data.pop('attribute_value_ids', [])
@@ -286,29 +241,14 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
 
     def get_attributes(self, obj):
-        attribute_values = obj.attribute_values.all()
-        result = {}
-        for attr_val in attribute_values:
-            attr_name = attr_val.attribute.name
-            if attr_name not in result:
-                result[attr_name] = {
-                    'id': attr_val.attribute.id,
-                    'name': attr_name,
-                    'values': []
-                }
-            result[attr_name]['values'].append({
-                'id': attr_val.id,
-                'value': attr_val.value
-            })
-        return [
-            {
-                'id': data['id'],
-                'name': name,
-                'values': sorted(data['values'], key=lambda x: x['value'])
-            }
-            for name, data in result.items()
-        ]
-
+        attributes = {}
+        for attr_value in obj.attribute_values.all():
+            attr_name = attr_value.attribute.name
+            if attr_name not in attributes:
+                attributes[attr_name] = []
+            attributes[attr_name].append({'id': attr_value.id, 'value': attr_value.value})
+        return [{'id': idx + 1, 'name': name, 'values': values} for idx, (name, values) in enumerate(attributes.items())]
+        
     def get_moq_progress(self, obj):
         if obj.moq_status == 'active':
             return {
@@ -334,18 +274,17 @@ class ProductSerializer(serializers.ModelSerializer):
         if 'moq_per_person' in data and data['moq_per_person'] is not None and data['moq_per_person'] < 1:
             raise serializers.ValidationError({"moq_per_person": "MOQ per person must be at least 1."})
         return data
-        
+
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
-    variant_attributes = VariantAttributeValueSerializer(source='variant.attribute_values', many=True, read_only=True)
     line_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     price_per_piece = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     product = ProductSerializer(read_only=True)
+
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_name', 'variant', 'variant_attributes', 'quantity', 'line_total', 'added_at', 'price_per_piece']
+        fields = ['id', 'product', 'product_name', 'attributes', 'quantity', 'line_total', 'added_at', 'price_per_piece']
         read_only_fields = ['line_total']
-
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
@@ -369,14 +308,12 @@ class CartSerializer(serializers.ModelSerializer):
             'created_at', 'last_updated'
         ]
         read_only_fields = ['user', 'items', 'total_items', 'subtotal', 'shipping_cost', 'total']
-        
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
 
-# Serializer definition
 class HomeCategorySerializer(serializers.ModelSerializer):
     products = serializers.SerializerMethodField()
 
@@ -385,25 +322,21 @@ class HomeCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'products']
 
     def get_products(self, obj):
-        # Fetch only 3 products per category, ordered by '-created_at'
         products = obj.products.order_by('-created_at')[:6]
         return ProductSerializer(products, many=True, context=self.context).data
 
-
-
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
-    variant_attributes = VariantAttributeValueSerializer(source='variant.attribute_values', many=True, read_only=True)
     line_total = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'variant', 'variant_attributes', 'quantity', 'price', 'line_total']
+        fields = ['id', 'product', 'product_name', 'attributes', 'quantity', 'price', 'line_total']
 
     def get_line_total(self, obj):
         return obj.quantity * obj.price
 
-        
+
 class OrderSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer(read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
@@ -420,15 +353,19 @@ class OrderSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     shipping_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    order_number = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
-            'id', 'user', 'shipping_method', 'shipping_method_id', 'shipping_cost',
+            'id', 'order_number', 'user', 'shipping_method', 'shipping_method_id', 'shipping_cost',
             'delivery_location', 'payment_status', 'delivery_status', 'created_at',
             'items', 'total_price'
         ]
-        read_only_fields = ['id', 'user', 'total_price', 'shipping_cost']
+        read_only_fields = ['id', 'order_number', 'user', 'total_price', 'shipping_cost']
+
+    def get_order_number(self, obj):
+        return f"MI{obj.id}" 
 
 class CompletedOrderSerializer(serializers.ModelSerializer):
     items = serializers.SerializerMethodField()
@@ -448,15 +385,12 @@ class CompletedOrderSerializer(serializers.ModelSerializer):
     def get_items(self, obj):
         return OrderItemSerializer(obj.items, many=True).data
 
-
-
 class CategoriesProductsSerializer(serializers.ModelSerializer):
     products = ProductSerializer(many=True)
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug','products']
-
-
+        fields = ['id', 'name', 'slug', 'products']
 
 class MOQRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -468,9 +402,6 @@ class MOQRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
-
-
-
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -491,14 +422,11 @@ class PaymentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"amount": "Amount must match order total including shipping."})
         return data
 
-        
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ( 'username', 'email', 'first_name', 'last_name', 
-            'phone_number',) # Include fields you want to allow updating
-        read_only_fields = ('id', 'user_type','points', 'affiliate_code')
-
+        fields = ('username', 'email', 'first_name', 'last_name', 'phone_number')
+        read_only_fields = ('id', 'user_type', 'points', 'affiliate_code')
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -513,7 +441,6 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         user_type = validated_data.pop('user_type', 'customer')
-        
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -524,8 +451,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             phone_number=validated_data['phone_number'],
         )
         return user
-
-
 
 class UserSerializer(serializers.ModelSerializer):
     delivery_locations = DeliveryLocationSerializer(many=True, read_only=True)
@@ -538,8 +463,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 
             'user_type', 'phone_number', 'points', 'affiliate_code', 
-            'cart', 'orders', 'completed_orders','date_joined'  ,'delivery_locations'
+            'cart', 'orders', 'completed_orders', 'date_joined', 'delivery_locations'
         ]
-        read_only_fields = ['points', 'affiliate_code', 'cart', 'orders', 'completed_orders','date_joined']
+        read_only_fields = ['points', 'affiliate_code', 'cart', 'orders', 'completed_orders', 'date_joined']
         extra_kwargs = {'password': {'write_only': True}}
-

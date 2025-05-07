@@ -47,7 +47,8 @@
           <a :href="instagramShareUrl" target="_blank" class="social-icon instagram" title="Share on Instagram">
             <font-awesome-icon :icon="['fab', 'instagram']" />
           </a>
-          <a :href="whatsappShareUrl" target="_blank" class="social-icon whatsapp" title="Share on WhatsApp">
+          <a :href="whatsappShareUrl"   
+          target="_blank" class="social-icon whatsapp" title="Share on WhatsApp">
             <font-awesome-icon :icon="['fab', 'whatsapp']" />
           </a>
           <button @click="copyToClipboard" class="social-icon clipboard" title="Copy to Clipboard">
@@ -209,29 +210,16 @@
 
               <!-- Order Tab -->
               <div v-if="activeTab === 'Order'" class="order-tab">
-              
                 <div class="order-details">
                   <div class="attributes">
                     <label>Order Attributes</label>
                     <div class="attribute-row">
-                      <div
-                        v-if="product.attributes?.length"
-                        v-for="attr in product.attributes"
-                        :key="attr.id"
-                        class="attribute"
-                      >
+                      <!-- In ProductDetails.vue template -->
+                      <div v-if="product.attributes?.length" v-for="attr in product.attributes" :key="attr.id" class="attribute">
                         <label>{{ attr.name }}</label>
-                        <select
-                          v-model="selectedAttributes[attr.name]"
-                          required
-                          @change="updateVariant"
-                        >
+                        <select v-model="selectedAttributes[attr.name]" required>
                           <option disabled value="">Select {{ attr.name }}</option>
-                          <option
-                            v-for="value in attr.values"
-                            :key="value.id"
-                            :value="value.value"
-                          >
+                          <option v-for="value in attr.values" :key="value.id" :value="value.value">
                             {{ value.value }}
                           </option>
                         </select>
@@ -298,7 +286,6 @@
           </div>
 
           <!-- Right Section: Product Info -->
-          <!-- Right Section: Product Info -->
           <div class="product-right">
             <div class="product-info">
               <!-- Pricing -->
@@ -327,10 +314,13 @@
                 <button
                   class="add-to-cart"
                   @click="handleAddToCart"
-                  :disabled="isAddingToCart || !selectedVariant || !selectedShippingMethodId"
+                  :disabled="isAddingToCart || !allAttributesSelected || !selectedShippingMethodId"
                   :aria-label="isAddingToCart ? 'Adding to cart' : 'Add to cart'"
                 >
-                  {{ isAddingToCart ? 'Adding to Cart...' : 'Add to Cart' }}
+                  <span v-if="isAddingToCart">
+                    <font-awesome-icon icon="spinner" spin /> Adding to Cart...
+                  </span>
+                  <span v-else>Add to Cart</span>
                 </button>
               </div>
 
@@ -486,15 +476,13 @@ export default {
     const hoveredRating = ref(null);
     const isSubmittingReview = ref(false);
 
-
-       // Shipping Methods
+    // Shipping Methods
     const shippingMethods = ref([]);
     const isLoadingShippingMethods = ref(false);
     const selectedShippingMethodId = ref(null);
     const selectedShippingMethod = computed(() =>
       shippingMethods.value.find(method => method.id === selectedShippingMethodId.value) || null
     );
-
 
     // Cart state
     const isAddingToCart = ref(false);
@@ -616,12 +604,12 @@ export default {
       }
       return options;
     });
+
     const totalPrice = computed(() => {
       const productPrice = Number(effectivePrice.value) || 0;
       const shippingCost = selectedShippingMethod.value ? Number(selectedShippingMethod.value.price) : 0;
       return (productPrice + shippingCost).toFixed(2);
     });
-
 
     const effectivePrice = computed(() => {
       if (!product.value) return '0';
@@ -635,23 +623,12 @@ export default {
       }
       return (price * qty).toFixed(2);
     });
-    const selectedVariant = computed(() => {
-      if (!product.value?.variants || !Array.isArray(product.value.variants)) {
-        return null;
+
+    const allAttributesSelected = computed(() => {
+      if (!product.value?.attributes || !product.value.attributes.length) {
+        return true; // No attributes required
       }
-      if (!product.value?.attributes || !Array.isArray(product.value.attributes)) {
-        return null;
-      }
-      const variant = product.value.variants.find(variant => {
-        return product.value.attributes.every(attr => {
-          const selectedValue = selectedAttributes.value[attr.name];
-          const variantValue = variant.attribute_values?.find(
-            av => av.attribute_name === attr.name
-          )?.value;
-          return selectedValue === variantValue;
-        });
-      });
-      return variant;
+      return product.value.attributes.every(attr => selectedAttributes.value[attr.name]);
     });
 
     const scrollThumbnails = async (direction) => {
@@ -683,24 +660,16 @@ export default {
         relatedContainer.value.style.transform = `translateX(-${relatedScrollOffset.value}px)`;
       }
     };
-    const isVariantValid = computed(() => {
-      if (!product.value?.attributes || !product.value.attributes.length) {
-        return true;
-      }
-      return product.value.attributes.every(attr => selectedAttributes.value[attr.name]);
-    });
-    const updateVariant = () => {
-      if (selectedVariant.value && product.value?.images?.length) {
-        currentImage.value = product.value.images[0].image || placeholderImage;
-      }
-    };
+
+
+
+
 
     const fetchShippingMethods = async () => {
       isLoadingShippingMethods.value = true;
       try {
-        const response = await api.get('/api/shipping-methods/');
+        const response = await api.get('/shipping-methods/');
         shippingMethods.value = response.data;
-        // Set default shipping method (e.g., first active method)
         if (shippingMethods.value.length && !selectedShippingMethodId.value) {
           selectedShippingMethodId.value = shippingMethods.value[0].id;
         }
@@ -713,11 +682,8 @@ export default {
     };
 
     const handleAddToCart = async () => {
-      if (!selectedVariant.value) {
-        toast.warning(
-          'Please select all attributes or the selected combination is not available',
-          { autoClose: 3000 }
-        );
+      if (!allAttributesSelected.value) {
+        toast.warning('Please select all attributes', { autoClose: 3000 });
         return;
       }
       if (!selectedShippingMethodId.value) {
@@ -730,14 +696,21 @@ export default {
         const affiliateCodeFromUrl = new URLSearchParams(window.location.search).get('aff');
         await store.addToCart(
           product.value.id,
-          selectedVariant.value.id,
+          selectedAttributes.value,
           quantity.value,
           affiliateCodeFromUrl,
-          selectedShippingMethodId.value // Pass shipping method ID
+          selectedShippingMethodId.value
         );
         toast.success('Product added to cart successfully!', { autoClose: 3000 });
       } catch (error) {
-        toast.error('Failed to add to cart.', { autoClose: 3000 });
+        console.error('Add to cart error:', error);
+        let errorMessage = 'Failed to add to cart.';
+        if (error.response?.data?.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (error.response?.data?.error) {
+          errorMessage = error.response.data.error;
+        }
+        toast.error(errorMessage, { autoClose: 3000 });
       } finally {
         isAddingToCart.value = false;
       }
@@ -880,8 +853,8 @@ export default {
         selectedAttributes.value = {};
         if (newProduct?.attributes) {
           newProduct.attributes.forEach(attr => {
-            if (attributeOptions.value[attr.name]?.length) {
-              selectedAttributes.value[attr.name] = attributeOptions.value[attr.name][0];
+            if (attr.values.length > 0) {
+              selectedAttributes.value[attr.name] = attr.values[0].value; // Preselect first value
             }
           });
         }
@@ -943,8 +916,8 @@ export default {
       scrollThumbnails,
       isAddingToCart,
       isSubmittingReview,
-      selectedVariant,
-      updateVariant,
+      allAttributesSelected,
+      handleAddToCart,
       metaTitle,
       metaDescription,
       metaKeywords,
@@ -959,11 +932,12 @@ export default {
       scrollRelatedProducts,
       thumbnailContainer,
       relatedContainer,
-      isVariantValid,
+
       shippingMethods,
       totalPrice,
       isLoadingShippingMethods,
       selectedShippingMethodId,
+      selectedShippingMethod,
       fetchShippingMethods,
     };
   },
@@ -1689,6 +1663,11 @@ export default {
   font-size: 1rem;
   text-transform: uppercase;
   width: 100%;
+}
+
+.add-to-cart:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .add-to-cart:hover {

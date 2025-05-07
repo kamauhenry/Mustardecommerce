@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-DEBUG = False  # Disable debug mode for production
+DEBUG = True  # Disable debug mode for production
 ALLOWED_HOSTS = [os.getenv("DOMAIN"), "www." + os.getenv("DOMAIN"), "localhost", "127.0.0.1"]  # Add your domain, e.g., "example.com"
 SECRET_KEY = os.getenv('SECRET_KEY')  # Already set to use .env
 # Application definition
@@ -92,11 +92,14 @@ MIDDLEWARE = [
     
 ]
 
-
+CORS_ALLOW_ALL_ORIGINS = True  # Temporary for debugging
 # CORS Settings
 CORS_ALLOWED_ORIGINS = [
     f"https://{os.getenv('DOMAIN')}",
     f"https://www.{os.getenv('DOMAIN')}",
+    "http://localhost:5173",  # Vue dev server (Vite)
+    "http://127.0.0.1:8000",  # Django serving frontend
+    "http://localhost:8000",  # Add this for consistency
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -121,6 +124,9 @@ CORS_ALLOW_METHODS = [
 CSRF_TRUSTED_ORIGINS = [
     f"https://{os.getenv('DOMAIN')}",
     f"https://www.{os.getenv('DOMAIN')}",
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
 ]
 CSRF_COOKIE_HTTPONLY = False
 
@@ -234,9 +240,9 @@ GOOGLE_CLIENT_ID = '370920112183-0pd7i0jqlf78bqjph6j6ocg1s3gkhe9d.apps.googleuse
 
 
 # Email Configuration
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Or your email provider
-EMAIL_PORT = 587
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.mustardimports.co.ke')  # mail.mustardimports.co.ke
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # e.g., 'your-email@gmail.com'
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # App-specific password
@@ -270,6 +276,11 @@ LOGGING = {
         'django': {
             'handlers': ['console', 'file'],
             'level': 'ERROR',
+            'propagate': True,
+        },
+        'corsheaders': {  # Add this
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
             'propagate': True,
         },
     },

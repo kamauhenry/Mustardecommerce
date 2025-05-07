@@ -2,7 +2,7 @@
   <div class="auth-modal">
     <form @submit.prevent="login">
       <div class="input-group">
-        <input v-model="username" type="text" placeholder="Email/Phone Number" required />
+        <input v-model="username" type="text" placeholder="example@gmail.com" required />
       </div>
       <div class="input-group">
         <input v-model="password" type="password" placeholder="Password" required />
@@ -42,7 +42,7 @@ const login = async () => {
     console.log(`Logged in as ${response.username}`);
     emit('close');
   } catch (err) {
-    error.value = err.message || 'Login failed';
+    error.value =  'Login failed, Wrong password or Email';
     console.error('Login failed:', err);
   }
 };
@@ -106,7 +106,7 @@ const handleCredentialResponse = async (response) => {
 }
 
 .input-group input:focus {
-  border-color: #f28c38;
+  border-color:#D4A017;
 }
 
 .input-group input::placeholder {
@@ -120,7 +120,7 @@ const handleCredentialResponse = async (response) => {
   font-weight: 700;
   text-transform: uppercase;
   color: #fff;
-  background-color: #f28c38; /* Orange to match the screenshot */
+  background-color:#D4A017; /* Orange to match the screenshot */
   border: none;
   border-radius: 4px;
   cursor: pointer;

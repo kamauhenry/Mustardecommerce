@@ -163,7 +163,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 }
 
 .see-more-link, .show-more {
-  background-color: #f28c38;
+  background-color:#D4A017;
 }
 
 .category-link, .about-p, .moq-info, .product-price, .product-name, .no-products, .loading, .no-products, .product-image, .location-name, .location-address, .map-loading, .set-default-label {
@@ -246,7 +246,7 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 }
 
 .add-to-cart, .add-review {
-  background-color: #f28c38;
+  background-color:#D4A017;
 }
 
 #app {

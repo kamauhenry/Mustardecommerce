@@ -367,7 +367,7 @@ const addLocation = () => {
 }
 
 .add-button {
-  background: #f28c38;
+  background:#D4A017;
   color: white;
 }
 

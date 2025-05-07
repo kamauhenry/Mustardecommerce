@@ -207,7 +207,7 @@ const closeModals = () => {
 }
 
 .icon-button:hover svg {
-  fill: #f28c38; /* Orange on hover to match the theme */
+  fill:#D4A017; /* Orange on hover to match the theme */
 }
 
 /* Style for the text button (Register) */
@@ -224,6 +224,6 @@ const closeModals = () => {
 }
 
 .text-button:hover {
-  color: #f28c38; /* Orange on hover to match the theme */
+  color:#D4A017; /* Orange on hover to match the theme */
 }
 </style>

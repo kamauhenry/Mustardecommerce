@@ -23,7 +23,7 @@
         <button @click="goToProducts" class="action-button shop-button">Start Shopping</button>
       </div>
 
-      <div v-else class="cart-content">
+      <div v-else-if="store.cart" class="cart-content">
         <div class="cart-items">
           <div v-for="item in cartItems" :key="item.id" class="cart-item">
             <div class="item-image">
@@ -31,8 +31,8 @@
             </div>
             <div class="item-details">
               <h3>{{ item.product_name }}</h3>
-              <div v-for="attr in item.variant_attributes" :key="attr.attribute_name">
-                <p class="variant">{{ attr.attribute_name }}: {{ attr.value }}</p>
+              <div v-for="attr in formatAttributes(item.attributes)" :key="attr.attribute_name" class="variant">
+                <p>{{ attr.attribute_name }}: {{ attr.value }}</p>
               </div>
               <p class="quantity">Qty: {{ item.quantity }}</p>
               <p class="price">
@@ -66,18 +66,10 @@
           </div>
           <div class="summary-row">
             <span>Shipping Method</span>
-            <div v-if="isLoadingShippingMethods" class="skeleton-shipping">
-              <div class="skeleton-shipping-option"></div>
-            </div>
-            <div v-else-if="shippingMethods.length" class="shipping-options">
-              <select v-model="selectedShippingMethodId" @change="updateShippingMethod" class="shipping-select">
-                <option :value="null" disabled>Select a shipping method</option>
-                <option v-for="method in shippingMethods" :key="method.id" :value="method.id">
-                  {{ method.name }} (KES {{ formatPrice(method.price) }})
-                </option>
-              </select>
-            </div>
-            <span v-else>No shipping methods available</span>
+            <span v-if="store.cart.shipping_method">
+              {{ store.cart.shipping_method.name }} (KES {{ formatPrice(store.cart.shipping_method.price) }})
+            </span>
+            <span v-else>No shipping method selected</span>
           </div>
           <div class="summary-row">
             <span>Shipping Cost</span>
@@ -87,8 +79,12 @@
             <span>Total</span>
             <span>KES {{ formatPrice(cartTotal) }}</span>
           </div>
-          <button @click="proceedToCheckout" class="checkout-button" :disabled="!selectedShippingMethodId">
-            Proceed to Checkout
+          <button
+            @click="proceedToCheckout"
+            class="checkout-button"
+            :disabled="!store.cart.shipping_method || isCheckoutProcessing"
+          >
+            {{ isCheckoutProcessing ? 'Processing...' : 'Proceed to Checkout' }}
           </button>
         </div>
       </div>
@@ -103,7 +99,6 @@ import { useEcommerceStore } from '@/stores/ecommerce';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 import grey from '@/assets/images/placeholder.jpeg';
-import axios from 'axios';
 
 export default {
   components: { MainLayout },
@@ -112,42 +107,30 @@ export default {
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
-    const shippingMethods = ref([]);
-    const isLoadingShippingMethods = ref(false);
-    const selectedShippingMethodId = ref(null);
+    const isCheckoutProcessing = ref(false); // Track checkout state
 
-    // Computed properties
+    // Computed properties with safer access
     const isAuthenticated = computed(() => store.isAuthenticated);
-    const cartItems = computed(() => store.cartItems);
-    const cartItemCount = computed(() => store.cartItemCount);
-    const cartSubtotal = computed(() => store.cart?.subtotal || 0);
-    const shippingCost = computed(() => store.cart?.shipping_cost || 0);
-    const cartTotal = computed(() => store.cart?.total || 0);
+    const cartItems = computed(() => store.cart?.items || []);
+    const cartItemCount = computed(() => store.cart?.items?.length || 0);
+    const cartSubtotal = computed(() => Number(store.cart?.subtotal) || 0);
+    const shippingCost = computed(() => Number(store.cart?.shipping_cost) || 0);
+    const cartTotal = computed(() => Number(store.cart?.total) || 0);
 
     // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
 
+    // Format attributes
+    const formatAttributes = (attributes) => {
+      return Object.entries(attributes || {}).map(([attribute_name, value]) => ({
+        attribute_name,
+        value
+      }));
+    };
+
     // Navigation functions
     const goToLogin = () => router.push('/login');
     const goToProducts = () => router.push('/products');
-
-    // Fetch shipping methods
-    const fetchShippingMethods = async () => {
-      isLoadingShippingMethods.value = true;
-      try {
-        const response = await axios.get('/api/shipping-methods/', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-        shippingMethods.value = response.data;
-      } catch (err) {
-        console.error('Failed to fetch shipping methods:', err);
-        toast.error('Failed to load shipping methods.', { autoClose: 3000 });
-      } finally {
-        isLoadingShippingMethods.value = false;
-      }
-    };
 
     // Load cart data
     const loadCart = async () => {
@@ -155,11 +138,10 @@ export default {
       try {
         await store.fetchCurrentUserInfo();
         await store.fetchCart();
-        selectedShippingMethodId.value = store.cart?.shipping_method?.id || null;
         error.value = null;
       } catch (err) {
         error.value = 'Please login to view your cart';
-        console.error(err);
+        console.error('Failed to load cart:', err);
       } finally {
         loading.value = false;
       }
@@ -175,7 +157,7 @@ export default {
         if (!store.apiInstance) store.initializeApiInstance();
         await store.apiInstance.post(`/cart-items/${itemId}/update_cart_item_quantity/`, {
           quantity: newQuantity,
-          cart_id: store.cart.id,
+          cart_id: store.cart?.id,
         });
         await store.fetchCart();
         toast.success('Quantity updated successfully!', { autoClose: 3000 });
@@ -189,7 +171,7 @@ export default {
     const removeItem = async (itemId) => {
       try {
         if (!store.apiInstance) store.initializeApiInstance();
-        await store.apiInstance.post(`/carts/${store.cart.id}/remove_item/`, {
+        await store.apiInstance.post(`/carts/${store.cart?.id}/remove_item/`, {
           item_id: itemId,
         });
         await store.fetchCart();
@@ -200,44 +182,32 @@ export default {
       }
     };
 
-    // Update shipping method
-    const updateShippingMethod = async () => {
-      try {
-        if (!store.apiInstance) store.initializeApiInstance();
-        await store.apiInstance.patch(`/api/cart/${store.cart.id}/update-shipping/`, {
-          shippingMethodId: selectedShippingMethodId.value,
-        });
-        await store.fetchCart();
-        toast.success('Shipping method updated!', { autoClose: 3000 });
-      } catch (err) {
-        console.error('Failed to update shipping method:', err);
-        toast.error('Failed to update shipping method.', { autoClose: 3000 });
-      }
-    };
-
     // Proceed to Checkout
     const proceedToCheckout = async () => {
       if (!cartItems.value.length) {
         toast.error('Your cart is empty.', { autoClose: 3000 });
         return;
       }
-      if (!selectedShippingMethodId.value) {
+      if (!store.cart?.shipping_method) {
         toast.error('Please select a shipping method.', { autoClose: 3000 });
         return;
       }
+      isCheckoutProcessing.value = true; // Disable button
       try {
         const order = await store.createOrderFromCart();
-        router.push({ path: '/checkout', query: { orderId: order.id } });
+        router.push({ path: '/checkout', query: { orderId: order.order_number } }); // Use order_number
       } catch (err) {
         console.error('Failed to proceed to checkout:', err);
         console.log('Server response:', err.response?.data);
-        toast.error('Failed to create order. Please try again.', { autoClose: 3000 });
+        const errorMessage = err.response?.data?.error || 'Failed to create order. Please try again.';
+        toast.error(errorMessage, { autoClose: 3000 });
+      } finally {
+        isCheckoutProcessing.value = false; // Re-enable button on failure
       }
     };
 
     onMounted(() => {
       loadCart();
-      fetchShippingMethods();
     });
 
     return {
@@ -249,69 +219,24 @@ export default {
       cartSubtotal,
       shippingCost,
       cartTotal,
-      shippingMethods,
-      isLoadingShippingMethods,
-      selectedShippingMethodId,
       formatPrice,
+      formatAttributes,
       goToLogin,
       goToProducts,
       retryFetch,
       updateQuantity,
       removeItem,
-      updateShippingMethod,
       proceedToCheckout,
+      isCheckoutProcessing, // Return for template
       grey,
+      store
     };
-  },
+  }
 };
 </script>
 
 <style scoped>
-/* Modern Cart Styling */
-
-.skeleton-shipping {
-  height: 40px;
-  background: #e0e0e0;
-  border-radius: 4px;
-  animation: pulse 1.5s infinite;
-}
-
-.skeleton-shipping-option {
-  height: 20px;
-  background: #e0e0e0;
-  border-radius: 4px;
-}
-
-.shipping-options {
-  display: flex;
-  align-items: center;
-}
-
-.shipping-select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  background: #fff;
-  cursor: pointer;
-}
-
-.shipping-select:focus {
-  outline: none;
-  border-color: #f6ad55;
-  box-shadow: 0 0 0 3px rgba(246, 173, 85, 0.2);
-}
-
-@keyframes pulse {
-  0% { background-color: #e0e0e0; }
-  50% { background-color: #f5f5f5; }
-  100% { background-color: #e0e0e0; }
-}
-
-
 .cart-container {
-    margin: 0 auto;
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
@@ -552,13 +477,19 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.checkout-button:hover {
+.checkout-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #ed8936, #dd6b20);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.checkout-button:active {
+.checkout-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.checkout-button:active:not(:disabled) {
   transform: translateY(0);
 }
 

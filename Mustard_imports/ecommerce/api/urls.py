@@ -9,7 +9,7 @@ from .views import (
     CategoryProductsView, AllCategoriesWithProductsView, 
     create_cart, get_user_cart, add_item_to_cart, 
     update_cart_item_quantity, remove_cart_item, 
-    process_checkout, get_user_orders, test_image, 
+    get_user_orders, test_image, 
     process_payment, get_payment_details, DeliveryLocationView,
     autocomplete, place_details, logout_view, mpesa_callback, 
     create_order_from_cart, update_order_shipping, GoogleAuthView,
@@ -17,7 +17,7 @@ from .views import (
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods,shipping_methods1, shipping_method_detail1,
 )
 
 router = routers.DefaultRouter()
@@ -47,6 +47,9 @@ urlpatterns = [
     path('admin/attribute-values/by-attribute/<int:attribute_id>/', AttributeValueByAttributeView.as_view(), name='attribute-values-by-attribute'),
     path('admin/bulk-import/', BulkProductImportView.as_view(), name='bulk-import'),
     path('admin/scrape-products/', ScrapeProductsView.as_view(), name='scrape-products'),
+    path('shipping_methods1/', shipping_methods1, name='shipping_methods1'),
+    path('shipping_methods1/<int:shipping_method_id>/', shipping_method_detail1, name='shipping_method_detail1'),
+
 
     # Authentication
     path('auth/logout/', logout_view, name='logout'),
@@ -78,7 +81,7 @@ urlpatterns = [
     path('carts/<int:cart_id>/add_item/', add_item_to_cart, name='add-item-to-cart'),
     path('cart-items/<int:item_id>/update_cart_item_quantity/', update_cart_item_quantity, name='update-cart-item-quantity'),
     path('carts/<int:cart_id>/remove_item/', remove_cart_item, name='remove-cart-item'),
-    path('carts/<int:cart_id>/checkout/', process_checkout, name='process-checkout'),
+
     path('carts/<int:cart_id>/create-order/', create_order_from_cart, name='create-order-from-cart'),
  
     path('cart/<int:cart_id>/update-shipping/', update_cart_shipping_method, name='update_cart_shipping_method'),

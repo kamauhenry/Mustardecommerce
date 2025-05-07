@@ -19,10 +19,12 @@
         <div class="social-media">
           <h3>Connect with us on social media</h3>
           <div class="icons">
-            <i class="fab fa-instagram"></i>
-            <i class="fab fa-facebook"></i>
-            <i class="fab fa-tiktok"></i>
-            <i class="fab fa-twitter"></i>
+            <a href="https://www.instagram.com" target="_blank" aria-label="Instagram">
+              <i class="fab fa-instagram"></i>
+            </a>
+            <a href="https://www.facebook.com" target="_blank" aria-label="Facebook">
+              <i class="fab fa-facebook"></i>
+            </a>
           </div>
         </div>
 
@@ -41,8 +43,8 @@
         <div class="contact-info">
           <h3>Contact Us</h3>
           <p>Location: XYZ</p>
-          <p>Email: <a href="mailto:email@email.com">email@email.com</a></p>
-          <p>Telephone: <a href="tel:+2541233455677889">+2541233455677889</a></p>
+          <p>Email: <a href="mailto:mustardimports@gmail.com">mustardimports@gmail.com</a></p>
+          <p>Telephone: <a href="tel:+254724028971">+254 724 028971</a></p>
           <router-link to="/faq" class="faq-link footer-router-link">Frequently Asked Questions</router-link>
         </div>
       </div>
@@ -236,8 +238,6 @@ export default {
 </script>
 
 <style scoped>
-@import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css";
-
 .main-layout {
   display: flex;
   flex-direction: column;
@@ -252,8 +252,8 @@ main.main-content {
 /* Footer Styles */
 .footer {
   width: 100%;
-  background-color: var(--background-color-five);
-  color: white;
+  background-color: #1E2A44; /* Dark blue to match homepage */
+  color: #E6E6E6; /* Light gray for text */
   padding: 1.5rem 0;
   text-align: center;
   position: relative;
@@ -283,15 +283,14 @@ main.main-content {
 }
 
 .social-media {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  justify-content: space-between; /* Center icons vertically */
+  align-items: center; /* Center icons horizontally */
 }
 
 /* Add vertical dividers */
 .social-media,
 .quick-links {
-  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.3); /* Slightly transparent divider */
   padding-right: 1rem;
 }
 
@@ -304,6 +303,7 @@ main.main-content {
 h3 {
   font-size: 1.125rem;
   margin-bottom: 0.625rem;
+  color: #E6E6E6;
 }
 
 .icons {
@@ -312,6 +312,16 @@ h3 {
   justify-content: center;
   align-items: center;
   gap: 1rem;
+  flex-grow: 1; /* Allow icons to take available space for centering */
+}
+
+.icons a {
+  color: #E6E6E6;
+  text-decoration: none;
+}
+
+.icons a:hover {
+  color: #F2C94C; /* Mustard yellow hover to match homepage */
 }
 
 .quick-links ul {
@@ -325,18 +335,20 @@ h3 {
 
 .footer-router-link,
 .contact-info a {
-  color: white;
+  color: #E6E6E6;
   text-decoration: none;
 }
 
-.footer-router-link:hover {
-  text-decoration: underline;
+.footer-router-link:hover,
+.contact-info a:hover {
+  color: #F2C94C; /* Mustard yellow hover */
 }
 
 /* Copyright */
 .copyright {
   margin-top: 1rem;
   font-size: 0.875rem;
+  color: #E6E6E6;
 }
 
 /* Cookie Consent Modal */
@@ -438,10 +450,7 @@ h3 {
     padding: 0.6rem 1.2rem;
     font-size: 0.9rem;
   }
-}
 
-/* Responsive Design */
-@media (max-width: 540px) {
   .footer-container {
     grid-template-columns: 1fr;
     text-align: center;
@@ -453,9 +462,13 @@ h3 {
   .contact-info {
     display: flex;
     justify-content: flex-start;
-    align-items: flex-start;
+    align-items: center; /* Center content horizontally on mobile */
     flex-direction: column;
     border-right: none;
+  }
+
+  .social-media {
+    justify-content: center; /* Center icons vertically on mobile */
   }
 }
 </style>

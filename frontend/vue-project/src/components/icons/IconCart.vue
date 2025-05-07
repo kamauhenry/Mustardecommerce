@@ -94,7 +94,7 @@ svg {
   position: absolute;
   top: -10px;
   right: -10px;
-  background-color: #f28c38;
+  background-color:#D4A017;
   color: #fff;
   font-size: 0.7rem;
   font-weight: 700;
