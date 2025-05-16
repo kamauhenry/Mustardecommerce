@@ -50,7 +50,7 @@ const fetchCategories = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('http://localhost:8000/api/categories/');
+    const response = await axios.get('https://mustardimports.co.ke/api/categories/');
     slides.value = response.data
       .filter(category => category.is_active)
       .map(category => ({
@@ -118,6 +118,7 @@ onMounted(() => {
   cursor: pointer;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 .slide-content {
@@ -148,12 +149,14 @@ onMounted(() => {
 .skeleton-container {
   height: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .skeleton-slides {
   display: flex;
   height: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .skeleton-slide {
@@ -164,6 +167,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .skeleton-image {
@@ -238,32 +242,34 @@ onMounted(() => {
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 800px) {
   .carousel {
     margin-top: 0;
     width: 100%;
     min-height: 200px;
+    height: 250px;
   }
-
+  .skeleton-container,
+  .skeleton-slides,
+  .skeleton-slide {
+    height: 250px;
+    width: 100%;
+  }
   .slide-title {
     font-size: 1.2rem;
   }
-
   .slide-description {
     font-size: 0.8rem;
     margin: 0.3rem 0.5rem 0;
   }
-
   .slide-content {
     padding: 0.75rem;
     max-width: 90%;
   }
-
   .skeleton-title {
     width: 120px;
     height: 18px;
   }
-
   .skeleton-description {
     width: 160px;
     height: 12px;
@@ -273,25 +279,27 @@ onMounted(() => {
 @media (max-width: 650px) {
   .carousel {
     height: 250px;
+    width: 100%;
   }
-
+  .skeleton-container,
+  .skeleton-slides,
+  .skeleton-slide {
+    height: 250px;
+    width: 100%;
+  }
   .slide {
     background-size: contain;
   }
-
   .slide-title {
     font-size: 1rem;
   }
-
   .slide-description {
     font-size: 0.75rem;
   }
-
   .skeleton-title {
     width: 100px;
     height: 16px;
   }
-
   .skeleton-description {
     width: 140px;
     height: 10px;

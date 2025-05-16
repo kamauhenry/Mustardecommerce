@@ -74,7 +74,7 @@ export default {
 
     const fetchRandomProducts = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/products/random/?limit=3');
+        const response = await fetch('https://mustardimports.co.ke/api/products/random/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch random products');
         const data = await response.json();
         randomProducts.value = (data.results || [])
@@ -93,7 +93,7 @@ export default {
     const fetchProductForSearch = async (query) => {
       try {
         const response = await fetch(
-          `http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=1`
+          `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=1`
         );
         if (!response.ok) throw new Error(`Failed to fetch product for search: ${query}`);
         const data = await response.json();

@@ -87,7 +87,7 @@ export default {
 
       ecommerceStore.setSearchLoading(true);
       try {
-        const response = await fetch(`http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}`);
+        const response = await fetch(`https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Failed to fetch products');
         const data = await response.json();
         ecommerceStore.setSearchResults(data.results || []);

@@ -160,14 +160,16 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 # Database configuration using .env, inspired by your guide
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': getenv('DB_NAME'),
-        'USER': getenv('DB_USER'),
-        'PASSWORD': getenv('DB_PASSWORD'),
-        'HOST': getenv('DB_HOST'),
-        'PORT': getenv('DB_PORT'),
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'mustardi_mustard_ecommerce',
+        'USER': 'mustardi_dbuser',
+        'PASSWORD': 'MustardDB2025!',
+        'HOST': 'localhost',
+        'PORT': '3306',
         'OPTIONS': {
-            'sslmode': 'disable',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'collation': 'utf8mb4_bin',  # For case sensitivity
         },
     }
 }
@@ -290,7 +292,6 @@ LOGGING = {
 # settings.py
 OXYLABS_USERNAME = 'mustardimports_SXOYJ'
 OXYLABS_PASSWORD = 'Mustardoxy1+'
-
 
 
 

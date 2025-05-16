@@ -20,7 +20,7 @@ const getCsrfTokenFromCookies = () => {
 export const createApiInstance = (store) => {
 
   const api = axios.create({
-    baseURL: 'http://localhost:8000/api/',
+    baseURL: 'https://mustardimports.co.ke/api/',
     timeout: 150000,
     withCredentials: true, // Ensure cookies are sent with requests
   });

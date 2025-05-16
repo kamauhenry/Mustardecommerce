@@ -1,21 +1,17 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path, re_path
-from django.views.generic import TemplateView
+from django.urls import include, path
 import logging
 
 logger = logging.getLogger(__name__)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('ecommerce.api.urls')),  # Consolidated API routes
-    path('api/', include('djoser.urls')),
-    path('api/', include('djoser.urls.authtoken')),
-    path('ecommerce/', include('ecommerce.urls')),  # Ensure trailing slash for consistency
-    path('', TemplateView.as_view(template_name='index.html'), name='home'),
-    # Catch-all route for Vue.js frontend
-    re_path(r'^(?!api/|media/|admin/).*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
+    path('api/', include('ecommerce.api.urls')),  # API routes
+    path('api/auth/', include('djoser.urls')),  # Djoser auth
+    path('api/auth/', include('djoser.urls.authtoken')),
+    path('ecommerce/', include('ecommerce.urls')),  # Ecommerce routes
 ]
 
 # Serve static and media files in development

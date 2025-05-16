@@ -467,7 +467,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async fetchLatestProducts(limit) {
-      const response = await axios.get(`http://localhost:8000/api/products/latest/?limit=${limit}`, {
+      const response = await axios.get(`https://mustardimports.co.ke/api/products/latest/?limit=${limit}`, {
         headers: {
 
         },
@@ -830,7 +830,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async fetchSearchSuggestions(query) {
       try {
         const response = await fetch(
-          `http://localhost:8000/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
+          `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
         );
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);

@@ -701,10 +701,10 @@ export default {
     flex-direction: column;
     gap: 0.5rem;
     margin: 0.5rem 2%;
-    margin-bottom: 0.5rem; /* Reduced to minimize gap */
+    margin-bottom: 0; /* Reduced to minimize gap */
   }
   .categories-container {
-    padding: 0.5rem 2%; /* Reduced padding-top */
+    padding: 0 2%; /* Reduced padding-top */
     gap: 1rem;
     flex-direction: column;
   }
