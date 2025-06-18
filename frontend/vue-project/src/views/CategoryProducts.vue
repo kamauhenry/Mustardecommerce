@@ -1,5 +1,5 @@
 <template>
-  <MainLayout>
+  <MainLayout v-if="isStoreReady">
     <div class="container">
       <!-- Breadcrumb -->
       <div class="breadcrumb">
@@ -10,7 +10,7 @@
       </div>
 
       <!-- Category Header -->
-      <div v-if="store.loading.categoryProducts" class="skeleton-header"></div>
+      <div v-if="isLoading" class="skeleton-header"></div>
       <div v-else class="category-header" :style="{ backgroundImage: `url(${categoryImage || 'https://via.placeholder.com/1200x400?text=Category+Image'})` }">
         <div class="category-header-content">
           <h1 class="category-title">{{ categoryName || 'Category' }}</h1>
@@ -18,8 +18,84 @@
         </div>
       </div>
 
+      <!-- Filters -->
+      <div class="filters">
+        <div class="filter-group search-group">
+          <label for="search-filter">Search Products:</label>
+          <div class="search-input-wrapper">
+            <input
+              id="search-filter"
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search by product name..."
+              class="search-input"
+              @input="applyFilters"
+            />
+            <span class="search-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label for="item-type-filter">Filter by Type:</label>
+          <select id="item-type-filter" v-model="selectedFilter" @change="applyFilters" class="filter-select">
+            <option value="all">All Items</option>
+            <option value="pay-and-pick">Pay & Pick</option>
+            <option value="moq">MOQ Items</option>
+          </select>
+        </div>
+        <div class="filter-group price-filter">
+          <label>Price Range: KES {{ priceRange[0] }} - KES {{ priceRange[1] }}</label>
+          <div class="slider-container">
+            <div class="price-inputs">
+              <input
+                type="number"
+                v-model.number="priceRange[0]"
+                :min="minPrice"
+                :max="maxPrice"
+                :step="100"
+                @input="applyFilters"
+                class="price-input"
+              />
+              <span>-</span>
+              <input
+                type="number"
+                v-model.number="priceRange[1]"
+                :min="minPrice"
+                :max="maxPrice"
+                :step="100"
+                @input="applyFilters"
+                class="price-input"
+              />
+            </div>
+            <div class="range-slider">
+              <input
+                type="range"
+                v-model.number="priceRange[0]"
+                :min="minPrice"
+                :max="maxPrice"
+                :step="100"
+                @input="applyFilters"
+                class="price-slider"
+              />
+              <input
+                type="range"
+                v-model.number="priceRange[1]"
+                :min="minPrice"
+                :max="maxPrice"
+                :step="100"
+                @input="applyFilters"
+                class="price-slider"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Loading state with skeleton -->
-      <div v-if="store.loading.categoryProducts" class="skeleton-container">
+      <div v-if="isLoading && !filteredProducts.length" class="skeleton-container">
         <div class="skeleton-products">
           <div v-for="n in 6" :key="n" class="skeleton-product"></div>
         </div>
@@ -33,54 +109,63 @@
 
       <!-- Products Grid -->
       <div v-else class="products-grid">
-        <div v-if="products.length > 0" class="products">
-          <div v-for="product in products" :key="product.id" class="product-card">
+        <div v-if="filteredProducts.length > 0" class="products">
+          <div v-for="product in filteredProducts" :key="product.id" class="product-card">
             <router-link
               :to="{
                 name: 'product-detail',
-                params: { categorySlug: categorySlug, productSlug: product.slug }
+                params: { categorySlug: categorySlug, productSlug: product.slug },
+                query: { pickup: product.is_pick_and_pay }
               }"
               class="product-link"
             >
               <div class="product-image-wrapper">
                 <img
-                  :src="product.thumbnail || 'data:image/jpeg;base64,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'"
+                  :src="product.thumbnail || 'https://yourdomain.com/images/default-product.jpg'"
                   :alt="product.name"
                   class="product-image"
                   loading="lazy"
                 />
               </div>
-              <div class="product-info">
-                <h3 class="product-name">{{ product.name }}</h3>
-                <div class="product-price">
-                  <span class="price-highlight">KES {{ product.price }}</span>
-                  <span v-if="product.below_moq_price" class="below-moq-price">
-                    Below MOQ Price: KES {{ product.below_moq_price }}
+              <h3 class="product-name">{{ product.name }}</h3>
+              <div class="product-price">
+                <span class="price-highlight">KES {{ product.price }}</span>
+                <span v-if="product.moq_status === 'active'" class="below-moq-price">
+                  Below MOQ Price: {{ product.below_moq_price ? `KES ${product.below_moq_price}` : 'NA' }}
+                </span>
+              </div>
+              <div v-if="product.moq_status === 'active'" class="moq-info-container">
+                <p class="moq-info">MOQ: {{ product.moq || 'N/A' }} items</p>
+                <div class="moq-progress-container">
+                  <div
+                    class="moq-progress-bar"
+                    :style="{ width: Math.min(100, product.moq_progress?.percentage || 0) + '%' }"
+                  ></div>
+                  <span class="moq-progress-text">
+                    {{ product.moq_progress?.percentage || 0 }}%
                   </span>
-                  <span v-else class="below-moq-price">Below MOQ Price: NA</span>
                 </div>
-                <div class="product-moq-info">
-                  <span class="moq-detail">MOQ: {{ product.moq || 'N/A' }} Items</span>
-                </div>
-                <div class="product-status">
-                  <span class="status-text">{{ product.moq_status || 'Active' }}</span>
-                  <div class="progress-container">
-                    <div
-                      class="progress-bar"
-                      :style="{ width: `${product.moq_progress?.percentage || '0'}%` }"
-                    ></div>
-                    <span class="progress-text">
-                      {{ product.moq_progress?.percentage || '0' }}% Orders
-                    </span>
-                  </div>
-                </div>
+              </div>
+              <div v-if="product.is_pick_and_pay" class="inventory-info">
+                <p class="availability">
+                  Available: <span class="stock-count">{{ product.inventory?.quantity || 0 }}</span> units
+                </p>
+                <p
+                  v-if="product.inventory?.quantity && product.inventory?.quantity <= product.inventory?.low_stock_threshold"
+                  class="low-stock-warning"
+                >
+                  Only {{ product.inventory.quantity }} left!
+                </p>
+              </div>
+              <div v-else-if="!product.moq_status || product.moq_status === 'not_applicable'" class="inventory-info">
+                <p class="availability">Out of Stock</p>
               </div>
             </router-link>
           </div>
         </div>
         <div v-else class="no-products">
-          <p>No products available in this category.</p>
-          <router-link to="/" class="cta-button">Explore Other Categories</router-link>
+          <p>No products match your filters.</p>
+          <button @click="resetFilters" class="cta-button">Reset Filters</button>
         </div>
       </div>
     </div>
@@ -88,9 +173,10 @@
 </template>
 
 <script>
-import { onMounted, computed, watch, onUnmounted } from 'vue';
+import { onMounted, computed, watch, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
+import { useHead } from '@vueuse/head';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 
 export default {
@@ -99,90 +185,130 @@ export default {
   setup() {
     const route = useRoute();
     const store = useEcommerceStore();
+    const selectedFilter = ref('all');
+    const minPrice = 1000;
+    const maxPrice = 34000;
+    const priceRange = ref([minPrice, maxPrice]);
+    const isStoreReady = ref(false);
+    const searchQuery = ref('');
 
-    // Get category slug from route params
-    const categorySlug = computed(() => {
-      const slug = route.params.categorySlug || '';
-      console.log('Category Slug:', slug);
-      return slug;
-    });
+    // Category slug
+    const categorySlug = computed(() => route.params.categorySlug || '');
 
-    // Fetch category products when the component is mounted or the category slug changes
+    // Loading state
+    const isLoading = computed(() => store.loading?.categoryProducts ?? false);
+
+    // Initialize store
     onMounted(() => {
-      if (!store.apiInstance) {
-        store.initializeApiInstance();
+      if (!store.apiInstance) store.initializeApiInstance();
+      if (!store.loading) {
+        store.$patch({ loading: { categoryProducts: false } });
       }
+      isStoreReady.value = true; // Mark store as ready after initialization
       if (categorySlug.value) {
-        console.log('Fetching data for category:', categorySlug.value);
+        console.log('Store loading state:', store.loading); // Debug
         store.fetchCategoryProducts(categorySlug.value);
       }
     });
 
-    // Watch for changes in categorySlug and refetch products
     watch(categorySlug, (newSlug) => {
-      if (newSlug) {
-        console.log('Category slug changed, refetching data for:', newSlug);
-        store.fetchCategoryProducts(newSlug);
-      }
+      if (newSlug) store.fetchCategoryProducts(newSlug);
     });
 
-    // Clean up error state when the component is unmounted
     onUnmounted(() => {
-      if (categorySlug.value) {
-        store.error.categoryProducts[categorySlug.value] = null;
-        console.log(`Cleared error for category: ${categorySlug.value}`);
-      }
+      if (categorySlug.value) store.error.categoryProducts[categorySlug.value] = null;
     });
 
-    // Compute category details
-    const categoryName = computed(() => {
-      const name = store.categoryProducts[categorySlug.value]?.category?.name || '';
-      console.log('Computed categoryName:', name);
-      return name;
+    // Category details
+    const categoryName = computed(() => store.categoryProducts[categorySlug.value]?.category?.name || '');
+    const categoryDescription = computed(() => store.categoryProducts[categorySlug.value]?.category?.description || '');
+    const categoryImage = computed(() => store.categoryProducts[categorySlug.value]?.category?.image || '');
+
+    // Products
+    const products = computed(() => store.categoryProducts[categorySlug.value]?.products || []);
+
+    // Filtered products
+    const filteredProducts = computed(() => {
+      return products.value.filter(product => {
+        const price = parseFloat(product.price);
+        const inPriceRange = price >= priceRange.value[0] && price <= priceRange.value[1];
+        if (!inPriceRange) return false;
+
+        // Search filter
+        const matchesSearch = !searchQuery.value || 
+          product.name.toLowerCase().includes(searchQuery.value.toLowerCase());
+        if (!matchesSearch) return false;
+
+        switch (selectedFilter.value) {
+          case 'pay-and-pick':
+            return product.is_pick_and_pay;
+          case 'moq':
+            return product.moq_status === 'active';
+          default:
+            return true;
+        }
+      });
     });
 
-    const categoryDescription = computed(() => {
-      const description = store.categoryProducts[categorySlug.value]?.category?.description || '';
-      console.log('Computed categoryDescription:', description);
-      return description;
-    });
+    // Error
+    const categoryError = computed(() => store.error.categoryProducts[categorySlug.value] || null);
 
-    const categoryImage = computed(() => {
-      const image = store.categoryProducts[categorySlug.value]?.category?.image || '';
-      console.log('Computed categoryImage:', image);
-      return image;
-    });
-
-    // Compute products for the current category
-    const products = computed(() => {
-      const products = store.categoryProducts[categorySlug.value]?.products || [];
-      console.log('Computed products:', products);
-      return products;
-    });
-
-    // Compute category-specific error
-    const categoryError = computed(() => {
-      const error = store.error.categoryProducts[categorySlug.value] || null;
-      console.log('Computed categoryError:', error);
-      return error;
-    });
-
-    // Retry loading products
+    // Retry loading
     const retryLoading = () => {
-      if (categorySlug.value) {
-        console.log('Retrying fetch for category:', categorySlug.value);
-        store.fetchCategoryProducts(categorySlug.value);
+      if (categorySlug.value) store.fetchCategoryProducts(categorySlug.value);
+    };
+
+    // Apply filters
+    const applyFilters = () => {
+      if (priceRange.value[0] > priceRange.value[1]) {
+        priceRange.value = [priceRange.value[1], priceRange.value[0]];
       }
     };
 
-    // Debug the store state
-    watch(() => store.categoryProducts, (newValue) => {
-      console.log('Store categoryProducts updated:', newValue);
-    }, { deep: true });
+    // Reset filters
+    const resetFilters = () => {
+      selectedFilter.value = 'all';
+      priceRange.value = [minPrice, maxPrice];
+      searchQuery.value = '';
+    };
 
-    watch(() => store.error.categoryProducts, (newError) => {
-      console.log('Store error.categoryProducts updated:', newError);
-    }, { deep: true });
+    // SEO
+    const schemaOrg = computed(() => ({
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: `MustardImports ${categoryName.value}`,
+      description: categoryDescription.value || 'Browse Bateman products in this category.',
+      url: window.location.href,
+      publisher: {
+        '@type': 'Organization',
+        name: 'MustardImports',
+        logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+      },
+    }));
+
+    useHead({
+      title: computed(() => `MustardImports - ${categoryName.value || 'Category'}`),
+      meta: [
+        { name: 'description', content: categoryDescription.value || 'Browse products in this category at MustardImports.' },
+        { name: 'keywords', content: `e-commerce, Kenya, MustardImports, ${categoryName.value}` },
+        { property: 'og:title', content: computed(() => `MustardImports - ${categoryName.value}`) },
+        { property: 'og:description', content: categoryDescription.value || 'Browse products in this category.' },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: window.location.href },
+        { property: 'og:image', content: 'https://example.com/images/og-image.jpg' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:title', content: computed(() => `MustardImports - ${categoryName.value}`) },
+        { name: 'twitter:description', content: categoryDescription.value || 'Browse products in this category.' },
+        { name: 'twitter:image', content: 'https://example.com/images/twitter-image.jpg' },
+      ],
+      link: [{ rel: 'canonical', href: window.location.href }],
+      script: [
+        {
+          type: 'application/ld+json',
+          children: JSON.stringify(schemaOrg.value),
+        },
+      ],
+    });
 
     return {
       store,
@@ -190,9 +316,18 @@ export default {
       categoryName,
       categoryDescription,
       categoryImage,
-      products,
+      filteredProducts,
       categoryError,
       retryLoading,
+      selectedFilter,
+      priceRange,
+      minPrice,
+      maxPrice,
+      applyFilters,
+      resetFilters,
+      isStoreReady,
+      isLoading,
+      searchQuery,
     };
   },
 };
@@ -206,15 +341,371 @@ export default {
   margin: 0 auto;
 }
 
+/* Filters */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e8e8e8;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 220px;
+  flex: 1;
+}
+
+.filter-group label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d2d2d;
+  margin-bottom: 0.25rem;
+}
+
+/* Search Input */
+.search-group {
+  position: relative;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: #fff;
+  width: 100%;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #D4A017;
+  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Select Dropdown */
+.filter-select {
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: #fff;
+  cursor: pointer;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="%236b7280" viewBox="0 0 16 16"><path d="M8 12l-6-6h12l-6 6z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #D4A017;
+  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.1);
+}
+
+/* Price Filter */
+.price-filter {
+  flex: 1;
+  min-width: 250px;
+}
+
+.slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.price-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.price-input {
+  width: 100px;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  text-align: center;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.price-input:focus {
+  outline: none;
+  border-color: #D4A017;
+  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.1);
+}
+
+.range-slider {
+  position: relative;
+  width: 100%;
+}
+
+.price-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+.price-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #D4A017;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.price-slider::-webkit-slider-thumb:hover {
+  background: #e67d21;
+  transform: scale(1.1);
+}
+
+.price-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #D4A017;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.price-slider::-moz-range-thumb:hover {
+  background: #e67d21;
+  transform: scale(1.1);
+}
+
+.price-slider::-webkit-slider-runnable-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.price-slider::-moz-range-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Product card */
+.product-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.product-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+}
+
+.product-image {
+  width: 100%;
+  height: 160px;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.03);
+}
+
+.product-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.1rem 0;
+  text-align: left;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 1rem;
+}
+
+.product-price {
+  display: flex;
+  flex-direction: column;
+  margin: 0.1rem 0;
+  padding: 0 1rem;
+}
+
+.price-highlight {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #D4A017;
+}
+
+.below-moq-price {
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+}
+
+.moq-info-container {
+  padding: 0 1rem;
+}
+
+.moq-info {
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.moq-progress-container {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background-color: #e6f4ea;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: auto;
+}
+
+.moq-progress-bar {
+  height: 100%;
+  padding: 2px;
+  background: linear-gradient(45deg, #62c87a, #6dc480);
+  transition: width 0.5s ease;
+}
+
+.moq-progress-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-size: 0.65rem;
+  font-weight: bold;
+  text-shadow: 0 0 2px #fff;
+}
+
+.inventory-info {
+  margin-top: 0.5rem;
+  padding: 0 1rem;
+}
+
+.availability {
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.stock-count {
+  font-weight: 600;
+  color: #D4A017;
+}
+
+.low-stock-warning {
+  color: #d9534f;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-top: 0.25rem;
+}
+
+/* No products */
+.no-products {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cta-button {
+  padding: 0.5rem 1rem;
+  background-color: #D4A017;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 20px;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.cta-button:hover {
+  background-color: #e67d21;
+}
+
 /* Breadcrumb styling */
 .breadcrumb {
   font-size: 0.9rem;
   margin-bottom: 1rem;
+
   color: #666;
 }
 
 .breadcrumb a {
-  color:#D4A017;
+  color: #D4A017;
   text-decoration: none;
   transition: color 0.3s ease;
 }
@@ -262,7 +753,7 @@ export default {
   font-size: 2.5rem;
   font-weight: 900;
   color: #fff;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
@@ -287,7 +778,7 @@ export default {
 }
 
 .skeleton-product {
-  height: 350px;
+  height: 400px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -305,7 +796,7 @@ export default {
 .products {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1.5rem;
+  gap: 0.5rem 1.0rem; /* Row gap reduced to 0.5rem (8px), column gap remains 1.5rem */
 }
 
 /* Individual product card */
@@ -314,14 +805,9 @@ export default {
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  min-height: 350px;
+  min-height: 250px;
   display: flex;
   flex-direction: column;
-}
-
-.product-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
 .product-link {
@@ -354,123 +840,30 @@ export default {
   transform: scale(1.05);
 }
 
-/* Product info */
-.product-info {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
+/* Shimmer animation for skeleton */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
-.product-name {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-  text-align: left;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.product-price {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 0.5rem;
-}
-
-.price-highlight {
-  font-size: 1rem;
-  font-weight: 700;
-  color:#D4A017;
-}
-
-.below-moq-price {
-  font-size: 0.8rem;
-}
-
-/* MOQ info */
-.product-moq-info {
-  margin-bottom: 0.5rem;
-}
-
-.moq-detail {
-  font-size: 0.85rem;
-  background-color: #f5f5f5;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  display: inline-block;
-}
-
-/* Product status */
-.product-status {
-  margin-top: auto; /* Push to bottom of card */
-}
-
-.status-text {
-  font-size: 0.8rem;
-  color: #28a745;
-  background-color: #e6f4ea;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  margin-bottom: 0.5rem;
-  display: inline-block;
-}
-
-.progress-container {
-  position: relative;
-  height: 16px;
-  width: 100%;
-  background-color: #e0e0e0;
-  border-radius: 5px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  padding: 2px;
-  background: linear-gradient(45deg, #62c87a, #6dc480);
-  border-radius: 5px;
-  transition: width 0.5s ease;
-}
-
-.progress-text {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #333;
-  font-size: 0.65rem;
-  font-weight: bold;
-  text-shadow: 0 0 2px #fff;
-}
-
-/* Loading, error, and no-products states */
-.loading,
-.error,
-.no-products {
+/* Error state */
+.error {
   text-align: center;
   padding: 2rem;
   font-size: 1.1rem;
   border-radius: 8px;
   margin: 1rem 0;
-}
-
-.error {
   color: #dc3545;
 }
 
 .retry-button {
   background: none;
   border: none;
-  color:#D4A017;
+  color: #D4A017;
   font-size: 1rem;
   font-weight: 500;
   text-decoration: underline;
@@ -481,38 +874,6 @@ export default {
 
 .retry-button:hover {
   color: #e67d21;
-}
-
-.no-products {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.cta-button {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background-color:#D4A017;
-  color: #fff;
-  text-decoration: none;
-  border-radius: 20px;
-  font-weight: 500;
-  transition: background-color 0.3s ease;
-}
-
-.cta-button:hover {
-  background-color: #e67d21;
-}
-
-/* Shimmer animation for skeleton */
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
 
 /* Responsive adjustments */
@@ -542,11 +903,32 @@ export default {
   .product-image-wrapper {
     height: 180px;
   }
+
+  .skeleton-header {
+    height: 300px;
+  }
 }
 
 @media (max-width: 768px) {
+  .breadcrumb {
+    padding-top: 3.1rem;
+  }
+  .filters {
+    flex-direction: column;
+    padding: 1rem;
+  }
+
+  .filter-group {
+    min-width: 100%;
+  }
+
+  .price-input {
+    width: 80px;
+  }
+
   .products {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.333rem 1rem;
   }
 
   .skeleton-products {
@@ -570,19 +952,35 @@ export default {
   }
 
   .product-card {
-    min-height: 320px;
+    min-height: 250px;
   }
 
   .product-name {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
 
   .price-highlight {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
 
   .below-moq-price {
+    font-size: 0.7rem;
+  }
+
+  .moq-info {
     font-size: 0.75rem;
+  }
+
+  .moq-progress-container {
+    height: 16px;
+  }
+
+  .moq-progress-text {
+    font-size: 0.6rem;
+  }
+
+  .skeleton-header {
+    height: 250px;
   }
 }
 
@@ -593,7 +991,7 @@ export default {
 
   .products {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 1rem;
+    gap: 0.333rem 1rem; /* Row gap reduced to 0.333rem (5.3px), column gap remains 1rem */
   }
 
   .skeleton-products {
@@ -618,7 +1016,7 @@ export default {
   }
 
   .product-card {
-    min-height: 300px;
+    min-height: 250px;
   }
 
   .product-name {
@@ -633,12 +1031,12 @@ export default {
     font-size: 0.7rem;
   }
 
-  .moq-detail {
-    font-size: 0.8rem;
+  .moq-info {
+    font-size: 0.75rem;
   }
 
-  .status-text {
-    font-size: 0.75rem;
+  .skeleton-header {
+    height: 200px;
   }
 }
 
@@ -656,7 +1054,7 @@ export default {
   }
 
   .product-card {
-    min-height: 280px;
+    min-height: 250px;
   }
 }
 
@@ -668,23 +1066,5 @@ export default {
   animation: shimmer 1.5s infinite;
   border-radius: 12px;
   margin-bottom: 2rem;
-}
-
-@media (max-width: 1024px) {
-  .skeleton-header {
-    height: 300px;
-  }
-}
-
-@media (max-width: 768px) {
-  .skeleton-header {
-    height: 250px;
-  }
-}
-
-@media (max-width: 480px) {
-  .skeleton-header {
-    height: 200px;
-  }
 }
 </style>

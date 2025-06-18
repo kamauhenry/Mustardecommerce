@@ -59,7 +59,7 @@ watch(
   z-index: 1000;
   overflow-y: auto; /* Allow scrolling if modal content overflows viewport */
   padding: 0.5rem; /* Minimal padding */
-  padding-top: 4rem; /* Slightly reduced to bring modal higher */
+  padding-top: 5rem; /* Slightly reduced to bring modal higher */
 }
 
 .modal-content {
@@ -68,7 +68,7 @@ watch(
   position: relative;
   width: 350px; /* Reduced width for better fit */
   max-width: 90%;
-  max-height: 70vh; /* Reduced to ensure modal fits better on small screens */
+  max-height: 100vh; /* Reduced to ensure modal fits better on small screens */
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -78,7 +78,7 @@ watch(
 .modal-body {
   overflow-y: auto; /* Make the content scrollable */
   padding: 0.5rem; /* Minimal padding */
-  max-height: 60vh; /* Reduced to fit within modal-content */
+  max-height: 90vh; /* Reduced to fit within modal-content */
 }
 
 .modal-close {

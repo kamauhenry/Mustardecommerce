@@ -19,12 +19,16 @@
         <div class="social-media">
           <h3>Connect with us on social media</h3>
           <div class="icons">
-            <a href="https://www.instagram.com" target="_blank" aria-label="Instagram">
+            <a href="https://www.instagram.com/mustard_imports?igsh=d2hqa3FhendhbHA1" target="_blank" aria-label="Instagram">
               <i class="fab fa-instagram"></i>
             </a>
-            <a href="https://www.facebook.com" target="_blank" aria-label="Facebook">
+            <a href="https://www.facebook.com/mustardimports" target="_blank" aria-label="Facebook">
               <i class="fab fa-facebook"></i>
             </a>
+            <a href="https://www.tiktok.com/@mustard_imports?_t=ZM-8vbZdUKSfIc&_r=1" target="_blank" aria-label="Follow us on TikTok">
+              <i class="fa-brands fa-tiktok"></i>
+            </a>
+
           </div>
         </div>
 
@@ -94,7 +98,7 @@ import HamburgerMenu from '@/components/navigation/HamburgerMenu.vue';
 import Modal from '@/components/auth/Modal.vue';
 import TrackOrder from '@/components/auth/TrackOrder.vue';
 import RequestMOQ from '@/components/auth/RequestMOQ.vue';
-import LoginModal from '@/components/auth/LoginModal.vue';
+import LoginModal from '@/components/auth/AuthModal.vue';
 
 export default {
   name: 'MainLayout',
@@ -155,7 +159,7 @@ export default {
       localStorage.setItem('cookieConsent', 'accepted');
       showCookieConsentModal.value = false;
       toast.success('Cookies accepted!', { autoClose: 3000 });
-      loadGoogleAnalytics();
+
     };
 
     const declineCookies = () => {

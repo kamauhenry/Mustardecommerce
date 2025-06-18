@@ -91,6 +91,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
 ]
+FRONTEND_URL = 'http://localhost:5173'
 
 CORS_ALLOW_ALL_ORIGINS = True  # Temporary for debugging
 # CORS Settings
@@ -160,19 +161,20 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 # Database configuration using .env, inspired by your guide
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'mustardi_mustard_ecommerce',
-        'USER': 'mustardi_dbuser',
-        'PASSWORD': 'MustardDB2025!',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',
+        'USER': 'postgres.lexsjxgnhvkbyebwykrh',
+        'PASSWORD': 'mustardkuza1!!',
+        'HOST': 'aws-0-ap-south-1.pooler.supabase.com',
+        'PORT': '6543',
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            'charset': 'utf8mb4',
-            'collation': 'utf8mb4_bin',  # For case sensitivity
+            'options': '-c timezone=UTC',
+
+
         },
     }
 }
+
 
 
 AUTH_USER_MODEL = 'ecommerce.User'
@@ -238,7 +240,7 @@ import mimetypes
 mimetypes.add_type("image/jpeg", ".jpg")
 
 
-GOOGLE_CLIENT_ID = '370920112183-0pd7i0jqlf78bqjph6j6ocg1s3gkhe9d.apps.googleusercontent.com' 
+GOOGLE_CLIENT_ID = '974928309201-n6nkaqko0qcju8uvhuf0m827dhp2bn1l.apps.googleusercontent.com'
 
 
 # Email Configuration

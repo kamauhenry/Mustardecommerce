@@ -5,7 +5,7 @@
       <div class="card-face card-face-front">
         <div class="auth-card">
           <h2>Admin Login</h2>
-          <form @submit.prevent="login">
+          <form v-if="!showForgotPassword" @submit.prevent="login">
             <div class="form-group">
               <label for="username">Username</label>
               <div class="input-wrapper">
@@ -38,8 +38,28 @@
               </div>
             </button>
           </form>
+          <form v-else @submit.prevent="requestPasswordReset">
+            <div class="form-group">
+              <label for="reset-email">Email</label>
+              <div class="input-wrapper">
+                <input
+                  type="email"
+                  v-model="resetEmail"
+                  id="reset-email"
+                  placeholder="Enter your email"
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit" class="auth-button">Send Reset Link</button>
+          </form>
           <p v-if="loginError" class="error-message">{{ loginError }}</p>
           <p class="flip-link">
+            <a href="#" @click.prevent="toggleForgotPassword">
+              {{ showForgotPassword ? 'Back to Login' : 'Forgot Password?' }}
+            </a>
+          </p>
+          <p v-if="!showForgotPassword" class="flip-link">
             No account? <a href="#" @click.prevent="flipCard">Create one</a>
           </p>
         </div>
@@ -143,10 +163,13 @@
 import { ref, reactive, nextTick } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { useRouter } from 'vue-router';
+import api from '@/services/api';
 
 const showRegister = ref(false);
+const showForgotPassword = ref(false);
 const loginError = ref(null);
 const registerError = ref(null);
+const resetEmail = ref('');
 const store = useEcommerceStore();
 const router = useRouter();
 
@@ -165,10 +188,15 @@ const registerForm = reactive({
 });
 
 const flipCard = () => {
-  // Reset errors when flipping card
   loginError.value = null;
   registerError.value = null;
+  showForgotPassword.value = false;
   showRegister.value = !showRegister.value;
+};
+
+const toggleForgotPassword = () => {
+  showForgotPassword.value = !showForgotPassword.value;
+  loginError.value = null;
 };
 
 const login = async () => {
@@ -179,10 +207,10 @@ const login = async () => {
       password: loginForm.password 
     });
     console.log(`Logged in as admin ${response.username}`);
-    await nextTick(); // Ensure state updates
+    await nextTick();
     router.push('/admin-page/dashboard');
   } catch (err) {
-    loginError.value =  'Admin login failed Wrong Password or Username ';
+    loginError.value = 'Admin login failed: Wrong Password or Username';
     console.error('Admin login failed:', err);
   }
 };
@@ -200,14 +228,31 @@ const register = async () => {
       user_type: 'admin',
     });
     console.log(`Registered as admin ${response.username}`);
-    
-    // Flip back to login form after successful registration
     showRegister.value = false;
     await nextTick();
-    // Show success message or proceed to dashboard
   } catch (err) {
-    registerError.value = err.response?.data?.error || err.message || 'Admin registration failed';
+    // Extract the specific error message from the backend response
+    const errorData = err.response?.data;
+    if (errorData && errorData.username && Array.isArray(errorData.username)) {
+      registerError.value = errorData.username[0]; // Set the error message (e.g., "user with this username already exists.")
+    } else if (errorData && errorData.error) {
+      registerError.value = errorData.error; // Fallback to generic error if available
+    } else {
+      registerError.value = 'Admin registration failed'; // Default fallback message
+    }
     console.error('Admin registration failed:', err.response?.data);
+  }
+};
+
+const requestPasswordReset = async () => {
+  loginError.value = null;
+  try {
+    await api.createApiInstance(store).post('auth/forgot-password/', { email: resetEmail.value });
+    alert('If the email exists, a reset link has been sent.');
+    showForgotPassword.value = false;
+  } catch (err) {
+    loginError.value = 'Failed to send reset link';
+    console.error('Reset request failed:', err);
   }
 };
 </script>
@@ -241,7 +286,7 @@ const register = async () => {
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
-  -webkit-backface-visibility: hidden; /* Safari support */
+  -webkit-backface-visibility: hidden;
 }
 
 .card-face-front {
@@ -264,7 +309,7 @@ const register = async () => {
 .auth-card h2 {
   text-align: center;
   margin-bottom: 2rem;
-  color: #1a365d; /* Dark blue */
+  color: #1a365d;
   font-weight: 600;
   font-size: 1.75rem;
 }
@@ -338,7 +383,7 @@ const register = async () => {
   width: 50%;
   padding: 0.875rem;
   margin: 1rem auto;
-  background-color: #1a365d; /* Dark blue */
+  background-color: #1a365d;
   color: white;
   border: none;
   border-radius: 8px;
@@ -359,7 +404,7 @@ const register = async () => {
 }
 
 .auth-button:hover:not(:disabled) {
-  background-color: #2c5282; /* Slightly lighter dark blue */
+  background-color: #2c5282;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(26, 54, 93, 0.25);
 }
@@ -384,12 +429,10 @@ const register = async () => {
   text-decoration: underline;
 }
 
-/* Ensure the register form has enough height */
 .register-form {
   min-height: 320px;
 }
 
-/* Loader Styles */
 .loader-container {
   display: flex;
   align-items: center;

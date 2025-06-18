@@ -145,9 +145,25 @@
               <h3>Items Purchased</h3>
               <div v-for="item in selectedOrder.items" :key="item.id" class="receipt-item">
                 <div class="item-details">
-                  <p class="item-name">{{ item.product_name }}</p>
+                  <p class="item-name">
+                    {{ item.product_name }}
+                    <span class="product-type-badge" :class="item.product.moq_status === 'active' ? 'moq' : 'pay-pick'">
+                      {{ item.product.moq_status === 'active' ? 'MOQ' : 'Pay & Pick' }}
+                    </span>
+                  </p>
                   <p class="item-quantity">Qty: {{ item.quantity }}</p>
                   <p class="item-price">KES {{ formatPrice(item.price) }}</p>
+                  <p v-if="item.product.moq_status === 'active' && item.product.moq" class="item-moq">
+                    MOQ: {{ item.product.moq }} units
+                    <span v-if="item.product.moq_progress">
+                      (Progress: {{ item.product.moq_progress.percentage }}%)
+                    </span>
+                  </p>
+                  <div v-if="item.attributes && Object.keys(item.attributes).length" class="item-attributes">
+                    <p v-for="(value, key) in item.attributes" :key="key" class="attribute">
+                      {{ formatAttributeKey(key) }}: {{ value }}
+                    </p>
+                  </div>
                 </div>
                 <p class="item-line-total">KES {{ formatPrice(item.line_total) }}</p>
               </div>
@@ -155,18 +171,36 @@
 
             <div class="receipt-section">
               <h3>Shipping Information</h3>
-              <p v-if="selectedOrder.delivery_location">
-                <span class="info-label">Address:</span> {{ selectedOrder.delivery_location.address }}<br />
-                <span class="info-label">Name:</span> {{ selectedOrder.delivery_location.name }}
-              </p>
-              <p v-else>No delivery location specified.</p>
+              <div v-if="selectedOrder.items.every(item => item.product.is_pick_and_pay)">
+                <p v-if="selectedOrder.delivery_location?.is_shop_pickup" class="location-info">
+                  <span class="info-label">Pickup Location:</span> Mustard Imports Store
+                </p>
+                <p v-else-if="selectedOrder.delivery_location?.county || selectedOrder.delivery_location?.ward" class="location-info">
+                  <span v-if="selectedOrder.delivery_location.county" class="info-label">County:</span>
+                  {{ selectedOrder.delivery_location.county || '' }}
+                  <br v-if="selectedOrder.delivery_location.county && selectedOrder.delivery_location.ward" />
+                  <span v-if="selectedOrder.delivery_location.ward" class="info-label">Ward:</span>
+                  {{ selectedOrder.delivery_location.ward || '' }}
+                </p>
+                <p v-else class="location-info">No delivery location specified.</p>
+              </div>
+              <div v-else>
+                <p v-if="selectedOrder.delivery_location?.county || selectedOrder.delivery_location?.ward" class="location-info">
+                  <span v-if="selectedOrder.delivery_location.county" class="info-label">County:</span>
+                  {{ selectedOrder.delivery_location.county || '' }}
+                  <br v-if="selectedOrder.delivery_location.county && selectedOrder.delivery_location.ward" />
+                  <span v-if="selectedOrder.delivery_location.ward" class="info-label">Ward:</span>
+                  {{ selectedOrder.delivery_location.ward || '' }}
+                </p>
+                <p v-else class="location-info">No delivery location specified.</p>
+              </div>
               <p>
                 <span class="info-label">Shipping Method:</span>
-                {{ selectedOrder.shipping_method?.name || 'Not specified' }}
+                {{ selectedOrder.shipping_method?.name || 'Not applicable' }}
               </p>
               <p>
                 <span class="info-label">Shipping Cost:</span>
-                KES {{ formatPrice(selectedOrder.shipping_cost) }}
+                KES {{ formatPrice(selectedOrder.shipping_cost || 0) }}
               </p>
             </div>
 
@@ -178,7 +212,7 @@
               </div>
               <div class="receipt-row">
                 <span>Shipping Cost:</span>
-                <span>KES {{ formatPrice(selectedOrder.shipping_cost) }}</span>
+                <span>KES {{ formatPrice(selectedOrder.shipping_cost || 0) }}</span>
               </div>
               <div class="receipt-row">
                 <span>Total:</span>
@@ -235,11 +269,19 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
+const formatPrice = (price) => (price != null ? (Math.round(price * 100) / 100).toFixed(2) : '0.00');
+
+const formatAttributeKey = (key) => {
+  return key
+    .replace(/[_-]/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
 
 const orderSubtotal = computed(() =>
   selectedOrder.value
-    ? selectedOrder.value.items.reduce((sum, item) => sum + item.line_total, 0)
+    ? selectedOrder.value.items.reduce((sum, item) => sum + (item.line_total || 0), 0)
     : 0
 );
 
@@ -281,9 +323,7 @@ const filteredOrders = computed(() => {
 const fetchOrdersData = async () => {
   try {
     loading.value = true;
-    const apiInstance = api.createApiInstance(store);
-    const orders = await api.fetchOrders(apiInstance);
-    store.setOrders(orders);
+    await store.fetchOrdersData();
   } catch (error) {
     console.error('Error fetching orders:', error);
     toast.error(error.response?.data?.error || 'Failed to load orders.');
@@ -321,6 +361,7 @@ const closeOrderDetails = () => {
 
 const printReceipt = () => {
   const orderNumber = selectedOrder.value.order_number;
+  const isPickAndPay = selectedOrder.value.items.every(item => item.product.is_pick_and_pay);
   const printWindow = window.open('', '_blank');
   printWindow.document.write(`
     <html>
@@ -358,12 +399,8 @@ const printReceipt = () => {
               #ddd 0.625rem
             );
           }
-          .receipt::before {
-            top: -0.3125rem;
-          }
-          .receipt::after {
-            bottom: -0.3125rem;
-          }
+          .receipt::before { top: -0.3125rem; }
+          .receipt::after { bottom: -0.3125rem; }
           .receipt-header {
             text-align: center;
             margin-bottom: 1rem;
@@ -393,7 +430,7 @@ const printReceipt = () => {
             font-weight: 600;
             color: #333;
             margin-bottom: 0.625rem;
-            border-left: 0.1875rem solid#D4A017;
+            border-left: 0.1875rem solid #D4A017;
             padding-left: 0.5rem;
           }
           .receipt-row,
@@ -408,10 +445,31 @@ const printReceipt = () => {
             border-bottom: 0.0625rem dashed #ddd;
             padding: 0.5rem 0;
           }
-          .receipt-section p {
+          .receipt-section p,
+          .location-info {
             font-size: 0.75rem;
             color: #666;
             line-height: 1.5;
+          }
+          .item-attributes,
+          .attribute {
+            font-size: 0.75rem;
+            color: #666;
+            margin: 0.25rem 0;
+          }
+          .product-type-badge {
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.75rem;
+            font-size: 0.6875rem;
+            margin-left: 0.5rem;
+          }
+          .product-type-badge.moq {
+            background-color: #e3f2fd;
+            color: #2196f3;
+          }
+          .product-type-badge.pay-pick {
+            background-color: #fff8e1;
+            color: #ffa000;
           }
           .receipt-footer {
             border-top: 0.125rem dashed #ccc;
@@ -432,26 +490,18 @@ const printReceipt = () => {
             margin-top: 0.75rem;
           }
           @media (max-width: 650px) {
-            body {
-              padding: 0.5rem;
-            }
-            .receipt {
-              padding: 0.75rem;
-            }
-            .receipt-header h2 {
-              font-size: 0.875rem;
-            }
-            .receipt-date {
-              font-size: 0.6875rem;
-            }
-            .receipt-section h3 {
-              font-size: 0.8125rem;
-            }
+            body { padding: 0.5rem; }
+            .receipt { padding: 0.75rem; }
+            .receipt-header h2 { font-size: 0.875rem; }
+            .receipt-date { font-size: 0.6875rem; }
+            .receipt-section h3 { font-size: 0.8125rem; }
             .receipt-row,
             .item-details,
-            .receipt-section p {
-              font-size: 0.6875rem;
-            }
+            .receipt-section p,
+            .location-info,
+            .item-attributes,
+            .attribute { font-size: 0.6875rem; }
+            .product-type-badge { font-size: 0.625rem; }
           }
         </style>
       </head>
@@ -480,9 +530,32 @@ const printReceipt = () => {
                 (item) => `
               <div class="receipt-item">
                 <div class="item-details">
-                  <span>${item.product_name}</span>
+                  <span>${item.product_name}
+                    <span class="product-type-badge ${item.product.moq_status === 'active' ? 'moq' : 'pay-pick'}">
+                      ${item.product.moq_status === 'active' ? 'MOQ' : 'Pay & Pick'}
+                    </span>
+                  </span>
                   <span>Qty: ${item.quantity}</span>
                   <span>KES ${formatPrice(item.price)}</span>
+                  ${
+                    item.product.moq_status === 'active' && item.product.moq
+                      ? `<span>MOQ: ${item.product.moq} units${
+                          item.product.moq_progress
+                            ? ` (Progress: ${item.product.moq_progress.percentage}%)`
+                            : ''
+                        }</span>`
+                      : ''
+                  }
+                  ${
+                    item.attributes && Object.keys(item.attributes).length
+                      ? `<div class="item-attributes">${Object.entries(item.attributes)
+                          .map(
+                            ([key, value]) =>
+                              `<p class="attribute">${formatAttributeKey(key)}: ${value}</p>`
+                          )
+                          .join('')}</div>`
+                      : ''
+                  }
                 </div>
                 <span>KES ${formatPrice(item.line_total)}</span>
               </div>`
@@ -491,14 +564,39 @@ const printReceipt = () => {
           </div>
           <div class="receipt-section">
             <h3>Shipping Information</h3>
-            <p>
-              ${selectedOrder.value.delivery_location
-                ? `Address: ${selectedOrder.value.delivery_location.address}<br />
-                   Name: ${selectedOrder.value.delivery_location.name}`
-                : 'No delivery location specified.'}
-            </p>
-            <p>Shipping Method: ${selectedOrder.value.shipping_method?.name || 'Not specified'}</p>
-            <p>Shipping Cost: KES ${formatPrice(selectedOrder.value.shipping_cost)}</p>
+            ${
+              isPickAndPay
+                ? selectedOrder.value.delivery_location?.is_shop_pickup
+                  ? `<p class="location-info">Pickup Location: Mustard Imports Store</p>`
+                  : selectedOrder.value.delivery_location?.county ||
+                    selectedOrder.value.delivery_location?.ward
+                  ? `<p class="location-info">
+                      ${selectedOrder.value.delivery_location.county ? `County: ${selectedOrder.value.delivery_location.county}` : ''}
+                      ${
+                        selectedOrder.value.delivery_location.county &&
+                        selectedOrder.value.delivery_location.ward
+                          ? '<br>'
+                          : ''
+                      }
+                      ${selectedOrder.value.delivery_location.ward ? `Ward: ${selectedOrder.value.delivery_location.ward}` : ''}
+                    </p>`
+                  : `<p class="location-info">No delivery location specified.</p>`
+                : selectedOrder.value.delivery_location?.county ||
+                  selectedOrder.value.delivery_location?.ward
+                ? `<p class="location-info">
+                    ${selectedOrder.value.delivery_location.county ? `County: ${selectedOrder.value.delivery_location.county}` : ''}
+                    ${
+                      selectedOrder.value.delivery_location.county &&
+                      selectedOrder.value.delivery_location.ward
+                        ? '<br>'
+                        : ''
+                    }
+                    ${selectedOrder.value.delivery_location.ward ? `Ward: ${selectedOrder.value.delivery_location.ward}` : ''}
+                  </p>`
+                : `<p class="location-info">No delivery location specified.</p>`
+            }
+            <p>Shipping Method: ${selectedOrder.value.shipping_method?.name || 'Not applicable'}</p>
+            <p>Shipping Cost: KES ${formatPrice(selectedOrder.value.shipping_cost || 0)}</p>
           </div>
           <div class="receipt-section">
             <h3>Order Totals</h3>
@@ -508,7 +606,7 @@ const printReceipt = () => {
             </div>
             <div class="receipt-row">
               <span>Shipping Cost:</span>
-              <span>KES ${formatPrice(selectedOrder.value.shipping_cost)}</span>
+              <span>KES ${formatPrice(selectedOrder.value.shipping_cost || 0)}</span>
             </div>
             <div class="receipt-row">
               <span>Total:</span>
@@ -531,9 +629,14 @@ onMounted(async () => {
     router.push('/login');
     return;
   }
+  if (!store.userId) {
+    console.error('User ID is not set in the store');
+    toast.error('User ID not found. Please log in again.');
+    router.push('/login');
+    return;
+  }
   const apiInstance = api.createApiInstance(store);
   try {
-    // Removed: await api.autocomplete(apiInstance, '');
     await fetchOrdersData();
   } catch (error) {
     console.error('Initialization error:', error);
@@ -557,7 +660,7 @@ onMounted(async () => {
 
 .breadcrumb a {
   text-decoration: none;
-  color:#D4A017;
+  color: #D4A017;
   transition: color 0.2s ease;
 }
 
@@ -648,7 +751,7 @@ onMounted(async () => {
 }
 
 .search-input:focus {
-  border-color:#D4A017;
+  border-color: #D4A017;
   box-shadow: 0 0 0 0.125rem rgba(242, 140, 56, 0.2);
 }
 
@@ -680,12 +783,12 @@ onMounted(async () => {
 }
 
 .tab-button:hover {
-  color:#D4A017;
+  color: #D4A017;
 }
 
 .tab-button.active {
-  color:#D4A017;
-  border-bottom-color:#D4A017;
+  color: #D4A017;
+  border-bottom-color: #D4A017;
 }
 
 .no-orders {
@@ -747,7 +850,7 @@ onMounted(async () => {
   width: 100%;
   padding: 0.5rem 0.9375rem;
   cursor: pointer;
-  color:#D4A017;
+  color: #D4A017;
   font-weight: 500;
   text-decoration: none;
   border-radius: 0.375rem;
@@ -837,7 +940,7 @@ onMounted(async () => {
 .retry-button {
   margin-top: 0.75rem;
   padding: 0.5rem 1.25rem;
-  background-color:#D4A017;
+  background-color: #D4A017;
   color: #fff;
   border: none;
   border-radius: 0.375rem;
@@ -887,9 +990,9 @@ onMounted(async () => {
 .receipt-section h3 {
   font-size: 0.9375rem;
   font-weight: 600;
-  color:#D4A017;
+  color: #D4A017;
   margin-bottom: 0.75rem;
-  border-left: 0.1875rem solid#D4A017;
+  border-left: 0.1875rem solid #D4A017;
   padding-left: 0.625rem;
 }
 
@@ -958,7 +1061,8 @@ onMounted(async () => {
 }
 
 .item-quantity,
-.item-price {
+.item-price,
+.item-moq {
   font-size: 0.75rem;
   color: #666;
 }
@@ -1008,7 +1112,7 @@ onMounted(async () => {
 }
 
 .print-button {
-  background-color:#D4A017;
+  background-color: #D4A017;
   color: #fff;
 }
 
@@ -1128,13 +1232,43 @@ onMounted(async () => {
   margin: 0.75rem;
 }
 
+.product-type-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.product-type-badge.moq {
+  background-color: #e3f2fd;
+  color: #2196f3;
+}
+
+.product-type-badge.pay-pick {
+  background-color: #fff8e1;
+  color: #ffa000;
+}
+
+.location-info {
+  font-size: 0.8125rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+.item-attributes {
+  margin-top: 0.25rem;
+}
+
+.attribute {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0.125rem 0;
+}
+
 @keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @keyframes fadeIn {
@@ -1151,117 +1285,102 @@ onMounted(async () => {
   .orders-container {
     padding: 1rem;
   }
-
   .page-title {
     font-size: 1.5rem;
   }
-
   .filter-container {
     padding: 0.75rem;
   }
-
   .filter-group {
     width: 100%;
   }
-
   .filter-select,
   .search-input {
     font-size: 0.8125rem;
     padding: 0.5rem;
   }
-
   .search-input {
     padding-left: 2rem;
     background-position: 0.625rem center;
   }
-
   .tab-button {
     padding: 0.5rem 0.75rem;
     font-size: 0.8125rem;
   }
-
   .order-item {
     padding: 0.75rem;
   }
-
   .order-number {
     font-size: 0.875rem;
   }
-
   .order-placed,
   .order-items-count,
   .order-total {
     font-size: 0.75rem;
   }
-
   .view-details-btn {
     font-size: 0.8125rem;
     padding: 0.375rem 0.75rem;
   }
-
   .order-status-badge {
     font-size: 0.75rem;
     margin: 0 0.75rem 0.75rem;
   }
-
   .modal-content {
     width: 98%;
     padding: 0.75rem;
   }
-
   .modal-receipt {
     padding: 0.75rem;
   }
-
   .receipt-header h2 {
     font-size: 1.125rem;
   }
-
   .receipt-date {
     font-size: 0.75rem;
   }
-
   .receipt-section h3 {
     font-size: 0.875rem;
   }
-
   .receipt-row,
   .item-name,
   .item-line-total,
   .receipt-section p {
     font-size: 0.75rem;
   }
-
   .item-quantity,
-  .item-price {
+  .item-price,
+  .item-moq {
     font-size: 0.6875rem;
   }
-
   .status-badge {
     font-size: 0.6875rem;
   }
-
   .print-button,
   .close-button {
     font-size: 0.8125rem;
     padding: 0.375rem 0.75rem;
   }
-
   .skeleton-text {
     height: 0.75rem;
   }
-
   .skeleton-title {
     height: 1rem;
   }
-
   .skeleton-button {
     height: 1.75rem;
   }
-
   .skeleton-badge {
     width: 4rem;
     height: 1.25rem;
+  }
+  .product-type-badge {
+    font-size: 0.6875rem;
+    padding: 0.1rem 0.4rem;
+  }
+  .location-info,
+  .attribute {
+    font-size: 0.75rem;
   }
 }
 
@@ -1269,186 +1388,157 @@ onMounted(async () => {
   .orders-container {
     padding: 0.75rem;
   }
-
   .page-title {
     font-size: 1.25rem;
   }
-
   .order-count {
     font-size: 0.6875rem;
   }
-
   .breadcrumb {
     font-size: 0.75rem;
   }
-
   .filter-container {
     gap: 0.5rem;
     padding: 0.5rem;
   }
-
   .filter-group label {
     font-size: 0.8125rem;
   }
-
   .filter-select,
   .search-input {
     font-size: 0.75rem;
     padding: 0.375rem;
   }
-
   .search-input {
     padding-left: 1.75rem;
     background-size: 0.875rem;
     background-position: 0.5rem center;
   }
-
   .select-wrapper::after {
     font-size: 0.625rem;
     right: 0.5rem;
   }
-
   .tab-button {
     padding: 0.375rem 0.625rem;
     font-size: 0.75rem;
   }
-
   .no-orders {
     padding: 1.25rem;
     font-size: 0.8125rem;
   }
-
   .order-item {
     padding: 0.5rem;
   }
-
   .order-header {
     padding: 0.5rem;
     gap: 0.5rem;
   }
-
   .order-number {
     font-size: 0.8125rem;
   }
-
   .order-placed,
   .order-items-count,
   .order-total {
     font-size: 0.6875rem;
   }
-
   .view-details-btn {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
   }
-
   .order-status-badge {
     font-size: 0.6875rem;
     padding: 0.25rem 0.5rem;
     margin: 0 0.5rem 0.5rem;
   }
-
   .modal-content {
     width: 100%;
     border-radius: 0.5rem;
     padding: 0.5rem;
   }
-
   .modal-receipt {
     padding: 0.5rem;
   }
-
   .receipt-header h2 {
     font-size: 1rem;
   }
-
   .receipt-date {
     font-size: 0.6875rem;
   }
-
   .receipt-section {
     margin-bottom: 0.75rem;
   }
-
   .receipt-section h3 {
     font-size: 0.8125rem;
     padding-left: 0.5rem;
   }
-
   .receipt-row {
     padding: 0.375rem 0;
   }
-
   .receipt-row,
   .item-name,
   .item-line-total,
   .receipt-section p {
     font-size: 0.6875rem;
   }
-
   .item-quantity,
-  .item-price {
+  .item-price,
+  .item-moq {
     font-size: 0.625rem;
   }
-
   .status-badge {
     font-size: 0.625rem;
     padding: 0.1875rem 0.5rem;
   }
-
   .receipt-item {
     padding: 0.375rem 0;
   }
-
   .receipt-footer {
     padding-top: 0.5rem;
     margin-top: 0.75rem;
   }
-
   .receipt-actions {
     gap: 0.5rem;
   }
-
   .print-button,
   .close-button {
     font-size: 0.75rem;
     padding: 0.25rem 0.625rem;
     min-height: 2.25rem;
   }
-
   .modal-loading,
   .modal-error {
     padding: 0.75rem;
   }
-
   .modal-error {
     font-size: 0.8125rem;
   }
-
   .retry-button {
     font-size: 0.75rem;
     padding: 0.25rem 0.625rem;
   }
-
   .skeleton-text {
     height: 0.625rem;
   }
-
   .skeleton-title {
     height: 0.875rem;
   }
-
   .skeleton-item {
     padding: 0.5rem 0;
   }
-
   .skeleton-button {
     height: 1.5rem;
   }
-
   .skeleton-badge {
     width: 3.5rem;
     height: 1rem;
+  }
+  .product-type-badge {
+    font-size: 0.625rem;
+    padding: 0.075rem 0.3rem;
+  }
+  .location-info,
+  .attribute {
+    font-size: 0.6875rem;
   }
 }
 </style>

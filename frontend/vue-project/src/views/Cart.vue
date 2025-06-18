@@ -1,3 +1,4 @@
+```vue
 <template>
   <MainLayout>
     <div class="cart-container">
@@ -27,27 +28,36 @@
         <div class="cart-items">
           <div v-for="item in cartItems" :key="item.id" class="cart-item">
             <div class="item-image">
-              <img :src="item.product?.thumbnail || grey" alt="Item image" />
+              <img :src="item.product?.thumbnail || grey" :alt="item.product_name" />
             </div>
             <div class="item-details">
               <h3>{{ item.product_name }}</h3>
               <div v-for="attr in formatAttributes(item.attributes)" :key="attr.attribute_name" class="variant">
                 <p>{{ attr.attribute_name }}: {{ attr.value }}</p>
               </div>
-              <p class="quantity">Qty: {{ item.quantity }}</p>
-              <p class="price">
-                KES {{ formatPrice(item.price_per_piece || 0) }} each
-                <span v-if="item.quantity < item.product.moq_per_person && item.product.moq_status === 'active'" class="moq-warning">
-                  (Below MOQ)
+              <p v-if="item.is_pick_and_pay && item.product.inventory" class="availability">
+                Available: <span class="stock-count">{{ item.product.inventory.quantity }}</span> units
+                <span v-if="item.quantity > item.product.inventory.quantity" class="low-stock-warning">
+                  (Only {{ item.product.inventory.quantity }} left!)
                 </span>
               </p>
-              <p class="line-total">Total: KES {{ formatPrice(item.line_total) }}</p>
+              <p v-else-if="item.product.moq_status === 'active'" class="moq-info">
+                MOQ: {{ item.product.moq_per_person || 'N/A' }} items
+                <span v-if="item.quantity < item.product.moq_per_person" class="moq-warning">
+                  (Below MOQ: KES {{ formatPrice(item.product.below_moq_price || item.price_per_piece) }})
+                </span>
+              </p>
+              <p class="quantity">Qty: {{ item.quantity }}</p>
+              <p class="price">
+                KES {{ formatPrice(item.is_pick_and_pay ? item.price_per_piece : item.quantity < item.product.moq_per_person ? item.product.below_moq_price || item.price_per_piece : item.price_per_piece) }} each
+              </p>
+              <p class="line-total">Total: KES {{ formatPrice(calculateLineTotal(item)) }}</p>
             </div>
             <div class="item-actions">
               <div class="quantity-controls">
-                <button @click="updateQuantity(item.id, item.quantity - 1)" :disabled="item.quantity <= 1" class="quantity-button">-</button>
+                <button @click="updateQuantity(item, item.quantity - 1)" :disabled="item.quantity <= (item.is_pick_and_pay ? 1 : item.product.moq_per_person || 1)" class="quantity-button">-</button>
                 <span>{{ item.quantity }}</span>
-                <button @click="updateQuantity(item.id, item.quantity + 1)" class="quantity-button">+</button>
+                <button @click="updateQuantity(item, item.quantity + 1)" :disabled="item.is_pick_and_pay && item.quantity >= item.product.inventory?.quantity" class="quantity-button">+</button>
               </div>
               <button @click="removeItem(item.id)" class="remove-button">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -66,10 +76,11 @@
           </div>
           <div class="summary-row">
             <span>Shipping Method</span>
-            <span v-if="store.cart.shipping_method">
+            <span v-if="isPayAndPickCart">Store Pickup (Free)</span>
+            <span v-else-if="store.cart.shipping_method">
               {{ store.cart.shipping_method.name }} (KES {{ formatPrice(store.cart.shipping_method.price) }})
             </span>
-            <span v-else>No shipping method selected</span>
+            <span v-else-if="!isPayAndPickCart">No shipping method selected</span>
           </div>
           <div class="summary-row">
             <span>Shipping Cost</span>
@@ -82,7 +93,7 @@
           <button
             @click="proceedToCheckout"
             class="checkout-button"
-            :disabled="!store.cart.shipping_method || isCheckoutProcessing"
+            :disabled="!canCheckout || isCheckoutProcessing"
           >
             {{ isCheckoutProcessing ? 'Processing...' : 'Proceed to Checkout' }}
           </button>
@@ -107,18 +118,45 @@ export default {
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
-    const isCheckoutProcessing = ref(false); // Track checkout state
+    const isCheckoutProcessing = ref(false);
 
-    // Computed properties with safer access
+    // Computed properties
     const isAuthenticated = computed(() => store.isAuthenticated);
     const cartItems = computed(() => store.cart?.items || []);
     const cartItemCount = computed(() => store.cart?.items?.length || 0);
-    const cartSubtotal = computed(() => Number(store.cart?.subtotal) || 0);
-    const shippingCost = computed(() => Number(store.cart?.shipping_cost) || 0);
-    const cartTotal = computed(() => Number(store.cart?.total) || 0);
+    const cartSubtotal = computed(() => {
+      return cartItems.value.reduce((sum, item) => {
+        return sum + parseFloat(calculateLineTotal(item));
+      }, 0);
+    });
+    const isPayAndPickCart = computed(() => {
+      return cartItems.value.length > 0 && cartItems.value.every(item => item.product.is_pick_and_pay);
+    });
+    const shippingCost = computed(() => {
+      if (isPayAndPickCart.value) return 0;
+      return Number(store.cart?.shipping_cost) || 0;
+    });
+    const cartTotal = computed(() => {
+      return (cartSubtotal.value + shippingCost.value).toFixed(2);
+    });
+    const canCheckout = computed(() => {
+      if (!cartItems.value.length) return false;
+      if (isPayAndPickCart.value) return true; // Allow checkout for Pick and Pay carts with null shipping_method
+      return !!store.cart?.shipping_method; // Require shipping_method for non-Pick and Pay carts
+    });
 
     // Format price to 2 decimal places
     const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
+
+    // Calculate line total
+    const calculateLineTotal = (item) => {
+      const price = item.is_pick_and_pay
+        ? item.price_per_piece
+        : item.quantity < item.product.moq_per_person
+        ? item.product.below_moq_price || item.price_per_piece
+        : item.price_per_piece;
+      return (price * item.quantity).toFixed(2);
+    };
 
     // Format attributes
     const formatAttributes = (attributes) => {
@@ -151,11 +189,18 @@ export default {
     const retryFetch = () => loadCart();
 
     // Update item quantity
-    const updateQuantity = async (itemId, newQuantity) => {
-      if (newQuantity < 1) return;
+    const updateQuantity = async (item, newQuantity) => {
+      if (newQuantity < (item.is_pick_and_pay ? 1 : item.product.moq_per_person || 1)) {
+        toast.error(`Minimum quantity is ${item.is_pick_and_pay ? 1 : item.product.moq_per_person}`);
+        return;
+      }
+      if (item.is_pick_and_pay && newQuantity > item.product.inventory?.quantity) {
+        toast.error(`Only ${item.product.inventory.quantity} units available`);
+        return;
+      }
       try {
         if (!store.apiInstance) store.initializeApiInstance();
-        await store.apiInstance.post(`/cart-items/${itemId}/update_cart_item_quantity/`, {
+        await store.apiInstance.post(`/cart-items/${item.id}/update_cart_item_quantity/`, {
           quantity: newQuantity,
           cart_id: store.cart?.id,
         });
@@ -188,21 +233,20 @@ export default {
         toast.error('Your cart is empty.', { autoClose: 3000 });
         return;
       }
-      if (!store.cart?.shipping_method) {
-        toast.error('Please select a shipping method.', { autoClose: 3000 });
+      if (!canCheckout.value) {
+        toast.error('Please select a shipping method for non-Pick and Pay items.', { autoClose: 3000 });
         return;
       }
-      isCheckoutProcessing.value = true; // Disable button
+      isCheckoutProcessing.value = true;
       try {
         const order = await store.createOrderFromCart();
-        router.push({ path: '/checkout', query: { orderId: order.order_number } }); // Use order_number
+        router.push({ path: '/checkout', query: { orderId: order.order_number } });
       } catch (err) {
         console.error('Failed to proceed to checkout:', err);
-        console.log('Server response:', err.response?.data);
         const errorMessage = err.response?.data?.error || 'Failed to create order. Please try again.';
         toast.error(errorMessage, { autoClose: 3000 });
       } finally {
-        isCheckoutProcessing.value = false; // Re-enable button on failure
+        isCheckoutProcessing.value = false;
       }
     };
 
@@ -227,14 +271,16 @@ export default {
       updateQuantity,
       removeItem,
       proceedToCheckout,
-      isCheckoutProcessing, // Return for template
+      isCheckoutProcessing,
       grey,
-      store
+      store,
+      isPayAndPickCart,
+      canCheckout,
+      calculateLineTotal,
     };
   }
 };
 </script>
-
 <style scoped>
 .cart-container {
   max-width: 1200px;
@@ -356,10 +402,14 @@ export default {
   margin: 0.25rem 0;
 }
 
-.moq-warning {
+.moq-warning, .low-stock-warning {
   color: #e53e3e;
   font-size: 0.75rem;
   margin-left: 0.5rem;
+}
+
+.availability, .moq-info {
+  margin-bottom: 0.5rem;
 }
 
 .line-total {
@@ -497,6 +547,10 @@ export default {
 @media (max-width: 1024px) {
   .cart-content {
     grid-template-columns: 1fr;
+  }
+
+  .item-details {
+    grid-template-columns: auto;
   }
 
   .cart-summary {

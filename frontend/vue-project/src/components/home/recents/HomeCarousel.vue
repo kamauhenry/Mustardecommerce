@@ -39,7 +39,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import placeholder from '@/assets/images/placeholder.jpeg';
 
 const slides = ref([]);
 const currentSlide = ref(0);
@@ -50,13 +49,13 @@ const fetchCategories = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('https://mustardimports.co.ke/api/categories/');
+    const response = await axios.get('http://127.0.0.1:8000//api/categories/');
     slides.value = response.data
       .filter(category => category.is_active)
       .map(category => ({
         name: category.name,
         slug: category.slug,
-        image: category.image || placeholder,
+        image: category.image,
         description: category.description,
       }));
   } catch (err) {
@@ -95,6 +94,7 @@ onMounted(() => {
   min-width: 300px;
   max-width: 100%;
   box-sizing: border-box;
+  width: 100%; /* Utilize full available width */
 }
 
 .carousel-slides {
@@ -246,8 +246,8 @@ onMounted(() => {
   .carousel {
     margin-top: 0;
     width: 100%;
-    min-height: 200px;
-    height: 250px;
+    min-height: 100px;
+    height: 100%; /* Full height on mobile */
   }
   .skeleton-container,
   .skeleton-slides,
@@ -264,7 +264,7 @@ onMounted(() => {
   }
   .slide-content {
     padding: 0.75rem;
-    max-width: 90%;
+    max-width: 100%;
   }
   .skeleton-title {
     width: 120px;
@@ -278,8 +278,10 @@ onMounted(() => {
 
 @media (max-width: 650px) {
   .carousel {
-    height: 250px;
+    height: 100%; /* Full height on mobile */
     width: 100%;
+    margin: 0; /* Preserve padding while fitting perfectly */
+    padding: 0 1rem; /* Maintain existing padding */
   }
   .skeleton-container,
   .skeleton-slides,

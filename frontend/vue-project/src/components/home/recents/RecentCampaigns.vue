@@ -66,7 +66,7 @@ export default {
     const fetchLatestProducts = async () => {
       try {
         isLoading.value = true;
-        const response = await fetch('https://mustardimports.co.ke/api/products/latest/?limit=3');
+        const response = await fetch('http://127.0.0.1:8000//api/products/latest/?limit=3');
         if (!response.ok) throw new Error('Failed to fetch latest products');
         const data = await response.json();
         latestProducts.value = (data.results || [])

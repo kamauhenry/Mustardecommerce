@@ -55,8 +55,8 @@ class AdminLoginSerializer(serializers.Serializer):
 class DeliveryLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryLocation
-        fields = ('id', 'name', 'address', 'latitude', 'longitude', 'is_default', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        fields = ('id',  'county', 'ward', 'is_shop_pickup', 'is_default', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'is_shop_pickup', 'created_at', 'updated_at')
 
 class ShippingMethodSerializer(serializers.ModelSerializer):
     class Meta:
@@ -178,6 +178,27 @@ class ProductImageSerializer(serializers.ModelSerializer):
     def get_thumbnail(self, obj):
         return obj.get_thumbnail()
 
+class InventorySerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+
+    class Meta:
+        model = Inventory
+        fields = ['id', 'product', 'product_name', 'quantity', 'low_stock_threshold', 'last_updated']
+        read_only_fields = ['id', 'product_name', 'last_updated']
+
+    def validate(self, data):
+        product = data.get('product')
+        instance = self.instance
+        if product and not product.is_pick_and_pay:
+            raise serializers.ValidationError({"product": "Inventory can only be created for Pick and Pay products."})
+        if product and Inventory.objects.filter(product=product).exclude(id=instance.id if instance else None).exists():
+            raise serializers.ValidationError({"product": "An inventory record already exists for this product."})
+        if 'quantity' in data and data['quantity'] < 0:
+            raise serializers.ValidationError({"quantity": "Stock quantity cannot be negative."})
+        if 'low_stock_threshold' in data and data['low_stock_threshold'] < 0:
+            raise serializers.ValidationError({"low_stock_threshold": "Low stock threshold cannot be negative."})
+        return data
+
 class ProductSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
@@ -199,6 +220,12 @@ class ProductSerializer(serializers.ModelSerializer):
     thumbnail = serializers.SerializerMethodField()
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True)
+    inventory = InventorySerializer(read_only=True)
+    inventory_quantity = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    is_pick_and_pay = serializers.BooleanField(default=False)
+    creviews = CustomerReviewSerializer(many=True, read_only=True, source='reviews')
+    meta_title = serializers.CharField(allow_null=True, required=False)
+    meta_description = serializers.CharField(allow_null=True, required=False)
 
     class Meta:
         model = Product
@@ -207,9 +234,10 @@ class ProductSerializer(serializers.ModelSerializer):
             'moq', 'moq_per_person', 'moq_status', 'moq_progress', 'category',
             'category_id', 'category_slug', 'created_at', 'thumbnail',
             'rating', 'attributes', 'attribute_value_ids', 'supplier', 'supplier_id',
-            'images', 'meta_title', 'meta_description'
+            'images', 'meta_title', 'meta_description', 'is_pick_and_pay', 'inventory',
+            'inventory_quantity', 'creviews'
         ]
-        read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images']
+        read_only_fields = ['slug', 'category_slug', 'moq_progress', 'thumbnail', 'rating', 'images', 'inventory', 'creviews']
 
     def validate_attribute_value_ids(self, value):
         logger.info(f"Validating attribute_value_ids: {value}")
@@ -220,49 +248,10 @@ class ProductSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("One or more attribute value IDs are invalid.")
         return value
 
-    def create(self, validated_data):
-        attribute_value_ids = validated_data.pop('attribute_value_ids', [])
-        logger.info(f"Creating product with attribute_value_ids: {attribute_value_ids}")
-        instance = super().create(validated_data)
-        if attribute_value_ids:
-            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
-            instance.attribute_values.set(attribute_values)
-        logger.info(f"Created product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
-        return instance
-
-    def update(self, instance, validated_data):
-        attribute_value_ids = validated_data.pop('attribute_value_ids', None)
-        logger.info(f"Updating product with attribute_value_ids: {attribute_value_ids}")
-        instance = super().update(instance, validated_data)
-        if attribute_value_ids is not None:
-            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
-            instance.attribute_values.set(attribute_values)
-        logger.info(f"Updated product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
-        return instance
-
-    def get_attributes(self, obj):
-        attributes = {}
-        for attr_value in obj.attribute_values.all():
-            attr_name = attr_value.attribute.name
-            if attr_name not in attributes:
-                attributes[attr_name] = []
-            attributes[attr_name].append({'id': attr_value.id, 'value': attr_value.value})
-        return [{'id': idx + 1, 'name': name, 'values': values} for idx, (name, values) in enumerate(attributes.items())]
-        
-    def get_moq_progress(self, obj):
-        if obj.moq_status == 'active':
-            return {
-                'current': obj.current_moq_count(),
-                'target': obj.moq,
-                'percentage': obj.moq_progress_percentage()
-            }
-        return None
-
-    def get_thumbnail(self, obj):
-        return obj.get_primary_thumbnail()
-
     def validate(self, data):
         moq_status = data.get('moq_status', 'active')
+        is_pick_and_pay = data.get('is_pick_and_pay', False)
+        inventory_quantity = data.get('inventory_quantity')
         if moq_status not in ['active', 'closed', 'completed', 'not_applicable']:
             raise serializers.ValidationError({"moq_status": "Invalid MOQ status."})
         if 'price' in data and data['price'] < 0:
@@ -273,8 +262,100 @@ class ProductSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"moq": "MOQ must be at least 1."})
         if 'moq_per_person' in data and data['moq_per_person'] is not None and data['moq_per_person'] < 1:
             raise serializers.ValidationError({"moq_per_person": "MOQ per person must be at least 1."})
+        if is_pick_and_pay:
+            if 'moq_status' in data and data['moq_status'] != 'not_applicable':
+                raise serializers.ValidationError({"moq_status": "Pick and Pay products must have moq_status 'not_applicable'."})
+            if 'below_moq_price' in data and data['below_moq_price'] is not None:
+                raise serializers.ValidationError({"below_moq_price": "Pick and Pay products cannot have a below MOQ price."})
+            if 'moq' in data and data['moq'] != 1:
+                raise serializers.ValidationError({"moq": "Pick and Pay products must have MOQ set to 1."})
+            if 'moq_per_person' in data and data['moq_per_person'] != 1:
+                raise serializers.ValidationError({"moq_per_person": "Pick and Pay products must have MOQ per person set to 1."})
+            if inventory_quantity is None:
+                raise serializers.ValidationError({"inventory_quantity": "Inventory quantity is required for Pick and Pay products."})
+            if inventory_quantity is not None and inventory_quantity < 0:
+                raise serializers.ValidationError({"inventory_quantity": "Inventory quantity cannot be negative."})
+        else:
+            if inventory_quantity is not None:
+                raise serializers.ValidationError({"inventory_quantity": "Inventory quantity should only be provided for Pick and Pay products."})
         return data
 
+    def create(self, validated_data):
+        attribute_value_ids = validated_data.pop('attribute_value_ids', [])
+        inventory_quantity = validated_data.pop('inventory_quantity', None)
+        is_pick_and_pay = validated_data.get('is_pick_and_pay', False)
+        meta_title = validated_data.get('meta_title') or validated_data.get('name', 'Product')
+        meta_description = validated_data.get('meta_description') or validated_data.get('description', 'Discover this product at MustardImports.')
+        validated_data['meta_title'] = meta_title
+        validated_data['meta_description'] = meta_description
+        logger.info(f"Creating product with attribute_value_ids: {attribute_value_ids}, is_pick_and_pay: {is_pick_and_pay}, inventory_quantity: {inventory_quantity}")
+        instance = super().create(validated_data)
+        if attribute_value_ids:
+            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
+            instance.attribute_values.set(attribute_values)
+        if is_pick_and_pay:
+            Inventory.objects.create(
+                product=instance,
+                quantity=inventory_quantity or 0,
+                low_stock_threshold=10
+            )
+        logger.info(f"Created product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
+        return instance
+
+    def update(self, instance, validated_data):
+        attribute_value_ids = validated_data.pop('attribute_value_ids', None)
+        inventory_quantity = validated_data.pop('inventory_quantity', None)
+        is_pick_and_pay = validated_data.get('is_pick_and_pay', instance.is_pick_and_pay)
+        meta_title = validated_data.get('meta_title') or instance.meta_title or instance.name
+        meta_description = validated_data.get('meta_description') or instance.meta_description or instance.description
+        validated_data['meta_title'] = meta_title
+        validated_data['meta_description'] = meta_description
+        logger.info(f"Updating product with attribute_value_ids: {attribute_value_ids}, is_pick_and_pay: {is_pick_and_pay}, inventory_quantity: {inventory_quantity}")
+        instance = super().update(instance, validated_data)
+        if attribute_value_ids is not None:
+            attribute_values = AttributeValue.objects.filter(id__in=attribute_value_ids)
+            instance.attribute_values.set(attribute_values)
+        if is_pick_and_pay:
+            inventory, created = Inventory.objects.get_or_create(
+                product=instance,
+                defaults={'quantity': inventory_quantity or 0, 'low_stock_threshold': 10}
+            )
+            if not created and inventory_quantity is not None:
+                inventory.quantity = inventory_quantity
+                inventory.save()
+        logger.info(f"Updated product {instance.id} with attribute_values: {list(instance.attribute_values.values_list('id', flat=True))}")
+        return instance
+
+    def get_attributes(self, obj):
+        attributes = {}
+        for attr_value in obj.attribute_values.select_related('attribute').all():
+            attr_name = attr_value.attribute.name
+            if attr_name not in attributes:
+                attributes[attr_name] = []
+            attributes[attr_name].append({
+                'id': attr_value.id,
+                'value': attr_value.value
+            })
+        return [
+            {
+                'id': idx + 1,
+                'name': name,
+                'values': sorted(values, key=lambda x: x['value'])
+            }
+            for idx, (name, values) in enumerate(sorted(attributes.items()))
+        ]
+
+    def get_moq_progress(self, obj):
+        if obj.moq_status == 'active' and not obj.is_pick_and_pay:
+            return {
+                'current': obj.current_moq_count(),
+                'target': obj.moq,
+                'percentage': obj.moq_progress_percentage()
+            }
+        return None
+
+    def get_thumbnail(self, obj):
+        return obj.get_primary_thumbnail()
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     line_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -284,7 +365,24 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'product', 'product_name', 'attributes', 'quantity', 'line_total', 'added_at', 'price_per_piece']
-        read_only_fields = ['line_total']
+        read_only_fields = ['line_total', 'price_per_piece']
+
+    def validate(self, data):
+        product = data.get('product')
+        quantity = data.get('quantity', 1)
+        instance = self.instance
+        if product.is_pick_and_pay:
+            available_stock = product.available_stock()
+            if available_stock is None:
+                raise serializers.ValidationError({"product": f"No inventory record found for Pick and Pay product {product.name}."})
+            # Check stock against the total quantity (new + existing)
+            current_quantity = instance.quantity if instance else 0
+            total_quantity = current_quantity + quantity if instance else quantity
+            if total_quantity > available_stock:
+                raise serializers.ValidationError({
+                    "quantity": f"Cannot add {total_quantity} of {product.name}. Only {available_stock} in stock."
+                })
+        return data
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
@@ -309,6 +407,17 @@ class CartSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['user', 'items', 'total_items', 'subtotal', 'shipping_cost', 'total']
 
+    def validate(self, data):
+        shipping_method = data.get('shipping_method')
+        # Check if cart has items (only during update, as create may not have items yet)
+        if self.instance and self.instance.items.exists():
+            all_pick_and_pay = all(item.product.is_pick_and_pay for item in self.instance.items.all())
+            if all_pick_and_pay and shipping_method:
+                raise serializers.ValidationError({"shipping_method_id": "Shipping method must be null for carts with only Pick and Pay products."})
+            if not all_pick_and_pay and not shipping_method:
+                raise serializers.ValidationError({"shipping_method_id": "Shipping method is required for carts with MOQ products."})
+        return data
+
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -322,20 +431,38 @@ class HomeCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'products']
 
     def get_products(self, obj):
-        products = obj.products.order_by('-created_at')[:6]
-        return ProductSerializer(products, many=True, context=self.context).data
+        pickup_only = self.context.get('pickup_only', False)
+        products = obj.products.all().order_by('-created_at')
+        if pickup_only:
+            products = products.filter(is_pick_and_pay=True)
+        return ProductSerializer(products[:6], many=True, context=self.context).data
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
     product_name = serializers.CharField(source='product.name', read_only=True)
     line_total = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = ['id', 'product', 'product_name', 'attributes', 'quantity', 'price', 'line_total']
+        read_only_fields = ['price', 'line_total']
+
+    def validate(self, data):
+        product = data.get('product')
+        quantity = data.get('quantity', 1)
+        if product.is_pick_and_pay:
+            available_stock = product.available_stock()
+            if available_stock is None:
+                raise serializers.ValidationError({"product": f"No inventory record found for Pick and Pay product {product.name}."})
+            if quantity > available_stock:
+                raise serializers.ValidationError({
+                    "quantity": f"Cannot order {quantity} of {product.name}. Only {available_stock} in stock."
+                })
+        return data
 
     def get_line_total(self, obj):
         return obj.quantity * obj.price
-
 
 class OrderSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer(read_only=True)
@@ -364,8 +491,32 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'order_number', 'user', 'total_price', 'shipping_cost']
 
+    def validate(self, data):
+        shipping_method = data.get('shipping_method')
+        delivery_location = data.get('delivery_location')
+        delivery_status = data.get('delivery_status', 'processing')
+        # Check if order has items (only during update, as create may populate items later)
+        if self.instance and self.instance.items.exists():
+            all_pick_and_pay = all(item.product.is_pick_and_pay for item in self.instance.items.all())
+            if all_pick_and_pay:
+                if shipping_method:
+                    raise serializers.ValidationError({"shipping_method_id": "Shipping method must be null for orders with only Pick and Pay products."})
+                if delivery_location:
+                    raise serializers.ValidationError({"delivery_location": "Delivery location must be null for Pick and Pay orders."})
+                if delivery_status != 'ready_for_pickup':
+                    raise serializers.ValidationError({"delivery_status": "Delivery status must be 'ready_for_pickup' for Pick and Pay orders."})
+            else:
+                if not shipping_method:
+                    raise serializers.ValidationError({"shipping_method_id": "Shipping method is required for orders with MOQ products."})
+                if not delivery_location:
+                    raise serializers.ValidationError({"delivery_location": "Delivery location is required for orders with MOQ products."})
+                if delivery_status == 'ready_for_pickup':
+                    raise serializers.ValidationError({"delivery_status": "Delivery status cannot be 'ready_for_pickup' for orders with MOQ products."})
+        return data
+
     def get_order_number(self, obj):
-        return f"MI{obj.id}" 
+        return f"MI{obj.id}"
+
 
 class CompletedOrderSerializer(serializers.ModelSerializer):
     items = serializers.SerializerMethodField()

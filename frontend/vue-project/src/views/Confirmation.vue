@@ -1,3 +1,4 @@
+
 <template>
   <MainLayout>
     <div class="confirmation-container">
@@ -11,15 +12,36 @@
           <div class="order-details">
             <h2>Order Summary</h2>
             <p>Order Number: {{ order.order_number }}</p>
+            <div class="order-items">
+              <h3>Items ({{ order.items.length }})</h3>
+              <div v-for="item in order.items" :key="item.id" class="order-item">
+                <p>{{ item.product_name }}</p>
+                <p v-for="(value, attrName) in item.attributes" :key="attrName">
+                  {{ attrName }}: {{ value }}
+                </p>
+                <p v-if="item.is_pick_and_pay && item.product.inventory" class="availability">
+                  Available: {{ item.product.inventory.quantity }} units
+                </p>
+                <p v-else-if="item.product.moq_status === 'active'" class="moq-info">
+                  MOQ: {{ item.product.moq_per_person || 'N/A' }} items
+                  <span v-if="item.quantity < item.product.moq_per_person" class="moq-warning">
+                    (Below MOQ)
+                  </span>
+                </p>
+                <p>Qty: {{ item.quantity }}</p>
+                <p>KES {{ formatPrice(item.is_pick_and_pay ? item.price : item.quantity < item.product.moq_per_person ? item.product.below_moq_price || item.price : item.price) }} each</p>
+              </div>
+            </div>
             <p>Subtotal: KES {{ formatPrice(orderSubtotal) }}</p>
-            <p>Shipping Method: {{ order.shipping_method?.name || 'Not specified' }}</p>
+            <p>Shipping Method: {{ isPayAndPickOrder ? 'Store Pickup (Free)' : order.shipping_method?.name || 'Not specified' }}</p>
             <p>Shipping Cost: KES {{ formatPrice(order.shipping_cost) }}</p>
-            <p>Total Amount: KES {{ formatPrice(order.total_price) }}</p>
+            <p>Total Amount: KES {{ formatPrice(orderTotal) }}</p>
             <p>Delivery Status: {{ order.delivery_status }}</p>
-            <p v-if="order.delivery_location">
+            <p v-if="order.delivery_location && !isPayAndPickOrder">
               Delivery Location: {{ order.delivery_location.name }} - {{ order.delivery_location.address }}
             </p>
-            <p v-else>Delivery Location: Not specified</p>
+            <p v-else-if="isPayAndPickOrder">Delivery Location: Store Pickup</p>
+            <p v-else>Delivery Location: None</p>
           </div>
           <div class="actions">
             <router-link to="/orders" class="view-orders-btn">View My Orders</router-link>
@@ -50,10 +72,22 @@ const error = ref(null);
 // Format price to 2 decimal places
 const formatPrice = (price) => (Math.round(price * 100) / 100).toFixed(2);
 
-// Compute subtotal
-const orderSubtotal = computed(() =>
-  order.value ? order.value.items.reduce((sum, item) => sum + item.line_total, 0) : 0
-);
+// Compute order properties
+const isPayAndPickOrder = computed(() => {
+  return order.value?.items?.length > 0 && order.value.items.every(item => item.is_pick_and_pay);
+});
+const orderSubtotal = computed(() => {
+  return order.value ? order.value.items.reduce((sum, item) => {
+    const price = item.is_pick_and_pay
+      ? item.price
+      : item.quantity < item.product.moq_per_person ? item.product.below_moq_price || item.price : item.price;
+    return sum + (price * item.quantity);
+  }, 0) : 0;
+});
+const orderTotal = computed(() => {
+  const shippingCost = isPayAndPickOrder.value ? 0 : parseFloat(order.value.shipping_cost || 0);
+  return (orderSubtotal.value + shippingCost).toFixed(2);
+});
 
 onMounted(async () => {
   const orderId = route.query.orderId;
@@ -133,6 +167,20 @@ h1 {
   font-size: 0.875rem;
   margin: 0.375rem 0;
   line-height: 1.5;
+}
+
+.order-items {
+  margin-bottom: 1rem;
+}
+
+.order-item {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 0;
+}
+
+.moq-warning, .availability {
+  color: #d9534f;
+  font-size: 0.75rem;
 }
 
 .actions {

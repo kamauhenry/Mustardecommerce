@@ -50,6 +50,10 @@ from googlemaps import Client
 from googlemaps.exceptions import ApiError, TransportError
 import re
 from django.views.decorators.csrf import ensure_csrf_cookie
+from .locations import COUNTIES_AND_WARDS
+from django.utils.crypto import get_random_string
+from ecommerce.models import User
+from google.auth.transport.requests import Request
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -64,6 +68,86 @@ CALLBACK_URL = os.getenv('CALLBACK_URL')
 MPESA_BASE_URL = os.getenv('MPESA_BASE_URL')
 
 logger = logging.getLogger(__name__)
+
+
+
+class SendOTPView(APIView):
+    permission_classes = [permissions.AllowAny]  
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = User.objects.get(email=email)
+            if not user.is_verified:
+                otp = get_random_string(length=6, allowed_chars='0123456789')
+                OTP.objects.create(user=user, otp=otp)
+                send_mail(
+                    'Your OTP',
+                    f'Your OTP is {otp}',
+                    'sales@mustardimports.co.ke',  # Fixed: Added closing quote
+                    [email],
+                )
+                return Response({'message': 'OTP sent'}, status=status.HTTP_200_OK)
+            return Response({'message': 'User already verified'}, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class VerifyOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        try:
+            user = User.objects.get(email=email)
+            otp_obj = OTP.objects.get(user=user, otp=otp)
+            user.is_verified = True
+            user.save()
+            otp_obj.delete()
+            # Send welcome email after verification
+            send_mail(
+                'Welcome to Our Platform',
+                'Your registration is complete. Welcome aboard!',
+                'sales@mustardimports.co.ke',
+                [email],
+            )
+            return Response({'message': 'OTP verified'}, status=status.HTTP_200_OK)
+        except (User.DoesNotExist, OTP.DoesNotExist):
+            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = User.objects.get(email=email)
+            token = get_random_string(length=32)
+            user.reset_token = token
+            user.save()
+            # Change this to point to the Vue frontend route
+            reset_link = f'http://localhost:5173/reset-password/{token}'  # Adjust port if needed
+            send_mail(
+                'Password Reset',
+                f'Click here to reset your password: {reset_link}\nIf you did not request this, please ignore this email.',
+                'sales@mustardimports.co.ke',
+                [email],
+            )
+        except User.DoesNotExist:
+            pass  # Don’t reveal if email exists
+        return Response({'message': 'If the email exists, a reset link has been sent'}, status=status.HTTP_200_OK)
+
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]  
+    @csrf_exempt
+    def post(self, request, token):
+        try:
+            user = User.objects.get(reset_token=token)
+            new_password = request.data.get('new_password')
+            user.set_password(new_password)
+            user.reset_token = None
+            user.save()
+            return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 # M-Pesa Helper Functions
 def generate_access_token():
@@ -171,10 +255,6 @@ def format_phone_number(phone_number):
         raise ValueError("Invalid phone number format")
 
 
-
-
-
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order_from_cart(request, cart_id):
@@ -186,27 +266,41 @@ def create_order_from_cart(request, cart_id):
     if cart.items.count() == 0:
         return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate shipping method
-    if not cart.shipping_method:
-        return Response({"error": "No shipping method selected"}, status=status.HTTP_400_BAD_REQUEST)
+    # Validate shipping method and Pick and Pay requirements
+    all_pick_and_pay = all(item.product.is_pick_and_pay for item in cart.items.all())
+    if all_pick_and_pay:
+        if cart.shipping_method:
+            return Response({"error": "Shipping method must be null for carts with only Pick and Pay products"}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        if not cart.shipping_method:
+            return Response({"error": "No shipping method selected for non-Pick and Pay products"}, status=status.HTTP_400_BAD_REQUEST)
     
     shipping_method = cart.shipping_method  # Already a ShippingMethod instance
 
     def create_order():
         with transaction.atomic():
             # Clean up incomplete orders
-            existing_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+            existing_orders = Order.objects.filter(user=request.user).select_for_update().order_by('-created_at')[:5]
             for existing_order in existing_orders:
                 if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
                     logger.info(f"Found incomplete order #MI{existing_order.id}, deleting it")
                     existing_order.delete()
 
+            # Validate inventory for Pick and Pay products
+            for cart_item in cart.items.all():
+                if cart_item.product.is_pick_and_pay:
+                    inventory = Inventory.objects.filter(product=cart_item.product).select_for_update().first()
+                    if not inventory:
+                        raise ValueError(f"No inventory record found for Pick and Pay product {cart_item.product.name}")
+                    if cart_item.quantity > inventory.quantity:
+                        raise ValueError(f"Insufficient stock for {cart_item.product.name}: {inventory.quantity} available, {cart_item.quantity} requested")
+
             # Create order without items
             order = Order(
                 user=request.user,
-                shipping_method=shipping_method,
+                shipping_method=None if all_pick_and_pay else shipping_method,
                 payment_status='pending',
-                delivery_status='processing',
+                delivery_status='ready_for_pickup' if all_pick_and_pay else 'processing',
             )
             logger.info(f"Saving new order for user {request.user.username}")
             order.save()
@@ -215,7 +309,7 @@ def create_order_from_cart(request, cart_id):
             if not order.pk:
                 raise ValueError("Order was not saved properly, no primary key assigned")
 
-            # Create order items
+            # Create order items and update inventory
             for cart_item in cart.items.all():
                 logger.info(f"Creating OrderItem for product {cart_item.product.name}")
                 OrderItem.objects.create(
@@ -225,6 +319,12 @@ def create_order_from_cart(request, cart_id):
                     quantity=cart_item.quantity,
                     price=cart_item.price_per_piece,
                 )
+                if cart_item.product.is_pick_and_pay:
+                    inventory = Inventory.objects.get(product=cart_item.product)
+                    inventory.quantity -= cart_item.quantity
+                    inventory.last_updated = timezone.now()
+                    inventory.save()
+                    logger.info(f"Updated inventory for {cart_item.product.name}: quantity={inventory.quantity}, last_updated={inventory.last_updated}")
 
             # Update total price after adding items
             order.update_total_price()
@@ -236,7 +336,7 @@ def create_order_from_cart(request, cart_id):
     try:
         order = create_order()
         # Invalidate cache
-        cache_key_orders = f'rder'
+        cache_key_orders = f'user_orders_{request.user.id}'
         cache_key_order = f'user_order_{request.user.id}_{order.id}'
         try:
             cache.delete(cache_key_orders)
@@ -247,9 +347,13 @@ def create_order_from_cart(request, cart_id):
         serializer = OrderSerializer(order)
         logger.info(f"Order created successfully: MI{order.id}")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    except ValueError as e:
+        logger.error(f"Validation error during order creation: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         logger.error(f"Unexpected error during order creation: {str(e)}", exc_info=True)
         return Response({"error": f"Failed to create order: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -319,11 +423,15 @@ def process_payment(request):
         logger.warning(f"Order {order_id} payment status is {order.payment_status}, cannot process")
         return Response({"error": "Order already paid or cancelled"}, status=status.HTTP_400_BAD_REQUEST)
 
+
     try:
         logger.info(f"Order total_price: {order.total_price} (type: {type(order.total_price)})")
         response = send_stk_push(phone_number, order.total_price, order_id)
         logger.info(f"STK push response: {response}")
-        if response.get("ResponseCode") == "0":
+        if not isinstance(response, dict):
+            logger.error("Invalid STK push response format")
+            return Response({"error": "Invalid response from payment gateway"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if response.get("ResponseCode") == "0" and "CheckoutRequestID" in response:
             checkout_request_id = response["CheckoutRequestID"]
             Payment.objects.update_or_create(
                 order=order,
@@ -493,13 +601,7 @@ Mustard Imports Team
                 logger.error(f"Failed to send order confirmation email for Order #{order.order_number}: {str(e)}", exc_info=True)
 
             # Invalidate orders cache
-            cache_key_orders = f'user_orders_{order.user.id}'
-            cache_key_order = f'user_order_{order.user.id}_{order.id}'
-            try:
-                cache.delete(cache_key_orders)
-                cache.delete(cache_key_order)
-            except (InvalidCacheBackendError, Exception) as e:
-                logger.error(f"Failed to invalidate cache: {e}")
+            invalidate_order_caches(order.user.id, order.id)
 
             logger.info(f"Payment completed for Order {order.id} - M-Pesa Receipt: {mpesa_receipt}")
             return JsonResponse({"ResultCode": 0, "ResultDesc": "Success"}, status=status.HTTP_200_OK)
@@ -509,13 +611,7 @@ Mustard Imports Team
             payment.save()
 
             # Invalidate orders cache
-            cache_key_orders = f'user_orders_{payment.order.user.id}'
-            cache_key_order = f'user_order_{payment.order.user.id}_{payment.order.id}'
-            try:
-                cache.delete(cache_key_orders)
-                cache.delete(cache_key_order)
-            except (InvalidCacheBackendError, Exception) as e:
-                logger.error(f"Failed to invalidate cache: {e}")
+            invalidate_order_caches(payment.order.user.id, payment.order.id)
 
             logger.warning(f"Payment failed for Order {payment.order.id} - ResultCode: {result_code}, Desc: {result_desc}")
             return JsonResponse({"ResultCode": result_code, "ResultDesc": result_desc}, status=status.HTTP_200_OK)
@@ -692,12 +788,11 @@ def admin_dashboard(request):
             revenue_trend['current'].insert(0, float(current_month_revenue))
             revenue_trend['previous'].insert(0, float(previous_month_revenue))
 
-        sales_by_location = Order.objects.filter(delivery_location__isnull=False).values('delivery_location__address').annotate(sales=Count('id')).order_by('-sales')[:3]
+        sales_by_location = Order.objects.filter(delivery_location__isnull=False).select_related('delivery_location').values('delivery_location__county').annotate(sales=Count('id')).order_by('-sales')[:3]
         sales_by_location = [
-            {'location': item['delivery_location__address'] or 'Unknown', 'sales': item['sales']}
+            {'location': item['delivery_location__county'] or 'Unknown', 'sales': item['sales']}
             for item in sales_by_location
         ]
-
         total_sales_breakdown = [
             {'channel': 'Direct', 'sales': 38},
             {'channel': 'Affiliate', 'sales': 15},
@@ -706,7 +801,7 @@ def admin_dashboard(request):
         ]
 
         active_orders = Order.objects.filter(delivery_status__in=['processing', 'shipped']).count()
-        recent_orders = Order.objects.select_related('user', 'shipping_method').order_by('-created_at')[:5].values(
+        recent_orders = Order.objects.select_related('user', 'shipping_method').prefetch_related('items').order_by('-created_at')[:5].values(
             'id', 'total_price', 'created_at', 'payment_status', 'delivery_status', 'user__email'
         )
 
@@ -743,16 +838,34 @@ class GoogleAuthView(APIView):
 
     def post(self, request):
         id_token_str = request.data.get('access_token')
+        if not id_token_str:
+            logger.error('No access token provided in Google auth request')
+            return Response(
+                {'error': 'No access token provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
+            # Log current server time for debugging
+            server_time = timezone.now()
+            server_timestamp = int(time.time())
+            logger.info(f'Server time: {server_time} (UTC timestamp: {server_timestamp})')
+
+            # Verify the Google ID token
             idinfo = id_token.verify_oauth2_token(
                 id_token_str,
-                requests.Request(),
+                Request(),
                 settings.GOOGLE_CLIENT_ID
             )
+            logger.info(f'Token info: {idinfo}')
             email = idinfo['email']
             name = idinfo.get('name', '')
+            logger.info(f'Google token verified for email: {email}')
+
+            # Get or create user
             try:
                 user = User.objects.get(email=email)
+                logger.info(f'Existing user found: {email}')
             except User.DoesNotExist:
                 user = User.objects.create_user(
                     username=email,
@@ -760,17 +873,33 @@ class GoogleAuthView(APIView):
                     first_name=name.split()[0] if name else '',
                     last_name=' '.join(name.split()[1:]) if name and len(name.split()) > 1 else '',
                     user_type='customer',
+                    is_verified=True
                 )
+                logger.info(f'Created new user: {email}')
+
+            # Get or create token
             token, created = Token.objects.get_or_create(user=user)
+            logger.info(f'Generated token for user: {email}, created: {created}')
+
             return Response({
                 'message': 'Google login successful',
                 'user_id': user.id,
                 'username': user.username,
                 'token': token.key
             }, status=status.HTTP_200_OK)
-        except ValueError:
-            return Response({'error': 'Invalid Google token'}, status=status.HTTP_400_BAD_REQUEST)
 
+        except ValueError as e:
+            logger.error(f'Invalid Google token: {str(e)}')
+            return Response(
+                {'error': f'Invalid Google token: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f'Unexpected error during Google auth: {str(e)}', exc_info=True)
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -807,6 +936,15 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            
+            # Check if user is verified
+            if not user.is_verified:
+                return Response({
+                    'error': 'Please verify your email first',
+                    'needs_verification': True,
+                    'email': user.email
+                }, status=status.HTTP_403_FORBIDDEN)
+            
             token, created = Token.objects.get_or_create(user=user)
             return Response({
                 'message': 'Login successful',
@@ -852,13 +990,38 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
+            # Create user but don't verify yet
             user = serializer.save()
-            token, created = Token.objects.get_or_create(user=user)
+            user.is_verified = False
+            user.save()
+            
+            # Generate and send OTP
+            otp = get_random_string(length=6, allowed_chars='0123456789')
+            OTP.objects.filter(user=user).delete()  # Clear any existing OTPs
+            OTP.objects.create(user=user, otp=otp)
+            
+            # Send OTP email
+            try:
+                send_mail(
+                    'Verify Your Account - OTP',
+                    f'Your verification OTP is: {otp}\n\nThis OTP will expire in 10 minutes.',
+                    'sales@mustardimports.co.ke',
+                    [user.email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"Failed to send OTP email: {e}")
+                user.delete()  # Remove user if email fails
+                return Response({
+                    'error': 'Failed to send verification email. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
             return Response({
-                'message': 'User registered successfully',
+                'message': 'User registered successfully. Please check your email for OTP verification.',
                 'user_id': user.id,
                 'username': user.username,
-                'token': token.key
+                'email': user.email,
+                'requires_otp': True
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -963,7 +1126,7 @@ def get_user_cart(request, user_id):
 def add_item_to_cart(request, cart_id):
     try:
         product_id = request.data.get('productId')
-        attributes = request.data.get('attributes', {})  # Expecting a dict of attributes
+        attributes = request.data.get('attributes', {})
         quantity = request.data.get('quantity', 1)
         shipping_method_id = request.data.get('shippingMethodId')
 
@@ -972,7 +1135,6 @@ def add_item_to_cart(request, cart_id):
 
         # Validate attributes against product attribute_values
         if attributes:
-            # Fetch all attribute values for the product
             product_attribute_values = product.attribute_values.all()
             product_attributes = {}
             for attr_value in product_attribute_values:
@@ -981,7 +1143,6 @@ def add_item_to_cart(request, cart_id):
                     product_attributes[attr_name] = []
                 product_attributes[attr_name].append(attr_value.value)
 
-            # Validate each attribute name and value
             for attr_name, attr_value in attributes.items():
                 if attr_name not in product_attributes:
                     return Response(
@@ -994,6 +1155,20 @@ def add_item_to_cart(request, cart_id):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
+        # Validate inventory for Pick and Pay products
+        quantity = int(quantity)
+        if product.is_pick_and_pay:
+            if not product.inventory:
+                return Response(
+                    {"error": "No inventory available for this product"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if quantity > product.inventory.quantity:
+                return Response(
+                    {"error": f"Requested quantity ({quantity}) exceeds available stock ({product.inventory.quantity})"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         # Update shipping method if provided
         if shipping_method_id:
             try:
@@ -1005,9 +1180,11 @@ def add_item_to_cart(request, cart_id):
                     {"error": "Shipping method not found"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+        elif product.is_pick_and_pay:
+            cart.shipping_method = None
+            cart.save()
 
         # Determine price based on quantity and MOQ
-        quantity = int(quantity)
         moq_per_person = product.moq_per_person or 1
         price = product.price if quantity >= moq_per_person else product.below_moq_price or product.price
 
@@ -1015,13 +1192,13 @@ def add_item_to_cart(request, cart_id):
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
-            attributes=attributes,  
+            attributes=attributes,
             defaults={'quantity': quantity, 'attributes': attributes}
         )
 
         if not created:
             cart_item.quantity += quantity
-            cart_item.attributes = attributes  # Update attributes if changed
+            cart_item.attributes = attributes
             cart_item.save()
 
         # Invalidate cart cache
@@ -1139,9 +1316,10 @@ def remove_cart_item(request, cart_id):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_user_orders(request, order_id=None):
+def get_user_orders(request, order_id=None, user_id=None):
     if order_id:
         cache_key = f'user_order_{request.user.id}_{order_id}'
         try:
@@ -1169,6 +1347,11 @@ def get_user_orders(request, order_id=None):
             logger.error(f"Error fetching order {order_id}: {str(e)}")
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
+        user_id = request.query_params.get('user')
+        if user_id:
+            if str(request.user.id) != user_id:
+                logger.warning(f"User {request.user.id} attempted to access orders for user {user_id}")
+                return Response({"error": "Unauthorized access"}, status=status.HTTP_403_FORBIDDEN)
         cache_key = f'user_orders_{request.user.id}'
         try:
             cached_data = cache.get(cache_key)
@@ -1191,6 +1374,7 @@ def get_user_orders(request, order_id=None):
         except Exception as e:
             logger.error(f"Error fetching orders for user {request.user.id}: {str(e)}")
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -1501,12 +1685,34 @@ class CategoryViewSet(viewsets.ModelViewSet):
                 print(f"Failed to invalidate cache {key}: {e}")
         return response
 
+@api_view(['GET'])
+def pickup_home_categories(request):
+    page = request.query_params.get('page', '1')
+    products = Product.objects.filter(is_pick_and_pay=True)
+    category_ids = products.values_list('category_id', flat=True).distinct()
+    categories = Category.objects.filter(id__in=category_ids, is_active=True)
+    
+    paginator = PageNumberPagination()
+    paginator.page_size = 8  # Match HomePage.vue
+    result_page = paginator.paginate_queryset(categories, request)
+    
+    serializer = HomeCategorySerializer(result_page, many=True, context={'pickup_only': True})
+    return paginator.get_paginated_response(serializer.data)
+
 class ProductDetail(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get_object(self, category_slug, product_slug):
         try:
-            return Product.objects.filter(category__slug=category_slug).get(slug=product_slug)
+            return Product.objects.select_related(
+                'category', 'supplier'
+            ).prefetch_related(
+                'images', 'attribute_values__attribute', 'reviews__user'
+            ).filter(
+                category__slug=category_slug
+            ).get(
+                slug=product_slug
+            )
         except Product.DoesNotExist:
             raise Http404
 
@@ -1517,18 +1723,22 @@ class ProductDetail(APIView):
             if cached_data:
                 return Response(cached_data)
         except (InvalidCacheBackendError, Exception) as e:
-            print(f"Cache error: {e}. Falling back to direct query.")
-
-        product = self.get_object(category_slug, product_slug)
-        serializer = ProductSerializer(product, context={'request': request})
-        response_data = serializer.data
+            logger.warning(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to cache response: {e}")
+            product = self.get_object(category_slug, product_slug)
+            serializer = ProductSerializer(product, context={'request': request})
+            response_data = serializer.data
 
-        return Response(response_data)
+            try:
+                cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+            except (InvalidCacheBackendError, Exception) as e:
+                logger.warning(f"Failed to cache response: {e}")
+
+            return Response(response_data)
+        except Exception as e:
+            logger.error(f"Error serializing product {category_slug}/{product_slug}: {e}")
+            return Response({"detail": "Error processing product data."}, status=500)
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
@@ -1787,155 +1997,31 @@ class UserProfileView(APIView):
             'affiliate_code': getattr(user, 'affiliate_code', ''),
         })
 
+
 class DeliveryLocationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, location_id=None):
-        cache_key = f'delivery_locations_{request.user.id}'
-        try:
-            cached_data = cache.get(cache_key)
-            if cached_data:
-                return Response(cached_data)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Cache error: {e}. Falling back to direct query.")
-
-        locations = DeliveryLocation.objects.filter(user=request.user)
+        locations = DeliveryLocation.objects.filter(Q(user=request.user) | Q(user__isnull=True))
         serializer = DeliveryLocationSerializer(locations, many=True)
-        response_data = serializer.data
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-        try:
-            cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to cache response: {e}")
+class CountiesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-        return Response(response_data, status=status.HTTP_200_OK)
+    def get(self, request):
+        counties = list(COUNTIES_AND_WARDS.keys())
+        return Response({"counties": counties}, status=status.HTTP_200_OK)
 
-    def post(self, request, location_id=None):
-        data = request.data
-        serializer = DeliveryLocationSerializer(data={
-            'name': data.get('name'),
-            'address': data.get('address'),
-            'latitude': data.get('latitude'),
-            'longitude': data.get('longitude'),
-            'is_default': data.get('is_default', False),
-            'user': request.user.id
-        })
-        if serializer.is_valid():
-            serializer.save(user=request.user)
+class WardsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-            # Invalidate cache
-            cache_key = f'delivery_locations_{request.user.id}'
-            try:
-                cache.delete(cache_key)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache: {e}")
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def put(self, request, location_id=None):
-        if not location_id:
-            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
-        except DeliveryLocation.DoesNotExist:
-            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        location.is_default = True
-        location.save()
-
-        # Invalidate cache
-        cache_key = f'delivery_locations_{request.user.id}'
-        try:
-            cache.delete(cache_key)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to invalidate cache: {e}")
-
-        return Response({'message': 'Set as default'}, status=status.HTTP_200_OK)
-
-    def delete(self, request, location_id=None):
-        if not location_id:
-            return Response({'message': 'Location ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
-        except DeliveryLocation.DoesNotExist:
-            return Response({'message': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        location.delete()
-
-        # Invalidate cache
-        cache_key = f'delivery_locations_{request.user.id}'
-        try:
-            cache.delete(cache_key)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to invalidate cache: {e}")
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-
-
-@require_GET
-@ensure_csrf_cookie
-def autocomplete(request):
-    try:
-        query = request.GET.get('input', '').strip()
-        if not query:
-            return JsonResponse({'predictions': []}, status=200)
-
-        gmaps = Client(key=settings.GOOGLE_MAPS_API_KEY)
-        predictions = gmaps.places_autocomplete(
-            input_text=query,
-            types='address',
-            components={'country': 'ke'}
-        )
-
-        return JsonResponse({'predictions': predictions}, status=200)
-    except ApiError as e:
-        logger.error(f"Google Maps API error: {str(e)}")
-        return JsonResponse({'error': 'Invalid API key or configuration'}, status=500)
-    except TransportError as e:
-        logger.error(f"Network error contacting Google Maps: {str(e)}")
-        return JsonResponse({'error': 'Network error contacting Google Maps'}, status=500)
-    except Exception as e:
-        logger.error(f"Unexpected error in autocomplete: {str(e)}", exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
-
-def place_details(request):
-    place_id = request.GET.get('place_id', '')
-    if not place_id:
-        return JsonResponse({'status': 'error', 'message': 'No place_id provided'}, status=400)
-
-    cache_key = f'place_details_{place_id}'
-    try:
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return JsonResponse(cached_data)
-    except (InvalidCacheBackendError, Exception) as e:
-        print(f"Cache error: {e}. Falling back to direct query.")
-
-    api_key = 'AIzaSyAmhYzyxBYyvs0sFbVVbXCnEdTbEgO1Tz8'
-    url = (
-        f"https://maps.googleapis.com/maps/api/place/details/json?"
-        f"place_id={place_id}&key={api_key}"
-    )
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        response_data = response.json()
-
-        try:
-            cache.set(cache_key, response_data, timeout=60 * 60)  # Cache for 1 hour
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to cache response: {e}")
-
-        return JsonResponse(response_data)
-    except requests.RequestException as e:
-        print(f"Error fetching place details: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    def get(self, request):
+        county = request.query_params.get("county")
+        if county in COUNTIES_AND_WARDS:
+            wards = COUNTIES_AND_WARDS[county]
+            return Response({"wards": wards}, status=status.HTTP_200_OK)
+        return Response({"error": "County not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 
@@ -1949,12 +2035,15 @@ def get_all_orders(request):
     per_page = int(request.query_params.get('per_page', 10))
     payment_status = request.query_params.get('payment_status')
     delivery_status = request.query_params.get('delivery_status')
+    search = request.query_params.get('search')
 
     orders = Order.objects.all().select_related('user', 'delivery_location').prefetch_related('items').order_by('-created_at')
     if payment_status:
         orders = orders.filter(payment_status=payment_status)
     if delivery_status:
         orders = orders.filter(delivery_status=delivery_status)
+    if search:
+        orders = orders.filter(order_number__icontains=search)
 
     paginator = Paginator(orders, per_page)
     page_obj = paginator.get_page(page)
@@ -2142,6 +2231,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
         logger.info(f"Created product {product.id} with attribute_values: {list(product.attribute_values.all())}")
+        if product.is_pick_and_pay:
+            inventory = Inventory.objects.filter(product=product).first()
+            logger.info(f"Inventory for product {product.id}: {inventory.quantity if inventory else 'None'}")
         
         # Handle multiple images
         images = request.FILES.getlist('images')
@@ -2164,6 +2256,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         product = serializer.save()
         logger.info(f"Updated product {product.id} with attribute_values: {list(product.attribute_values.all())}")
+        if product.is_pick_and_pay:
+            inventory = Inventory.objects.filter(product=product).first()
+            logger.info(f"Inventory for product {product.id}: {inventory.quantity if inventory else 'None'}")
         
         # Handle multiple images
         images = request.FILES.getlist('images')
@@ -2179,8 +2274,6 @@ class ProductViewSet(viewsets.ModelViewSet):
             logger.warning(f"No images provided for product {product.name} update")
         
         return Response(serializer.data)
-
-
 class SupplierView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -2348,79 +2441,89 @@ class BulkProductImportView(APIView):
             elif file.name.endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file)
             else:
-                return Response({"error": "Unsupported file format."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Unsupported file format. Use CSV or Excel."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Replace NaN with None for nullable fields
+            df = df.replace({pd.NA: None})
 
             created_products = []
             errors = []
             
             for index, row in df.iterrows():
                 try:
+                    # Required fields validation
+                    if not row.get('name') or not isinstance(row.get('price'), (int, float)) or pd.isna(row.get('category_id')):
+                        errors.append({"row": index + 2, "error": "Missing required fields: name, price, or category_id"})
+                        continue
+
+                    is_pick_and_pay = bool(row.get('is_pick_and_pay', False))
                     product_data = {
-                        'name': row.get('name', ''),
+                        'name': str(row.get('name', '')),
                         'slug': row.get('slug', slugify(row.get('name', ''))),
-                        'description': row.get('description', ''),
-                        'price': row.get('price', 0),
-                        'below_moq_price': row.get('below_moq_price', None),
-                        'moq': int(row.get('moq', 1)),
-                        'moq_per_person': int(row.get('moq_per_person', 1)),
-                        'moq_status': row.get('moq_status', 'active'),
-                        'category_id': int(row.get('category_id', 0)),
-                        'supplier_id': int(row.get('supplier_id', None)) if row.get('supplier_id') else None,
-                        'meta_title': row.get('meta_title', ''),
-                        'meta_description': row.get('meta_description', ''),
+                        'description': str(row.get('description', '')) if row.get('description') else '',
+                        'price': float(row.get('price', 0)),
+                        'below_moq_price': None if is_pick_and_pay else row.get('below_moq_price', None),
+                        'moq': int(row.get('moq', 1)) if not is_pick_and_pay else 1,
+                        'moq_per_person': int(row.get('moq_per_person', 1)) if not is_pick_and_pay else 1,
+                        'moq_status': row.get('moq_status', 'active') if not is_pick_and_pay else 'not_applicable',
+                        'is_pick_and_pay': is_pick_and_pay,
+                        'category_id': int(row['category_id']),
+                        'supplier_id': int(row['supplier_id']) if row.get('supplier_id') and not pd.isna(row['supplier_id']) else None,
+                        'meta_title': str(row.get('meta_title', '')) if row.get('meta_title') else '',
+                        'meta_description': str(row.get('meta_description', '')) if row.get('meta_description') else '',
                     }
 
+                    # Attribute processing
                     attributes_str = row.get('attributes', '')
                     attribute_value_ids = []
                     if attributes_str:
-                        attributes_list = attributes_str.split(';')
+                        attributes_list = str(attributes_str).split(';')
                         for attr in attributes_list:
                             if ':' in attr:
                                 name, values_str = attr.split(':', 1)
                                 name = name.strip().capitalize()
-                                values = [v.strip() for v in values_str.split(',')]
+                                values = [v.strip() for v in values_str.split(',') if v.strip()]
                                 attribute, _ = Attribute.objects.get_or_create(name=name)
                                 for value in values:
                                     attr_value, _ = AttributeValue.objects.get_or_create(attribute=attribute, value=value)
                                     attribute_value_ids.append(attr_value.id)
-
                     product_data['attribute_value_ids'] = attribute_value_ids
 
                     serializer = ProductSerializer(data=product_data)
                     if serializer.is_valid():
                         product = serializer.save()
-                        image_urls = row.get('image_urls', '').split(',') if row.get('image_urls') else []
+                        # Image processing
+                        image_urls = str(row.get('image_urls', '')).split(',') if row.get('image_urls') else []
                         for url in image_urls:
                             url = url.strip()
                             if url:
                                 try:
-                                    response = requests.get(url)
-                                    if response.status_code == 200:
-                                        image_name = url.split('/')[-1]
-                                        ProductImage.objects.create(
-                                            product=product,
-                                            image=ContentFile(response.content, name=image_name)
-                                        )
+                                    response = requests.get(url, timeout=10)
+                                    response.raise_for_status()
+                                    image_name = url.split('/')[-1] or f"image_{product.id}.jpg"
+                                    ProductImage.objects.create(
+                                        product=product,
+                                        image=ContentFile(response.content, name=image_name)
+                                    )
                                 except Exception as e:
-                                    logger.error(f"Failed to download image {url} for product {product.name}: {str(e)}")
+                                    logger.warning(f"Failed to download image {url} for product {product.name}: {str(e)}")
                         created_products.append(serializer.data)
                     else:
                         errors.append({"row": index + 2, "errors": serializer.errors})
                 except Exception as e:
-                    errors.append({"row": index + 2, "error": str(e)})
+                    errors.append({"row": index + 2, "error": f"Processing error: {str(e)}"})
             
             response_data = {
                 "created": len(created_products),
                 "products": created_products,
                 "errors": errors
             }
-            return Response(response_data, status=status.HTTP_201_CREATED if created_products else status.HTTP_400_BAD_REQUEST)
+            status_code = status.HTTP_201_CREATED if created_products else status.HTTP_400_BAD_REQUEST
+            return Response(response_data, status=status_code)
         
         except Exception as e:
             logger.error(f"Failed to process file: {str(e)}")
             return Response({"error": f"Failed to process file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-
 class HomeCategoriesPagination(PageNumberPagination):
     page_size = 4  # Load 4 categories per page
     page_size_query_param = 'page_size'
@@ -2693,6 +2796,7 @@ class ScrapeProductsView(APIView):
         return product
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def get_shipping_methods(request):
     try:
         shipping_methods = ShippingMethod.objects.filter(is_active=True)

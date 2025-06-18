@@ -2,12 +2,14 @@
   <div class="page-list">
     <ul>
       <li><router-link class="nav-link" to="/">Home</router-link></li>
+      <li><router-link  class="nav-link" to="/pay-and-pick">Pay & Pick</router-link></li>
       <li><router-link class="nav-link" to="/moq-campaigns">MOQ Campaigns</router-link></li>
+
       <li v-if="store.isAuthenticated"><router-link class="nav-link" to="/profile">My Profile</router-link></li>
       <li v-if="store.isAuthenticated"><router-link class="nav-link" to="/orders">My Orders</router-link></li>
       <li v-if="store.isAuthenticated"><a class="nav-link" @click="openRequestMOQ">Request MOQ Campaign</a></li>
       <li v-else><a class="nav-link" @click="openLoginModal">Request MOQ Campaign</a></li>
-      <li v-if="store.isAuthenticated"><a class="nav-link" @click="openTrackOrder">Track Order</a></li>
+
       <li v-else><a class="nav-link" @click="openLoginModal">Track Order</a></li>
       <li><router-link class="nav-link" to="/about">About Us</router-link></li>
       <li><router-link class="nav-link" to="/contact">Contact Us</router-link></li>

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager, PermissionsMixin, AbstractBaseUser
 import string
 import random
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 from django.core.files import File
@@ -32,6 +33,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('user_type', 'admin')
+        extra_fields.setdefault('is_verified', True) # Superusers are always verified
 
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
@@ -52,7 +54,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-
+    is_verified = models.BooleanField(default=False)
+    reset_token = models.CharField(max_length=32, blank=True, null=True)
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -88,19 +91,25 @@ class AdminUser(models.Model):
         self.user.user_type = 'admin'
         self.user.is_staff = True
         self.user.is_active = True
+        self.user.is_verified = True
         self.user.save()
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Admin: {self.user.username}"
 
+class OTP(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+
 class DeliveryLocation(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='delivery_locations')
-    name = models.CharField(max_length=150)
-    address = models.CharField(max_length=255)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='delivery_locations', null=True, blank=True)
+
+    county = models.CharField(max_length=100, default="shop pick up")
+    ward = models.CharField(max_length=100, default="shop pick up")
+    is_shop_pickup = models.BooleanField(default=False)
     is_default = models.BooleanField(default=False)
-    latitude = models.FloatField(null=True, blank=True)
-    longitude = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -108,13 +117,12 @@ class DeliveryLocation(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} ({self.user.username})"
+        return f"{self.name} ({self.user.username if self.user else 'Global'})"
 
     def save(self, *args, **kwargs):
-        if self.is_default:
+        if self.is_default and self.user:
             DeliveryLocation.objects.filter(user=self.user, is_default=True).exclude(id=self.id).update(is_default=False)
         super().save(*args, **kwargs)
-
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
@@ -189,9 +197,10 @@ class Product(models.Model):
     moq = models.IntegerField(default=1, help_text="Minimum Order Quantity required for group buy")
     moq_status = models.CharField(max_length=20, choices=MOQ_STATUS_CHOICES, default='active')
     moq_per_person = models.IntegerField(default=1, help_text="Minimum quantity allowed per person in group buy")
-    attribute_values = models.ManyToManyField(AttributeValue, related_name='products', blank=True)
+    is_pick_and_pay = models.BooleanField(default=False, help_text="Indicates if product is available for immediate purchase without MOQ")
+    attribute_values = models.ManyToManyField('AttributeValue', related_name='products', blank=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
+    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)
     meta_title = models.CharField(max_length=255, blank=True, null=True)
@@ -212,10 +221,16 @@ class Product(models.Model):
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
+        # Ensure MOQ fields are set to default for Pick and Pay products
+        if self.is_pick_and_pay:
+            self.moq = 1
+            self.moq_status = 'not_applicable'
+            self.moq_per_person = 1
+            self.below_moq_price = None
         super().save(*args, **kwargs)
 
     def current_moq_count(self):
-        if self.moq_status != 'active':
+        if self.moq_status != 'active' or self.is_pick_and_pay:
             return 0
         order_items = OrderItem.objects.filter(
             product=self,
@@ -224,7 +239,7 @@ class Product(models.Model):
         return sum(item.quantity for item in order_items)
 
     def moq_progress_percentage(self):
-        if self.moq <= 1 or self.moq_status != 'active':
+        if self.is_pick_and_pay or self.moq <= 1 or self.moq_status != 'active':
             return 100
         current = self.current_moq_count()
         return min(300, int((current / self.moq) * 100))
@@ -240,6 +255,42 @@ class Product(models.Model):
         first_image = self.images.first()
         return first_image.get_thumbnail() if first_image else ''
 
+    def available_stock(self):
+        if not self.is_pick_and_pay:
+            return None  # Stock tracking only for Pick and Pay
+        return self.inventory.quantity if self.inventory else 0
+
+class Inventory(models.Model):
+    product = models.OneToOneField(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='inventory',
+        limit_choices_to={'is_pick_and_pay': True}
+    )
+    quantity = models.PositiveIntegerField(default=0, help_text="Current stock level")
+    low_stock_threshold = models.PositiveIntegerField(default=10, help_text="Threshold for low stock alerts")
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Inventory for {self.product.name} (Stock: {self.quantity})"
+
+    @property
+    def is_low_stock(self):
+        return self.quantity <= self.low_stock_threshold
+
+    def reduce_stock(self, quantity):
+        if not self.product.is_pick_and_pay:
+            raise ValueError("Stock reduction only applies to Pick and Pay products")
+        if self.quantity < quantity:
+            raise ValueError(f"Insufficient stock for {self.product.name}. Available: {self.quantity}, Requested: {quantity}")
+        self.quantity -= quantity
+        self.save()
+
+    def restock(self, quantity):
+        if not self.product.is_pick_and_pay:
+            raise ValueError("Restocking only applies to Pick and Pay products")
+        self.quantity += quantity
+        self.save()
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
@@ -280,7 +331,6 @@ class ProductImage(models.Model):
 
             raise
 
-
 class ShippingMethod(models.Model):
     name = models.CharField(max_length=100, unique=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -293,7 +343,6 @@ class ShippingMethod(models.Model):
 
     class Meta:
         ordering = ['name']
-
 
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')
@@ -320,12 +369,14 @@ class Cart(models.Model):
 
     @property
     def shipping_cost(self):
+        # No shipping cost if all items are Pick and Pay
+        if all(item.product.is_pick_and_pay for item in self.items.all()):
+            return 0
         return self.shipping_method.price if self.shipping_method else 0
 
     @property
     def total(self):
         return self.subtotal + self.shipping_cost
-
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
@@ -339,9 +390,18 @@ class CartItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} ({self.quantity})"
-  
+
+    def save(self, *args, **kwargs):
+        if self.product.is_pick_and_pay:
+            available = self.product.available_stock()
+            if available < self.quantity:
+                raise ValueError(f"Cannot add {self.quantity} of {self.product.name}. Only {available} in stock.")
+        super().save(*args, **kwargs)
+
     @property
     def price_per_piece(self):
+        if self.product.is_pick_and_pay:
+            return self.product.price
         if self.product.moq_status == 'active':
             if self.quantity < self.product.moq_per_person:
                 price = self.product.below_moq_price if self.product.below_moq_price is not None else self.product.price
@@ -354,9 +414,6 @@ class CartItem(models.Model):
     @property
     def line_total(self):
         return self.price_per_piece * self.quantity
-
-
-
 
 class Order(models.Model):
     PAYMENT_STATUS_CHOICES = (
@@ -371,11 +428,12 @@ class Order(models.Model):
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
+        ('ready_for_pickup', 'Ready for Pickup'),  # Added for Pick and Pay
     )
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipping_method = models.ForeignKey(
-        'ShippingMethod',
+        ShippingMethod,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -389,18 +447,24 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        # Set shipping cost when creating the order
-        if not self.pk and self.shipping_method:
-            self.shipping_cost = self.shipping_method.price
+        is_pick_and_pay_order = all(item.product.is_pick_and_pay for item in self.items.all()) if self.pk else False
+        if is_pick_and_pay_order:
+            self.shipping_cost = Decimal('0.00')
+            self.shipping_method = None
+            self.delivery_status = 'ready_for_pickup'
+        elif not self.pk and self.shipping_method:
+            self.shipping_cost = Decimal(str(self.shipping_method.price))
+
         super().save(*args, **kwargs)
-        # Calculate total price after saving to ensure pk exists
         if self.pk:
             self.total_price = self.calculate_total_price()
             super().save(update_fields=['total_price'])
 
     def calculate_total_price(self):
         items_total = sum(item.quantity * item.price for item in self.items.all())
-        return items_total + self.shipping_cost
+        shipping_cost = Decimal(str(self.shipping_cost))
+
+        return items_total + shipping_cost
 
     def update_total_price(self):
         self.total_price = self.calculate_total_price()
@@ -411,12 +475,12 @@ class Order(models.Model):
         self.update_total_price()
 
     def mark_as_completed(self):
-        if self.delivery_status == 'delivered' and self.payment_status == 'paid':
+        if self.delivery_status in ('delivered', 'ready_for_pickup') and self.payment_status == 'paid':
             try:
                 completed_order = CompletedOrder.objects.create(
                     order_number=f"ORD-MI{self.id}",
                     user=self.user,
-                    shipping_method=self.shipping_method.name if self.shipping_method else 'N/A',
+                    shipping_method=self.shipping_method.name if self.shipping_method else 'Pick and Pay',
                     order_date=self.created_at,
                     original_order=self,
                     delivery_location=self.delivery_location
@@ -440,13 +504,20 @@ class Order(models.Model):
     def __str__(self):
         return f"Order #MI{self.id}"
 
-
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     attributes = models.JSONField(default=dict, blank=True)
     quantity = models.IntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def save(self, *args, **kwargs):
+        if self.product.is_pick_and_pay:
+            available = self.product.available_stock()
+            if available < self.quantity:
+                raise ValueError(f"Cannot order {self.quantity} of {self.product.name}. Only {available} in stock.")
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name} in Order #{self.order.id}"
@@ -547,6 +618,7 @@ class CompletedOrder(models.Model):
     @property
     def total_price(self):
         return self.original_order.total_price
+
 class CustomerReview(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')

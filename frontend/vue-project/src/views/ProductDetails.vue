@@ -31,7 +31,9 @@
         <!-- Breadcrumb Navigation -->
         <nav class="breadcrumb" aria-label="Breadcrumb">
           <router-link to="/">Home</router-link> /
-          <router-link :to="`/category/${categorySlug}/products`">{{ categorySlug || 'Category' }}</router-link> /
+          <router-link :to="`/category/${categorySlug}/products${isPayAndPick ? '?pickup=true' : ''}`">
+            {{ categorySlug || 'Category' }}
+          </router-link> /
           <span>{{ product.name || 'Product' }}</span>
         </nav>
 
@@ -47,8 +49,7 @@
           <a :href="instagramShareUrl" target="_blank" class="social-icon instagram" title="Share on Instagram">
             <font-awesome-icon :icon="['fab', 'instagram']" />
           </a>
-          <a :href="whatsappShareUrl"   
-          target="_blank" class="social-icon whatsapp" title="Share on WhatsApp">
+          <a :href="whatsappShareUrl" target="_blank" class="social-icon whatsapp" title="Share on WhatsApp">
             <font-awesome-icon :icon="['fab', 'whatsapp']" />
           </a>
           <button @click="copyToClipboard" class="social-icon clipboard" title="Copy to Clipboard">
@@ -211,74 +212,115 @@
               <!-- Order Tab -->
               <div v-if="activeTab === 'Order'" class="order-tab">
                 <div class="order-details">
-                  <div class="attributes">
-                    <label>Order Attributes</label>
-                    <div class="attribute-row">
-                      <!-- In ProductDetails.vue template -->
-                      <div v-if="product.attributes?.length" v-for="attr in product.attributes" :key="attr.id" class="attribute">
-                        <label>{{ attr.name }}</label>
-                        <select v-model="selectedAttributes[attr.name]" required>
-                          <option disabled value="">Select {{ attr.name }}</option>
-                          <option v-for="value in attr.values" :key="value.id" :value="value.value">
-                            {{ value.value }}
-                          </option>
-                        </select>
-                      </div>
-                      <div class="attribute">
-                        <label>Quantity</label>
-                        <input
-                          type="number"
-                          v-model.number="quantity"
-                          :min="product.moq_per_person || 1"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div v-if="Object.keys(selectedAttributes).length" class="selected-attributes">
-                      <h4>Selected Attributes:</h4>
-                      <ul>
-                        <li v-for="(value, name) in selectedAttributes" :key="name">
-                          <strong>{{ name }}:</strong> {{ value || 'Not selected' }}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div class="shipping">
-                    <label>Shipping Method</label>
-                    <div v-if="isLoadingShippingMethods" class="skeleton-shipping">
-                      <div v-for="n in 2" :key="n" class="skeleton-shipping-option"></div>
-                    </div>
-                    <div v-else-if="shippingMethods.length" class="shipping-options">
-                      <div
-                        v-for="method in shippingMethods"
-                        :key="method.id"
-                        class="shipping-option"
+                  <div v-if="isPayAndPick || product.moq_status === 'not_applicable'" class="pickup-order">
+                    <div v-if="product.inventory" class="inventory-info">
+                      <p class="availability">
+                        Available: <span class="stock-count">{{ product.inventory.quantity }}</span> units
+                      </p>
+                      <p
+                        v-if="product.inventory.quantity <= product.inventory.low_stock_threshold"
+                        class="low-stock-warning"
                       >
-                        <input
-                          type="radio"
-                          :id="`shipping-${method.id}`"
-                          name="shipping"
-                          :value="method.id"
-                          v-model="selectedShippingMethodId"
-                        />
-                        <label :for="`shipping-${method.id}`">
-                          {{ method.name }} (KES {{ method.price }})
-                        </label>
+                        Only {{ product.inventory.quantity }} left!
+                      </p>
+                    </div>
+                    <p v-else class="availability">Out of Stock</p>
+                    <div class="attributes">
+                      <label>Order Attributes</label>
+                      <div class="attribute-row">
+                        <div v-if="product.attributes?.length" v-for="attr in product.attributes" :key="attr.id" class="attribute">
+                          <label>{{ attr.name }}</label>
+                          <select v-model="selectedAttributes[attr.name]" required>
+                            <option disabled value="">Select {{ attr.name }}</option>
+                            <option v-for="value in attr.values" :key="value.id" :value="value.value">
+                              {{ value.value }}
+                            </option>
+                          </select>
+                        </div>
+                        <div class="attribute">
+                          <label>Quantity</label>
+                          <input
+                            type="number"
+                            v-model.number="quantity"
+                            :min="1"
+                            :max="product.inventory?.quantity || 1"
+                            required
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div v-else class="no-shipping">
-                      No shipping methods available.
+                    <div class="promo-code">
+                      <label>Promo Code</label>
+                      <input
+                        type="text"
+                        v-model="promoCode"
+                        placeholder="Enter promo code"
+                      />
                     </div>
                   </div>
-
-                  <div class="promo-code">
-                    <label>Promo Code</label>
-                    <input
-                      type="text"
-                      v-model="promoCode"
-                      placeholder="Enter promo code"
-                    />
+                  <div v-else class="moq-order">
+                    <div class="attributes">
+                      <label>Order Attributes</label>
+                      <div class="attribute-row">
+                        <div v-if="product.attributes?.length" v-for="attr in product.attributes" :key="attr.id" class="attribute">
+                          <label>{{ attr.name }}</label>
+                          <select v-model="selectedAttributes[attr.name]" required>
+                            <option disabled value="">Select {{ attr.name }}</option>
+                            <option v-for="value in attr.values" :key="value.id" :value="value.value">
+                              {{ value.value }}
+                            </option>
+                          </select>
+                        </div>
+                        <div class="attribute">
+                          <label>Quantity</label>
+                          <input
+                            type="number"
+                            v-model.number="quantity"
+                            :min="product.moq_per_person || 1"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div v-if="Object.keys(selectedAttributes).length" class="selected-attributes">
+                        <h4>Selected Attributes:</h4>
+                        <ul>
+                          <li v-for="(value, name) in selectedAttributes" :key="name">
+                            <strong>{{ name }}:</strong> {{ value || 'Not selected' }}
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div class="shipping">
+                      <label>Shipping Method</label>
+                      <div v-if="isLoadingShippingMethods" class="skeleton-shipping">
+                        <div v-for="n in 2" :key="n" class="skeleton-shipping-option"></div>
+                      </div>
+                      <div v-else-if="shippingMethods.length" class="shipping-options">
+                        <div v-for="method in shippingMethods" :key="method.id" class="shipping-option">
+                          <input
+                            type="radio"
+                            :id="`shipping-${method.id}`"
+                            name="shipping"
+                            :value="method.id"
+                            v-model="selectedShippingMethodId"
+                          />
+                          <label :for="`shipping-${method.id}`">
+                            {{ method.name }} (KES {{ method.price }})
+                          </label>
+                        </div>
+                      </div>
+                      <div v-else class="no-shipping">
+                        No shipping methods available.
+                      </div>
+                    </div>
+                    <div class="promo-code">
+                      <label>Promo Code</label>
+                      <input
+                        type="text"
+                        v-model="promoCode"
+                        placeholder="Enter promo code"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -288,43 +330,48 @@
           <!-- Right Section: Product Info -->
           <div class="product-right">
             <div class="product-info">
-              <!-- Pricing -->
               <div class="pricing">
                 <h2 class="price">KES {{ effectivePrice }}</h2>
-                <p class="moq-info">
-                  Below MOQ price: KES
-                  {{ product.below_moq_price || product.price || '0' }}
-                </p>
-                <p class="moq-info">Price: {{ product.price }}</p>
-                <p class="moq-info">
-                  MOQ Per Person: {{ product.moq_per_person || 'N/A' }} items/bundle
-                </p>
-                <p class="moq-info">Quantity: {{ quantity }}</p>
-                <p class="moq-info">MOQ Status: {{ product.moq_status }}</p>
-                <p v-if="selectedShippingMethod" class="shipping-cost">
-                  Shipping Cost: KES {{ selectedShippingMethod.price }}
-                </p>
-                <p class="total-price">
-                  Total: KES {{ totalPrice }}
-                </p>
+                <template v-if="isPayAndPick || product.moq_status === 'not_applicable'">
+                  <div v-if="product.inventory" class="inventory-info">
+                    <p class="availability">
+                      Available: <span class="stock-count">{{ product.inventory.quantity }}</span> units
+                    </p>
+                    <p
+                      v-if="product.inventory.quantity <= product.inventory.low_stock_threshold"
+                      class="low-stock-warning"
+                    >
+                      Only {{ product.inventory.quantity }} left!
+                    </p>
+                  </div>
+                  <p v-else class="availability">Out of Stock</p>
+                  <p class="quantity-info">Quantity: {{ quantity }}</p>
+                </template>
+                <template v-else>
+                  <p class="moq-info">Below MOQ price: KES {{ product.below_moq_price || product.price || '0' }}</p>
+                  <p class="moq-info">Price: KES {{ product.price }}</p>
+                  <p class="moq-info">MOQ Per Person: {{ product.moq_per_person || 'N/A' }} items/bundle</p>
+                  <p class="moq-info">Quantity: {{ quantity }}</p>
+                  <p class="moq-info">MOQ Status: {{ product.moq_status }}</p>
+                  <p v-if="selectedShippingMethod" class="shipping-cost">
+                    Shipping Cost: KES {{ selectedShippingMethod.price }}
+                  </p>
+                </template>
+                <p class="total-price">Total: KES {{ totalPrice }}</p>
               </div>
-
-              <!-- Add to Cart Button -->
               <div class="control">
                 <button
                   class="add-to-cart"
                   @click="handleAddToCart"
-                  :disabled="isAddingToCart || !allAttributesSelected || !selectedShippingMethodId"
+                  :disabled="isAddingToCart || !allAttributesSelected || (isPayAndPick || product.moq_status === 'not_applicable' ? !product.inventory?.quantity : !selectedShippingMethodId)"
                   :aria-label="isAddingToCart ? 'Adding to cart' : 'Add to cart'"
                 >
                   <span v-if="isAddingToCart">
-                    <font-awesome-icon icon="spinner" spin /> Adding to Cart...
+                    <span class="css-spinner"> </span>
                   </span>
-                  <span v-else>Add to Cart</span>
+                  <span v-else>Add to {{ isPayAndPick ? 'Pay & Pick' : 'Cart' }}</span>
                 </button>
               </div>
-
-              <!-- Rating -->
               <div class="rating">
                 <font-awesome-icon
                   v-for="star in 5"
@@ -360,7 +407,8 @@
                 :key="relatedProduct.id"
                 :to="{
                   name: 'product-detail',
-                  params: { categorySlug: categorySlug, productSlug: relatedProduct.slug }
+                  params: { categorySlug: categorySlug, productSlug: relatedProduct.slug },
+                  query: isPayAndPick ? { pickup: true } : {}
                 }"
                 class="related-product"
                 :aria-label="`View ${relatedProduct.name}`"
@@ -397,7 +445,10 @@
             </button>
           </div>
           <div v-else class="no-related">No related products available.</div>
-          <router-link :to="`/category/${categorySlug}/products`" class="show-more">
+          <router-link
+            :to="{ path: `/category/${categorySlug}/products`, query: isPayAndPick ? { pickup: true } : {} }"
+            class="show-more"
+          >
             Show More
           </router-link>
         </div>
@@ -409,6 +460,7 @@
 <script>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useHead } from '@vueuse/head';
+import { useRoute } from 'vue-router';
 import {
   createApiInstance,
   fetchRelatedProducts,
@@ -428,8 +480,10 @@ export default {
   },
   setup(props) {
     const store = useEcommerceStore();
+    const route = useRoute();
     const api = createApiInstance(store);
     const isAuthenticated = computed(() => store.isAuthenticated);
+    const isPayAndPick = computed(() => route.query.pickup === 'true');
 
     // Product data
     const productKey = computed(() => `${props.categorySlug}:${props.productSlug}`);
@@ -450,9 +504,8 @@ export default {
     // Form state
     const quantity = ref(1);
     const selectedAttributes = ref({});
-    const shippingMethod = ref('ship');
     const promoCode = ref('');
-    const placeholderImage = '/path/to/placeholder.jpg'; // Replace with actual image path
+    const placeholderImage = '/path/to/placeholder.jpg';
 
     // Tab state
     const activeTab = ref('Description');
@@ -484,13 +537,16 @@ export default {
       shippingMethods.value.find(method => method.id === selectedShippingMethodId.value) || null
     );
 
+    // Computed property to determine if shipping is required
+    const requiresShipping = computed(() => !isPayAndPick.value && product.value?.moq_status !== 'not_applicable');
+
     // Cart state
     const isAddingToCart = ref(false);
 
     // Affiliate and Sharing state
     const affiliateCode = computed(() => store.user?.affiliate_code || '');
     const productUrl = computed(() =>
-      `${window.location.origin}/products/${props.categorySlug}/${props.productSlug}/?aff=${affiliateCode.value}`
+      `${window.location.origin}/products/${props.categorySlug}/${props.productSlug}/?aff=${affiliateCode.value}${isPayAndPick.value ? '&pickup=true' : ''}`
     );
     const shareText = computed(() =>
       `Check out this amazing product: ${product.value?.name || ''} at ${productUrl.value}`
@@ -510,7 +566,7 @@ export default {
         product.value?.name,
         product.value?.category?.name,
         ...(product.value?.attributes?.map(attr => attr.name) || []),
-        'ecommerce',
+        isPayAndPick.value ? 'pay and pick' : 'ecommerce',
         'buy online',
       ]
         .filter(Boolean)
@@ -534,10 +590,9 @@ export default {
         '@type': 'Offer',
         priceCurrency: 'KES',
         price: product.value?.price || 0,
-        availability:
-          product.value?.moq_status === 'active'
-            ? 'https://schema.org/InStock'
-            : 'https://schema.org/OutOfStock',
+        availability: isPayAndPick.value
+          ? product.value?.inventory?.quantity > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+          : product.value?.moq_status === 'active' ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
         url: currentUrl.value,
       },
       aggregateRating: product.value?.rating
@@ -546,7 +601,7 @@ export default {
             ratingValue: product.value.rating,
             reviewCount: reviews.value.length || 1,
           }
-        : undefined,
+        : null,
     }));
 
     useHead({
@@ -568,7 +623,7 @@ export default {
       script: [
         {
           type: 'application/ld+json',
-          innerHTML: schemaMarkup,
+          innerHTML: JSON.stringify(schemaMarkup.value),
         },
       ],
     });
@@ -597,47 +652,43 @@ export default {
       if (product.value?.attributes) {
         product.value.attributes.forEach(attr => {
           options[attr.name] = attr.values.map(val => val.value);
-          if (options[attr.name].length && !selectedAttributes.value[attr.name]) {
-            selectedAttributes.value[attr.name] = options[attr.name][0];
-          }
         });
       }
       return options;
     });
 
     const totalPrice = computed(() => {
+      if (!product.value) return '0.00';
+      const qty = Number(quantity.value) || 1;
       const productPrice = Number(effectivePrice.value) || 0;
-      const shippingCost = selectedShippingMethod.value ? Number(selectedShippingMethod.value.price) : 0;
-      return (productPrice + shippingCost).toFixed(2);
+      if (requiresShipping.value) {
+        const shippingCost = selectedShippingMethod.value ? Number(selectedShippingMethod.value.price) : 0;
+        return (productPrice + shippingCost).toFixed(2);
+      }
+      return productPrice.toFixed(2);
     });
 
     const effectivePrice = computed(() => {
       if (!product.value) return '0';
       const qty = Number(quantity.value) || 1;
       const moqPerPerson = Number(product.value.moq_per_person) || 2;
-      const belowMoqPrice =
-        Number(product.value.below_moq_price) || Number(product.value.price) || 0;
+      const belowMoqPrice = Number(product.value.below_moq_price) || Number(product.value.price) || 0;
       const price = Number(product.value.price) || 0;
-      if (product.value.moq_status === 'active' && qty < moqPerPerson) {
+      if (!isPayAndPick.value && product.value.moq_status === 'active' && qty < moqPerPerson) {
         return (belowMoqPrice * qty).toFixed(2);
       }
       return (price * qty).toFixed(2);
     });
 
     const allAttributesSelected = computed(() => {
-      if (!product.value?.attributes || !product.value.attributes.length) {
-        return true; // No attributes required
-      }
+      if (!product.value?.attributes || !product.value.attributes.length) return true;
       return product.value.attributes.every(attr => selectedAttributes.value[attr.name]);
     });
 
     const scrollThumbnails = async (direction) => {
       if (direction === 'left' && thumbnailOffset.value > 0) {
         thumbnailOffset.value -= thumbnailWidth.value;
-      } else if (
-        direction === 'right' &&
-        thumbnailOffset.value < maxThumbnailOffset.value
-      ) {
+      } else if (direction === 'right' && thumbnailOffset.value < maxThumbnailOffset.value) {
         thumbnailOffset.value += thumbnailWidth.value;
       }
       await nextTick();
@@ -649,10 +700,7 @@ export default {
     const scrollRelatedProducts = async (direction) => {
       if (direction === 'left' && relatedScrollOffset.value > 0) {
         relatedScrollOffset.value -= relatedCardWidth.value;
-      } else if (
-        direction === 'right' &&
-        relatedScrollOffset.value < maxRelatedScrollOffset.value
-      ) {
+      } else if (direction === 'right' && relatedScrollOffset.value < maxRelatedScrollOffset.value) {
         relatedScrollOffset.value += relatedCardWidth.value;
       }
       await nextTick();
@@ -661,11 +709,8 @@ export default {
       }
     };
 
-
-
-
-
     const fetchShippingMethods = async () => {
+      if (!requiresShipping.value) return;
       isLoadingShippingMethods.value = true;
       try {
         const response = await api.get('/shipping-methods/');
@@ -686,7 +731,7 @@ export default {
         toast.warning('Please select all attributes', { autoClose: 3000 });
         return;
       }
-      if (!selectedShippingMethodId.value) {
+      if (requiresShipping.value && !selectedShippingMethodId.value) {
         toast.warning('Please select a shipping method', { autoClose: 3000 });
         return;
       }
@@ -694,22 +739,24 @@ export default {
       isAddingToCart.value = true;
       try {
         const affiliateCodeFromUrl = new URLSearchParams(window.location.search).get('aff');
+        const attributes = { ...selectedAttributes.value };
+        console.log('Add to cart attributes:', attributes);
         await store.addToCart(
           product.value.id,
-          selectedAttributes.value,
+          attributes,
           quantity.value,
           affiliateCodeFromUrl,
-          selectedShippingMethodId.value
+          requiresShipping.value ? selectedShippingMethodId.value : null
         );
-        toast.success('Product added to cart successfully!', { autoClose: 3000 });
+        toast.success(`Product added to ${isPayAndPick.value ? 'Pay & Pick' : 'cart'}!`, { autoClose: 3000 });
       } catch (error) {
-        console.error('Add to cart error:', error);
         let errorMessage = 'Failed to add to cart.';
-        if (error.response?.data?.detail) {
-          errorMessage = error.response.data.detail;
-        } else if (error.response?.data?.error) {
+        if (error.response?.data?.error) {
           errorMessage = error.response.data.error;
+        } else if (error.response?.data?.detail) {
+          errorMessage = error.response.data.detail;
         }
+        console.error('Add to cart error:', errorMessage);
         toast.error(errorMessage, { autoClose: 3000 });
       } finally {
         isAddingToCart.value = false;
@@ -733,11 +780,7 @@ export default {
         toast.error('Review content cannot be empty.', { autoClose: 3000 });
         return;
       }
-      if (
-        !Number.isInteger(reviewRating.value) ||
-        reviewRating.value < 1 ||
-        reviewRating.value > 5
-      ) {
+      if (!Number.isInteger(reviewRating.value) || reviewRating.value < 1 || reviewRating.value > 5) {
         toast.error('Please select a rating between 1 and 5.', { autoClose: 3000 });
         return;
       }
@@ -767,10 +810,7 @@ export default {
           } else if (typeof error.response.data === 'string') {
             errorMessage = error.response.data;
           } else if (error.response.data.detail) {
-            errorMessage =
-              typeof error.response.data.detail === 'string'
-                ? error.response.data.detail
-                : 'An error occurred while submitting the review.';
+            errorMessage = error.response.data.detail;
           }
         }
         toast.error(errorMessage, { autoClose: 3000 });
@@ -789,18 +829,11 @@ export default {
           currentImage.value = currentProduct.images?.[0]?.image || placeholderImage;
           isLoadingRelated.value = true;
           try {
-            const response = await fetchRelatedProducts(
-              api,
-              props.categorySlug,
-              currentProduct.id
-            );
+            const response = await fetchRelatedProducts(api, props.categorySlug, currentProduct.id);
             relatedProducts.value = Array.isArray(response) ? response : [];
             relatedProductsError.value = null;
           } catch (error) {
-            relatedProductsError.value =
-              error.response?.data?.error ||
-              error.message ||
-              'Failed to fetch related products';
+            relatedProductsError.value = 'Failed to fetch related products';
             relatedProducts.value = [];
             toast.error('Failed to load related products.', { autoClose: 3000 });
           } finally {
@@ -844,55 +877,47 @@ export default {
       }
     });
 
-    watch(
-      product,
-      newProduct => {
-        if (newProduct?.images?.length) {
-          currentImage.value = newProduct.images[0].image || placeholderImage;
-        }
-        selectedAttributes.value = {};
-        if (newProduct?.attributes) {
-          newProduct.attributes.forEach(attr => {
-            if (attr.values.length > 0) {
-              selectedAttributes.value[attr.name] = attr.values[0].value; // Preselect first value
-            }
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      () => product.value?.images?.length,
-      () => {
-        thumbnailOffset.value = 0;
-        nextTick(() => {
-          if (thumbnailContainer.value) {
-            thumbnailContainer.value.style.transform = `translateX(0px)`;
+    watch(product, newProduct => {
+      console.log('Product attributes:', newProduct?.attributes);
+      if (newProduct?.images?.length) {
+        currentImage.value = newProduct.images[0].image || placeholderImage;
+      }
+      selectedAttributes.value = {};
+      if (newProduct?.attributes) {
+        newProduct.attributes.forEach(attr => {
+          if (attr.values.length > 0) {
+            selectedAttributes.value[attr.name] = attr.values[0].value;
           }
         });
       }
-    );
+    }, { immediate: true });
 
-    watch(
-      () => relatedProducts.value.length,
-      () => {
-        relatedScrollOffset.value = 0;
-        nextTick(() => {
-          if (relatedContainer.value) {
-            relatedContainer.value.style.transform = `translateX(0px)`;
-          }
-        });
-      }
-    );
+    watch(() => product.value?.images?.length, () => {
+      thumbnailOffset.value = 0;
+      nextTick(() => {
+        if (thumbnailContainer.value) {
+          thumbnailContainer.value.style.transform = `translateX(0px)`;
+        }
+      });
+    });
+
+    watch(() => relatedProducts.value.length, () => {
+      relatedScrollOffset.value = 0;
+      nextTick(() => {
+        if (relatedContainer.value) {
+          relatedContainer.value.style.transform = `translateX(0px)`;
+        }
+      });
+    });
 
     return {
       product,
+      isPayAndPick,
+      isAuthenticated,
       isLoadingProduct,
       quantity,
       selectedAttributes,
       attributeOptions,
-      shippingMethod,
       promoCode,
       activeTab,
       tabs,
@@ -901,12 +926,11 @@ export default {
       relatedProducts,
       isLoadingRelated,
       relatedProductsError,
-      showAuthModal: computed(() => store.isAuthModalVisible),
       reviews,
       showReviewForm,
       reviewContent,
       reviewRating,
-      isAuthenticated,
+      isSubmittingReview,
       submitReview,
       effectivePrice,
       hoveredRating,
@@ -915,9 +939,7 @@ export default {
       maxThumbnailOffset,
       scrollThumbnails,
       isAddingToCart,
-      isSubmittingReview,
       allAttributesSelected,
-      handleAddToCart,
       metaTitle,
       metaDescription,
       metaKeywords,
@@ -932,20 +954,61 @@ export default {
       scrollRelatedProducts,
       thumbnailContainer,
       relatedContainer,
-
       shippingMethods,
       totalPrice,
       isLoadingShippingMethods,
       selectedShippingMethodId,
       selectedShippingMethod,
       fetchShippingMethods,
+      requiresShipping,
     };
   },
 };
 </script>
-
 <style scoped>
 /* Skeleton for Product Details */
+.css-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 50%;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  animation: css-spin 0.6s linear infinite;
+}
+@keyframes css-spin {
+  to { transform: rotate(360deg); }
+}
+.inventory-info {
+  margin-top: 0.5rem;
+}
+
+.availability {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.stock-count {
+  font-weight: bold;
+  color: #ff7b00;
+}
+
+.low-stock-warning {
+  color: #d9534f;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-top: 0.25rem;
+}
+
+.quantity-info {
+  font-size: 0.9rem;
+  margin-top: 5px;
+}
+
+.pickup-order, .moq-order {
+  margin-bottom: 1rem;
+}
 .skeleton-product-details {
   padding: 20px;
 }

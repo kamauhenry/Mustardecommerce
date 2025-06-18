@@ -17,6 +17,18 @@
 
       <!-- Products Tab -->
       <div v-if="activeTab === 'Products'" class="products">
+        <!-- Sub-Tabs -->
+        <div class="sub-tabs">
+          <button
+            v-for="subTab in productSubTabs"
+            :key="subTab"
+            :class="{ active: productSubTab === subTab }"
+            @click="productSubTab = subTab"
+          >
+            {{ subTab }}
+          </button>
+        </div>
+
         <!-- Search Bar -->
         <div class="search-bar">
           <input
@@ -53,9 +65,12 @@
           <button class="add-button" @click="openAddModal('product')" :disabled="formLoading">
             Add Product
           </button>
+          <button class="refresh-button" @click="fetchData" :disabled="loading">
+            {{ loading ? 'Refreshing...' : 'Refresh Inventory' }}
+          </button>
 
           <div class="products-list">
-            <table v-if="filteredProducts.length">
+            <table v-if="currentProducts.length">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -63,12 +78,18 @@
                   <th>Below MOQ Price</th>
                   <th>MOQ</th>
                   <th>MOQ Progress</th>
+                  <th v-if="productSubTab === 'Pick and Pay Products'">Inventory Quantity</th>
                   <th>Supplier</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="product in filteredProducts" :key="product.id" class="product-row">
+                <tr
+                  v-for="product in currentProducts"
+                  :key="product.id"
+                  class="product-row"
+                  :class="{ 'recently-changed': productSubTab === 'Pick and Pay Products' && product.id === mostRecentPickAndPayProductId }"
+                >
                   <td class="product-name">{{ product.name }}</td>
                   <td class="product-price">{{ formatPrice(product.price) }}</td>
                   <td class="below-moq-price">{{ product.below_moq_price ? formatPrice(product.below_moq_price) : 'N/A' }}</td>
@@ -83,6 +104,10 @@
                         {{ product.moq_progress?.percentage || 0 }}%
                       </span>
                     </div>
+                  </td>
+                  <td v-if="productSubTab === 'Pick and Pay Products'" class="inventory-quantity">
+                    {{ product.inventory?.quantity || 0 }} units
+                    <span v-if="product.id === mostRecentPickAndPayProductId" class="recently-updated">Recently Updated</span>
                   </td>
                   <td>{{ product.supplier?.name || 'N/A' }}</td>
                   <td class="product-actions">
@@ -303,29 +328,63 @@
               <input v-model="form.price" type="number" step="0.01" required placeholder="Enter price" />
             </div>
             <div class="form-group">
-              <label>Below MOQ Price</label>
-              <input v-model="form.below_moq_price" type="number" step="0.01" placeholder="Enter below MOQ price (optional)" />
+              <label>
+                <input type="checkbox" v-model="form.is_pick_and_pay" @change="generateMetaData" />
+                Pay & Pick Product
+              </label>
             </div>
-            <div class="form-group">
-              <label>MOQ (Minimum Order Quantity)</label>
-              <input v-model="form.moq" type="number" placeholder="Enter MOQ (optional)" />
+            <div v-if="form.is_pick_and_pay" class="form-group">
+              <label>Inventory Quantity</label>
+              <input
+                v-model="form.inventory_quantity"
+                type="number"
+                min="0"
+                required
+                placeholder="Enter available quantity"
+                @input="generateMetaData"
+              />
             </div>
-            <div class="form-group">
-              <label>MOQ Per Person</label>
-              <input v-model="form.moq_per_person" type="number" placeholder="Enter MOQ per person (optional)" />
-            </div>
-            <div class="form-group">
-              <label>MOQ Status</label>
-              <select v-model="form.moq_status">
-                <option value="active">Active</option>
-                <option value="closed">Closed</option>
-                <option value="completed">Completed</option>
-                <option value="not_applicable">Not Applicable</option>
-              </select>
+
+            <!-- MOQ Fields: Hidden when Pay & Pick is selected -->
+            <div v-if="!form.is_pick_and_pay">
+              <div class="form-group">
+                <label>Below MOQ Price</label>
+                <input
+                  v-model="form.below_moq_price"
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter below MOQ price (optional)"
+                />
+              </div>
+              <div class="form-group">
+                <label>MOQ (Minimum Order Quantity)</label>
+                <input
+                  v-model="form.moq"
+                  type="number"
+                  placeholder="Enter MOQ (optional)"
+                />
+              </div>
+              <div class="form-group">
+                <label>MOQ Per Person</label>
+                <input
+                  v-model="form.moq_per_person"
+                  type="number"
+                  placeholder="Enter MOQ per person (optional)"
+                />
+              </div>
+              <div class="form-group">
+                <label>MOQ Status</label>
+                <select v-model="form.moq_status">
+                  <option value="active">Active</option>
+                  <option value="closed">Closed</option>
+                  <option value="completed">Completed</option>
+                  <option value="not_applicable">Not Applicable</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label>Category</label>
-              <select v-model="form.category_id" required>
+              <select v-model="form.category_id" required @change="generateMetaData">
                 <option value="">Select Category</option>
                 <option v-for="category in categories" :key="category.id" :value="category.id">
                   {{ category.name }}
@@ -334,7 +393,7 @@
             </div>
             <div class="form-group">
               <label>Supplier</label>
-              <select v-model="form.supplier_id">
+              <select v-model="form.supplier_id" @change="generateMetaData">
                 <option value="">Select Supplier (optional)</option>
                 <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">
                   {{ supplier.name }}
@@ -344,7 +403,7 @@
             <div v-for="(attr, index) in form.attributes" :key="index" class="attribute-group">
               <div class="form-group">
                 <label>Attribute Type</label>
-                <select v-model="attr.attribute_id" @change="fetchValuesForAttr(index)">
+                <select v-model="attr.attribute_id" @change="fetchValuesForAttr(index); generateMetaData()">
                   <option value="">Select Attribute Type</option>
                   <option
                     v-for="attrType in availableAttributeTypes(index)"
@@ -358,7 +417,7 @@
               </div>
               <div class="form-group" v-if="attr.attribute_id">
                 <label>Attribute Values</label>
-                <select v-model="attr.value_ids" multiple size="5">
+                <select v-model="attr.value_ids" multiple size="5" @change="generateMetaData">
                   <option v-for="value in attr.values" :key="value.id" :value="value.id">
                     {{ value.value }}
                   </option>
@@ -380,14 +439,6 @@
                   <button type="button" @click="removeImage(index)">Remove</button>
                 </div>
               </div>
-            </div>
-            <div class="form-group">
-              <label>Meta Title (for SEO)</label>
-              <input v-model="form.meta_title" placeholder="Enter meta title" />
-            </div>
-            <div class="form-group">
-              <label>Meta Description (for SEO)</label>
-              <textarea v-model="form.meta_description" placeholder="Enter meta description"></textarea>
             </div>
             <button type="submit" :disabled="formLoading">
               {{ formLoading ? 'Saving...' : (editMode ? 'Update' : 'Add') }}
@@ -489,19 +540,44 @@ export default {
         product.name.toLowerCase().includes(searchQuery.value.toLowerCase())
       );
     });
+    const productSubTab = ref('All Products');
+    const productSubTabs = ['All Products', 'Formow Products', 'Pick and Pay Products'];
 
+    const allProducts = computed(() => filteredProducts.value);
+    const formowProducts = computed(() => filteredProducts.value.filter(product => !product.is_pick_and_pay));
+    const pickAndPayProducts = computed(() => {
+      return filteredProducts.value
+        .filter(product => product.is_pick_and_pay)
+        .sort((a, b) => {
+          const aTime = a.inventory?.last_updated ? new Date(a.inventory.last_updated).getTime() : 0;
+          const bTime = b.inventory?.last_updated ? new Date(b.inventory.last_updated).getTime() : 0;
+          return bTime - aTime;
+        });
+    });
+    const currentProducts = computed(() => {
+      if (productSubTab.value === 'Formow Products') return formowProducts.value;
+      if (productSubTab.value === 'Pick and Pay Products') return pickAndPayProducts.value;
+      return allProducts.value;
+    });
+    const mostRecentPickAndPayProductId = computed(() => pickAndPayProducts.value[0]?.id || null);
     const fetchData = async () => {
       try {
         loading.value = true;
         error.value = null;
         const apiInstance = api.createApiInstance(store);
         const [productsResponse, categoriesResponse, suppliersResponse, attributeTypesResponse] = await Promise.all([
-          api.fetchProducts(apiInstance),
+          api.fetchAllCategoriesWithProducts(apiInstance),
           api.fetchCategories(apiInstance),
           apiInstance.get('/admin/suppliers/').then(res => res.data),
           apiInstance.get('/admin/attributes/').then(res => res.data),
         ]);
         products.value = productsResponse.flatMap(category => category.products || []) || [];
+        // Log Pick and Pay products' inventory
+        products.value.forEach(product => {
+          if (product.is_pick_and_pay) {
+            console.log(`Product ${product.name} (ID: ${product.id}): Inventory Quantity = ${product.inventory?.quantity || 'None'}`);
+          }
+        });
         categories.value = categoriesResponse || [];
         suppliers.value = suppliersResponse || [];
         attributeTypes.value = attributeTypesResponse || [];
@@ -513,7 +589,6 @@ export default {
         loading.value = false;
       }
     };
-
     const fetchAttributeValues = async (attributeId) => {
       try {
         const apiInstance = api.createApiInstance(store);
@@ -664,31 +739,6 @@ export default {
       }
     };
 
-    const generateMetaData = () => {
-      if (!editMode.value && modalType.value === 'product') {
-        // Generate slug
-        if (form.value.name) {
-          form.value.slug = form.value.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)/g, '');
-        }
-
-        // Auto-generate meta_title
-        form.value.meta_title = form.value.name || '';
-
-        // Auto-generate meta_description
-        if (form.value.description) {
-          form.value.meta_description = form.value.description.length > 150
-            ? form.value.description.substring(0, 147) + '...'
-            : form.value.description;
-        } else {
-          form.value.meta_description = form.value.name
-            ? `${form.value.name} - High-quality product available at competitive prices.`
-            : '';
-        }
-      }
-    };
 
     const openAddModal = (type) => {
       editMode.value = false;
@@ -704,13 +754,21 @@ export default {
           moq: '',
           moq_per_person: '',
           moq_status: 'active',
+          is_pick_and_pay: false,
+          inventory_quantity: '',
+          store_location: 'Reli-Coop house 1st floor F71',
           category_id: '',
           supplier_id: '',
           attributes: [{ attribute_id: '', value_ids: [], values: [], newValues: '' }],
           images: [],
           meta_title: '',
           meta_description: '',
+          seo_keywords: '',
+          og_title: '',
+          og_description: '',
+          structured_data: ''
         };
+        generateMetaData();
       } else if (type === 'supplier') {
         form.value = { id: null, name: '', contact_email: '', phone: '', address: '' };
       }
@@ -740,15 +798,23 @@ export default {
           moq: item.moq || '',
           moq_per_person: item.moq_per_person || '',
           moq_status: item.moq_status || 'active',
+          is_pick_and_pay: item.is_pick_and_pay || false,
+          inventory_quantity: item.inventory?.quantity || '',
+          store_location: item.is_pick_and_pay ? 'Reli-Coop house 1st floor F71' : item.inventory?.store_location || '',
           category_id: item.category?.id || '',
           supplier_id: item.supplier?.id || '',
           attributes: Object.values(attributesMap).length
             ? Object.values(attributesMap)
             : [{ attribute_id: '', value_ids: [], values: [], newValues: '' }],
           images: item.images || [],
-          meta_title: item.meta_title || '',
-          meta_description: item.meta_description || '',
+          meta_title: '',
+          meta_description: '',
+          seo_keywords: '',
+          og_title: '',
+          og_description: '',
+          structured_data: ''
         };
+        generateMetaData();
       } else if (type === 'supplier') {
         form.value = {
           id: item.id,
@@ -760,6 +826,178 @@ export default {
       }
       showModal.value = true;
     };
+
+    const saveItem = async (type) => {
+      try {
+        formLoading.value = true;
+        error.value = null;
+        const apiInstance = api.createApiInstance(store);
+        let response;
+
+        if (type === 'product') {
+          // Set default MOQ values for Pay & Pick products
+          if (form.value.is_pick_and_pay) {
+            form.value.below_moq_price = null;
+            form.value.moq = 1;
+            form.value.moq_per_person = 1;
+            form.value.moq_status = 'not_applicable';
+            form.value.store_location = 'Reli-Coop house 1st floor F71';
+          }
+          generateMetaData(); // Ensure latest metadata
+          const formData = new FormData();
+          const fields = [
+            'name', 'slug', 'description', 'price', 'below_moq_price', 'moq',
+            'moq_per_person', 'moq_status', 'is_pick_and_pay', 'inventory_quantity',
+            'store_location', 'category_id', 'supplier_id', 'meta_title', 'meta_description',
+            'seo_keywords', 'og_title', 'og_description', 'structured_data'
+          ];
+          fields.forEach(key => {
+            if (form.value[key] != null && key !== 'attributes' && key !== 'images') {
+              formData.append(key, form.value[key]);
+            }
+          });
+          const allValueIds = form.value.attributes.flatMap(attr => attr.value_ids || []);
+          allValueIds.forEach(id => formData.append('attribute_value_ids', id));
+          form.value.images.forEach(image => {
+            if (image.file) {
+              formData.append('images', image.file);
+            }
+          });
+
+          if (editMode.value) {
+            console.log('Updating product:', form.value.id);
+            response = await api.updateProduct(apiInstance, form.value.id, formData);
+            console.log('Product updated:', response);
+            toast.success('Product updated successfully');
+          } else {
+            console.log('Creating product');
+            response = await api.createProduct(apiInstance, formData);
+            console.log('Product created:', response);
+            toast.success('Product added successfully');
+          }
+        } else if (type === 'supplier') {
+          if (editMode.value) {
+            response = await apiInstance.put(`/admin/suppliers/${form.value.id}/`, form.value);
+            toast.success('Supplier updated successfully');
+          } else {
+            response = await apiInstance.post('/admin/suppliers/', form.value);
+            toast.success('Supplier added successfully');
+          }
+          suppliers.value = (await apiInstance.get('/admin/suppliers/')).data;
+        } else if (type === 'attribute_value') {
+          const payload = {
+            attribute_id: selectedAttributeType.value.id,
+            value: form.value.value,
+          };
+          if (editMode.value) {
+            response = await apiInstance.put(`/admin/attribute-values/${form.value.id}/`, payload);
+            toast.success('Attribute value updated successfully');
+          } else {
+            response = await apiInstance.post('/admin/attribute-values/', payload);
+            toast.success('Attribute value added successfully');
+          }
+          await fetchAttributeValues(selectedAttributeType.value.id);
+        }
+
+        await fetchData();
+        closeModal();
+      } catch (err) {
+        console.error('Error in saveItem:', err);
+        error.value = err.response?.data || err.message || `Failed to save ${type}. Please try again.`;
+        toast.error(error.value.toString());
+      } finally {
+        formLoading.value = false;
+      }
+    };  
+    const generateMetaData = () => {
+      if (modalType.value === 'product') {
+        // Generate slug
+        if (form.value.name) {
+          form.value.slug = form.value.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+        }
+
+        // Generate meta_title
+        if (form.value.name) {
+          const categoryName = categories.value.find(c => c.id === form.value.category_id)?.name || '';
+          const title = `Buy ${form.value.name} in Nairobi${categoryName ? ' - ' + categoryName : ''}`;
+          form.value.meta_title = title.length > 60 ? title.substring(0, 57) + '...' : title;
+        } else {
+          form.value.meta_title = '';
+        }
+
+        // Generate meta_description
+        if (form.value.description) {
+          let desc = form.value.description;
+          if (desc.length > 160) {
+            desc = desc.substring(0, 160);
+            const lastSpace = desc.lastIndexOf(' ');
+            desc = lastSpace > 0 ? desc.substring(0, lastSpace) + '...' : desc;
+          }
+          form.value.meta_description = desc;
+        } else if (form.value.name) {
+          const categoryName = categories.value.find(c => c.id === form.value.category_id)?.name || 'Product';
+          const supplierName = suppliers.value.find(s => s.id === form.value.supplier_id)?.name || 'Quality Supplier';
+          form.value.meta_description = `Shop ${form.value.name} online in Nairobi. Premium ${categoryName} from ${supplierName}. Buy now!`;
+        } else {
+          form.value.meta_description = '';
+        }
+
+        // Generate seo_keywords
+        const keywords = ['buy', 'online', 'Nairobi'];
+        if (form.value.name) keywords.push(form.value.name.toLowerCase());
+        if (form.value.category_id) {
+          const categoryName = categories.value.find(c => c.id === form.value.category_id)?.name;
+          if (categoryName) keywords.push(categoryName.toLowerCase());
+        }
+        if (form.value.attributes) {
+          form.value.attributes.forEach(attr => {
+            attr.values?.forEach(val => {
+              if (val.value) keywords.push(val.value.toLowerCase());
+            });
+          });
+        }
+        if (form.value.is_pick_and_pay) keywords.push('pay and pick', 'store pickup');
+        form.value.seo_keywords = [...new Set(keywords)].join(', ');
+
+        // Generate og_title
+        form.value.og_title = form.value.meta_title || `Buy ${form.value.name || 'Product'} in Nairobi`;
+
+        // Generate og_description
+        form.value.og_description = form.value.meta_description || `Discover ${form.value.name || 'Product'} - Premium quality at great prices. Shop now in Nairobi!`;
+
+        // Generate structured data
+        if (form.value.name && form.value.price) {
+          const schema = {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: form.value.name,
+            description: form.value.meta_description || `Buy ${form.value.name} in Nairobi`,
+            image: form.value.images?.[0]?.image || form.value.images?.[0]?.preview || '',
+            offers: {
+              '@type': 'Offer',
+              price: parseFloat(form.value.price || 0).toFixed(2),
+              priceCurrency: 'KES',
+              availability: form.value.is_pick_and_pay && form.value.inventory_quantity > 0
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/PreOrder',
+              url: `https://yourdomain.com/products/${form.value.slug || form.value.id || 'product'}`
+            },
+            brand: {
+              '@type': 'Brand',
+              name: suppliers.value.find(s => s.id === form.value.supplier_id)?.name || 'Unknown'
+            },
+            keywords: form.value.seo_keywords || 'buy, online, Nairobi'
+          };
+          form.value.structured_data = JSON.stringify(schema, null, 2);
+        } else {
+          form.value.structured_data = '';
+        }
+      }
+    };
+
 
     const closeModal = () => {
       showModal.value = false;
@@ -844,67 +1082,7 @@ export default {
       }
     };
 
-    const saveItem = async (type) => {
-      try {
-        formLoading.value = true;
-        error.value = null;
-        const apiInstance = api.createApiInstance(store);
-        let response;
 
-        if (type === 'product') {
-          const formData = new FormData();
-          for (const key in form.value) {
-            if (key !== 'attributes' && key !== 'images' && form.value[key] != null) {
-              formData.append(key, form.value[key]);
-            }
-          }
-          const allValueIds = form.value.attributes.flatMap(attr => attr.value_ids || []);
-          allValueIds.forEach(id => formData.append('attribute_value_ids', id));
-          form.value.images.forEach(image => {
-            if (image.file) {
-              formData.append('images', image.file);
-            }
-          });
-          if (editMode.value) {
-            response = await api.updateProduct(apiInstance, form.value.id, formData);
-            toast.success('Product updated successfully');
-          } else {
-            response = await api.createProduct(apiInstance, formData);
-            toast.success('Product added successfully');
-          }
-        } else if (type === 'supplier') {
-          if (editMode.value) {
-            response = await apiInstance.put(`/admin/suppliers/${form.value.id}/`, form.value);
-            toast.success('Supplier updated successfully');
-          } else {
-            response = await apiInstance.post('/admin/suppliers/', form.value);
-            toast.success('Supplier added successfully');
-          }
-          suppliers.value = (await apiInstance.get('/admin/suppliers/')).data;
-        } else if (type === 'attribute_value') {
-          const payload = {
-            attribute_id: selectedAttributeType.value.id,
-            value: form.value.value,
-          };
-          if (editMode.value) {
-            response = await apiInstance.put(`/admin/attribute-values/${form.value.id}/`, payload);
-            toast.success('Attribute value updated successfully');
-          } else {
-            response = await apiInstance.post('/admin/attribute-values/', payload);
-            toast.success('Attribute value added successfully');
-          }
-          await fetchAttributeValues(selectedAttributeType.value.id);
-        }
-        await fetchData();
-        closeModal();
-      } catch (err) {
-        error.value = err.response?.data || `Failed to save ${type}. Please try again.`;
-        console.error(`Failed to save ${type}:`, JSON.stringify(err.response?.data, null, 2));
-        toast.error(JSON.stringify(error.value, null, 2));
-      } finally {
-        formLoading.value = false;
-      }
-    };
 
     const deleteItem = async (type, id) => {
       if (confirm(`Are you sure you want to delete this ${type}?`)) {
@@ -932,6 +1110,12 @@ export default {
 
     onMounted(() => {
       fetchData();
+      const pollingInterval = setInterval(() => {
+        if (productSubTab.value === 'Pick and Pay Products') {
+          fetchData();
+        }
+      }, 30000); // Refresh every 30 seconds
+      return () => clearInterval(pollingInterval); 
     });
 
     return {
@@ -983,6 +1167,10 @@ export default {
       uploadProducts,
       importProducts,
       saveItem,
+      productSubTab,
+      productSubTabs,
+      currentProducts,
+      mostRecentPickAndPayProductId,
       deleteItem,
       formatPrice: (price) => {
         if (price == null) return 'N/A';
@@ -1035,6 +1223,59 @@ h4 {
   gap: 10px;
   margin-bottom: 20px;
   border-bottom: 2px solid #e9ecef;
+}
+.sub-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+.sub-tabs button {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.sub-tabs button.active {
+  color: #6f42c1;
+  border-bottom: 2px solid #6f42c1;
+}
+.sub-tabs button:hover {
+  color: #5a32a3;
+}
+.inventory-quantity {
+  position: relative;
+}
+.recently-updated {
+  color: #28a745;
+  font-size: 0.8rem;
+  margin-left: 10px;
+  font-weight: bold;
+}
+.recently-changed {
+  background-color: #e6f4ea !important;
+}
+.refresh-button {
+  padding: 8px 16px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  margin-left: 10px;
+  font-weight: 500;
+}
+.refresh-button:hover:not(:disabled) {
+  background-color: #218838;
+}
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .tabs button {

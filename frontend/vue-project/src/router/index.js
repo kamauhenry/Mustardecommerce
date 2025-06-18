@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 
 // Main app components
+import ResetPassword from '@/components/auth/ResetPassword.vue';
 import Home from '@/views/HomePage.vue';
 import MOQCampaigns from '@/views/MOQCampaigns.vue';
 import Profile from '@/views/Profile.vue';
@@ -15,7 +16,7 @@ import CompletedOrders from '@/views/CompletedOrders.vue';
 import SearchResults from '@/views/SearchResults.vue';
 import Confirmation from '@/views/Confirmation.vue';
 import Checkout from '@/views/Checkout.vue';
-
+import PayandPick from '@/views/payandpick.vue'
 import PrivacyPolicy from '@/pages/PrivacyPolicy.vue';
 import CookiePolicy from '@/pages/CookiePolicy.vue';
 
@@ -34,10 +35,11 @@ import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
 const routes = [
   // **Main App Routes**
   { path: '/', component: Home },
+  { path: '/pay-and-pick', component: PayandPick },
   { path: '/moq-campaigns', component: MOQCampaigns },
   { path: '/SearchResults', component: SearchResults, name: 'search-results' },
   { path: '/profile', component: Profile },
-  
+  { path: '/reset-password/:token', name: 'ResetPassword', component: ResetPassword },
   { path: '/orders', component: Orders },
   { path: '/completed-orders', component: CompletedOrders },
   { path: '/about', component: About },

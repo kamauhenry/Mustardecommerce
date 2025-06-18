@@ -37,7 +37,12 @@
     </div>
   </header>
 
-  <div class="search-container" :class="{ 'is-open': isSearchOpen || !isMobile }" ref="searchContainer">
+  <div
+    v-if="isSearchOpen || !isMobile"
+    class="search-container"
+    :class="{ 'is-open': isSearchOpen || !isMobile }"
+    ref="searchContainer"
+  >
     <input
       type="text"
       v-model="query"
@@ -88,7 +93,7 @@
           </div>
           <ul v-else class="category-list" itemscope itemtype="http://schema.org/ItemList">
             <li v-for="category in categories" :key="category.id" itemprop="itemListElement" itemscope itemtype="http://schema.org/Thing">
-              <router-link :to="`/category/${category.slug}/products`" class="category-link" itemprop="url">
+              <router-link :to="`/category/${category.slug}/products`" class="category-link" @click="handleNavigationWithSidebarClose" itemprop="url">
                 <span itemprop="name">{{ category.name }}</span>
               </router-link>
             </li>
@@ -99,16 +104,15 @@
       <hr />
 
       <ul class="page-list" itemscope itemtype="http://schema.org/SiteNavigationElement">
-        <li><router-link to="/" :class="isActive('/')" itemprop="url"><span itemprop="name">Home</span></router-link></li>
-        <li><router-link to="/moq-campaigns" :class="isActive('/moq-campaigns')" itemprop="url"><span itemprop="name">MOQ Campaigns</span></router-link></li>
-        <li v-if="store.isAuthenticated"><router-link to="/profile" :class="isActive('/profile')" itemprop="url"><span itemprop="name">My Profile</span></router-link></li>
-        <li v-if="store.isAuthenticated"><router-link to="/orders" :class="isActive('/orders')" itemprop="url"><span itemprop="name">My Orders</span></router-link></li>
-        <li v-if="store.isAuthenticated"><a @click="openRequestMOQ" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
+        <li><router-link to="/" :class="isActive('/')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Home</span></router-link></li>
+        <li><router-link to="/pay-and-pick" :class="isActive('/pay-and-pick')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Pay & Pick</span></router-link></li>
+        <li><router-link to="/moq-campaigns" :class="isActive('/moq-campaigns')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">MOQ Campaigns</span></router-link></li>
+        <li v-if="store.isAuthenticated"><router-link to="/profile" :class="isActive('/profile')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Profile</span></router-link></li>
+        <li v-if="store.isAuthenticated"><router-link to="/orders" :class="isActive('/orders')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Orders</span></router-link></li>
+        <li v-if="store.isAuthenticated"><a @click="handleRequestMOQ" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
         <li v-else><a @click="openLoginModal" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
-        <li v-if="store.isAuthenticated"><a @click="openTrackOrder" class="nav-link" itemprop="url"><span itemprop="name">Track Order</span></a></li>
-        <li v-else><a @click="openLoginModal" class="nav-link" itemprop="url"><span itemprop="name">Track Order</span></a></li>
-        <li><router-link to="/about" :class="isActive('/about')" itemprop="url"><span itemprop="name">About Us</span></router-link></li>
-        <li><router-link to="/contact" :class="isActive('/contact')" itemprop="url"><span itemprop="name">Contact Us</span></router-link></li>
+        <li><router-link to="/about" :class="isActive('/about')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">About Us</span></router-link></li>
+        <li><router-link to="/contact" :class="isActive('/contact')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Contact Us</span></router-link></li>
       </ul>
 
       <hr />
@@ -117,7 +121,7 @@
         <h3>Contact Us</h3>
         <p>Email: <a href="mailto:mustardimports@gmail.com">mustardimports@gmail.com</a></p>
         <p>Telephone: <a href="tel:+254724028971">+254 724 028971</a></p>
-        <router-link to="/contact" class="contact-link">Get in Touch</router-link>
+        <router-link to="/contact" class="contact-link" @click="handleNavigationWithSidebarClose">Get in Touch</router-link>
       </div>
     </nav>
   </aside>
@@ -125,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, inject, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import IconHamburger from '../icons/IconHamburger.vue';
@@ -139,10 +143,6 @@ const router = useRouter();
 const store = useEcommerceStore();
 
 // Use inject with fallbacks to prevent errors
-const openTrackOrder = inject('openTrackOrder', () => {
-  console.warn('openTrackOrder not provided, using fallback');
-  return () => {};
-});
 const openRequestMOQ = inject('openRequestMOQ', () => {
   console.warn('openRequestMOQ not provided, using fallback');
   return () => {};
@@ -166,6 +166,8 @@ const navbar = ref(null);
 const searchContainer = ref(null);
 let debounceTimeout = null;
 let hideTimeout = null;
+let resizeTimeout = null;
+let shouldCloseSidebar = ref(false);
 
 // Computed property to access search suggestions from the store
 const suggestions = computed(() => {
@@ -187,8 +189,10 @@ watch(query, (newQuery) => {
       store.fetchSearchSuggestions(newQuery);
       showSuggestions.value = true;
       hideTimeout = setTimeout(() => {
-        showSuggestions.value = false;
-        console.log('Suggestions hidden after 3s timeout');
+        setTimeout(() => {
+          showSuggestions.value = false;
+          console.log('Suggestions hidden after 3s timeout');
+        }, 100);
       }, 6000);
     } else {
       store.searchSuggestions = [];
@@ -216,6 +220,15 @@ const closeSidebar = () => {
   document.body.style.overflow = '';
 };
 
+const handleNavigationWithSidebarClose = () => {
+  shouldCloseSidebar.value = true;
+};
+
+const handleRequestMOQ = () => {
+  openRequestMOQ();
+  closeSidebar();
+};
+
 const toggleCategories = () => {
   isCategoriesOpen.value = !isCategoriesOpen.value;
 };
@@ -232,7 +245,7 @@ const performSearch = async () => {
   store.setSearchLoading(true);
   try {
     const response = await fetch(
-      `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query.value)}`
+      `http://127.0.0.1:8000/api/products/search/?search=${encodeURIComponent(query.value)}`
     );
     if (!response.ok) throw new Error('Failed to fetch products');
     const data = await response.json();
@@ -282,23 +295,30 @@ const handleOutsideClick = (event) => {
   }
 };
 
-const updateContentOffset = () => {
+const updateContentOffset = async () => {
+  if (!navbar.value || !searchContainer.value) return;
+  await nextTick();
   const mainContent = document.querySelector('main.main-content');
-  if (mainContent && navbar.value && searchContainer.value) {
+  if (mainContent) {
     const navbarHeight = navbar.value.offsetHeight;
-    const searchHeight = isMobile.value && !isSearchOpen.value ? 0 : searchContainer.value.offsetHeight;
+    const searchHeight = (isMobile.value && !isSearchOpen.value) ? 0 : searchContainer.value.offsetHeight;
     const totalHeight = navbarHeight + searchHeight;
     mainContent.style.marginTop = `${totalHeight}px`;
   }
 };
 
 const updateScreenSize = () => {
-  isMobile.value = window.innerWidth <= 500;
-  if (!isMobile.value) {
-    isSearchOpen.value = false;
-    showSuggestions.value = false;
+  if (resizeTimeout) {
+    clearTimeout(resizeTimeout);
   }
-  updateContentOffset();
+  resizeTimeout = setTimeout(() => {
+    isMobile.value = window.innerWidth <= 500;
+    if (!isMobile.value) {
+      isSearchOpen.value = false;
+      showSuggestions.value = false;
+    }
+    updateContentOffset();
+  }, 100);
 };
 
 const categories = computed(() => store.categories);
@@ -310,11 +330,21 @@ onMounted(() => {
     store.fetchCategories();
   }
   updateContentOffset();
+
+  router.afterEach(() => {
+    if (shouldCloseSidebar.value) {
+      closeSidebar();
+      shouldCloseSidebar.value = false;
+    }
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateScreenSize);
   document.removeEventListener('click', handleOutsideClick);
+  if (debounceTimeout) clearTimeout(debounceTimeout);
+  if (hideTimeout) clearTimeout(hideTimeout);
+  if (resizeTimeout) clearTimeout(resizeTimeout);
   document.body.style.overflow = '';
   const mainContent = document.querySelector('main.main-content');
   if (mainContent) {
@@ -394,19 +424,20 @@ onUnmounted(() => {
   width: calc(100% - 2rem);
   margin: 0 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
 }
 
 .search-container.is-open {
-  display: flex;
   opacity: 1;
   transform: translateY(0);
+  visibility: visible;
 }
 
 .search-container:not(.is-open) {
-  display: none;
   opacity: 0;
   transform: translateY(-10px);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .search-input {
@@ -481,7 +512,7 @@ onUnmounted(() => {
   width: 280px;
   height: 100vh;
   background-color: #fff;
-  transition: left 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out;
   padding: 1.5rem;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   overflow-y: auto;
@@ -489,7 +520,7 @@ onUnmounted(() => {
 }
 
 .sidebar.open {
-  left: 0;
+  transform: translateX(280px);
 }
 
 .close-btn {

@@ -18,6 +18,11 @@ export const useEcommerceStore = defineStore('ecommerce', {
       searchResults: [],
       totalSearchResults: 0,
       searchLoading: false,
+      orderSearchSuggestions: [],
+      orderSearchResults: [],
+      orderSearchLoading: false,
+      pickupCategories: JSON.parse(localStorage.getItem('pickupCategories')) || [],
+      pickupCategoriesPagination: { nextPage: 1, hasMore: false, totalCount: 0 },
       recentSearches: JSON.parse(localStorage.getItem("recentSearches")) || [],
       searchSuggestions: [],
       categories: [],
@@ -35,6 +40,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       orders: [],
       completedOrders: [],
       dashboardData: null,
+      payAndPickCart: JSON.parse(localStorage.getItem('payAndPickCart')) || [],
       loading: {
         categories: false,
         categoryProducts: false,
@@ -50,6 +56,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         auth: false,
         profile: false,
         dashboard: false,
+        pickupCategories: false,
       },
       error: {
         categories: null,
@@ -66,6 +73,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
         auth: null,
         profile: null,
         dashboard: null,
+        pickupCategories: null,
       },
     };
 
@@ -271,6 +279,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
       try {
         const response = await api.login(this.apiInstance, username, password);
+        console.log('Login response:', response);
         this.authToken = response.token;
         localStorage.setItem('authToken', response.token);
         this.userId = response.user_id;
@@ -278,11 +287,31 @@ export const useEcommerceStore = defineStore('ecommerce', {
           id: response.user_id,
           username: response.username,
         };
-        await this.fetchCurrentUserInfo();
-        await this.syncCartWithBackend();
+        localStorage.setItem('userId', response.user_id);
+        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+
+        // Attempt to fetch user info
+        try {
+          console.log('Fetching user info...');
+          await this.fetchCurrentUserInfo();
+
+        } catch (userInfoError) {
+          console.error('Failed to fetch user info after login:', userInfoError.response?.data || userInfoError.message);
+          console.log('done')
+        }
+
+        // Attempt to sync cart
+        try {
+          console.log('Syncing cart...');
+          await this.syncCartWithBackend();
+           console.log('done2')
+        } catch (cartError) {
+          console.error('Failed to sync cart after login:', cartError.response?.data || cartError.message);
+        }
+
         return response;
       } catch (error) {
-        console.error('Login failed:', error);
+        console.error('Login failed:', error.response?.data || error.message);
         this.showAuthModal = true;
         throw error;
       }
@@ -467,7 +496,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async fetchLatestProducts(limit) {
-      const response = await axios.get(`https://mustardimports.co.ke/api/products/latest/?limit=${limit}`, {
+      const response = await axios.get(`http://127.0.0.1:8000//api/products/latest/?limit=${limit}`, {
         headers: {
 
         },
@@ -602,10 +631,13 @@ export const useEcommerceStore = defineStore('ecommerce', {
           order_id: orderId,
           phone_number: phoneNumber,
         });
+        toast.success('Payment initiated successfully!', { autoClose: 2000 });
         return response.data;
       } catch (error) {
         console.error('Initiate payment error:', error.response?.data || error.message);
-        throw error;
+        const errorMessage = error.response?.data?.error || 'Failed to initiate payment. Please try again.';
+        toast.error(errorMessage, { autoClose: 3000 });
+        throw new Error(errorMessage);
       }
     },
 
@@ -752,6 +784,32 @@ export const useEcommerceStore = defineStore('ecommerce', {
         this.loading.allCategoriesWithProducts = false;
       }
     },
+    // Existing actions
+    async fetchPickupCategories(page = 1) {
+      if (!this.apiInstance) {
+        this.initializeApiInstance();
+      }
+      this.loading.pickupCategories = true;
+      this.error.pickupCategories = null;
+      try {
+        const data = await api.fetchPickupCategories(this.apiInstance, page);
+        if (!data.results || !Array.isArray(data.results)) {
+          throw new Error('Expected data.results to be an array');
+        }
+        this.pickupCategories = [...this.pickupCategories, ...data.results];
+        this.pickupCategoriesPagination = {
+          nextPage: data.next ? page + 1 : null,
+          hasMore: !!data.next,
+          totalCount: data.count || 0,
+        };
+        localStorage.setItem('pickupCategories', JSON.stringify(this.pickupCategories));
+      } catch (error) {
+        this.error.pickupCategories = error.response?.data?.error || 'Failed to load pickup categories';
+        toast.error(this.error.pickupCategories, { autoClose: 3000 });
+      } finally {
+        this.loading.pickupCategories = false;
+      }
+    },
 
     async fetchCategories() {
       if (!this.apiInstance) {
@@ -830,7 +888,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async fetchSearchSuggestions(query) {
       try {
         const response = await fetch(
-          `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
+          `http://127.0.0.1:8000//api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
         );
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -1004,10 +1062,40 @@ export const useEcommerceStore = defineStore('ecommerce', {
         throw new Error(error.message || 'Failed to delete delivery location');
       }
     },
+      
+    async searchAdminOrders(query, status, page = 1, perPage = 10) {
+    if (!this.apiInstance) {
+      this.initializeApiInstance();
+    }
+    this.orderSearchLoading = true;
+    try {
+      const response = await api.searchOrders(this.apiInstance, query, status, page, perPage);
+      this.orderSearchResults = response.results || [];
+      return response;
+    } catch (error) {
+      console.error('Error searching admin orders:', error);
+      throw error;
+    } finally {
+      this.orderSearchLoading = false;
+    }
+    },
+
+    async fetchOrderSearchSuggestions(query) {
+    if (!this.apiInstance) {
+      this.initializeApiInstance();
+    }
+    try {
+      const suggestions = await api.searchSuggestions(this.apiInstance, query);
+      this.orderSearchSuggestions = suggestions;
+    } catch (error) {
+      console.error('Error fetching order search suggestions:', error);
+      this.orderSearchSuggestions = [];
+    }
+    },
   },
   persist: {
     key: 'ecommerce-search-history',
-    paths: ['recentSearches', 'dashboardData'],
+    paths: ['recentSearches', 'dashboardData','payAndPickCart', 'pickupCategories', 'pickupCategoriesPagination', 'searchResults', 'totalSearchResults', 'searchSuggestions', 'categories', 'relatedProducts', 'categoryProducts', 'allCategoriesWithProducts', 'allhomeCategoriesWithProducts', 'homeCategoriesPagination', 'deliveryLocations', 'productDetails', 'orders', 'completedOrders'],
     storage: localStorage,
   },
 });

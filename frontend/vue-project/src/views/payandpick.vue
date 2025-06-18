@@ -1,13 +1,11 @@
 <template>
   <MainLayout>
-    <section class="top-row-home" aria-label="Featured Content">
-      <RecentCampaigns v-if="!isMobile" />
-      <HomeCarousel/>
-      <RecentSearches v-if="!isMobile" />
-    </section>
-    <main id="homePage" aria-label="Product Categories">
-      <!-- Initial loading skeleton -->
-      <div v-if="store.loading.allhomeCategoriesWithProducts && !store.allhomeCategoriesWithProducts?.length" class="skeleton-container">
+    <main id="payAndPickPage" aria-label="Pay & Pick Products">
+      <section class="pickup-header" aria-label="Pay & Pick Information">
+        <h2 class="pickup-title">Pay & Pick Up at Our Store</h2>
+        <p class="pickup-info">Select items, pay online, and pick up at MustardImports Store, Nairobi CBD.</p>
+      </section>
+      <div v-if="store.loading.pickupCategories && !store.pickupCategories.length" class="skeleton-container">
         <div v-for="n in 2" :key="n" class="skeleton-category">
           <div class="skeleton-title"></div>
           <div class="skeleton-products">
@@ -15,23 +13,13 @@
           </div>
         </div>
       </div>
-      <!-- Error state -->
-      <div v-else-if="store.error.allhomeCategoriesWithProducts" class="error">
-        {{ store.error.allhomeCategoriesWithProducts }}
+      <div v-else-if="store.error.pickupCategories" class="error">
+        {{ store.error?.pickupCategories }}
         <button @click="retryFetch" class="retry-button">Retry</button>
       </div>
-      <!-- Empty state with admin prompt -->
-      <div v-else-if="!store.allhomeCategoriesWithProducts?.length" class="empty">
-        No categories available.
-        <div v-if="isAdmin" class="admin-prompt">
-          <p>Please add categories in the admin panel to display products.</p>
-          <button @click="goToAdminPanel" class="admin-button">Go to Admin Panel</button>
-        </div>
-      </div>
-      <!-- Categories and lazy loading -->
-      <section v-else class="categories-container" aria-label="Browse Categories">
+      <section class="categories-container" aria-label="Browse Pickup Categories">
         <article
-          v-for="category in store.allhomeCategoriesWithProducts"
+          v-for="category in store.pickupCategories"
           :key="category.id"
           class="category-card"
         >
@@ -39,7 +27,7 @@
             <h2 class="category-title">{{ category.name }}</h2>
             <router-link
               v-if="category.products && category.products.length > 0"
-              :to="`/category/${category.slug}/products`"
+              :to="`/category/${category.slug}/products?pickup=true`"
               class="see-more-link"
             >
               See More
@@ -54,7 +42,8 @@
               <router-link
                 :to="{
                   name: 'product-detail',
-                  params: { categorySlug: category.slug, productSlug: product.slug }
+                  params: { categorySlug: category.slug, productSlug: product.slug },
+                  query: { pickup: true }
                 }"
                 class="product-link"
               >
@@ -67,62 +56,50 @@
                 <h3 class="product-name">{{ product.name }}</h3>
                 <div class="product-price">
                   <span class="price-highlight">KES {{ product.price }}</span>
-                  <span v-if="product.below_moq_price" class="below-moq-price">
-                    Below MOQ Price: KES {{ product.below_moq_price }}
-                  </span>
-                  <span v-else class="below-moq-price">Below MOQ Price: NA</span>
                 </div>
-                <p class="moq-info">MOQ: {{ product.moq }} items</p>
-                <div v-if="product.moq_progress" class="moq-progress-container">
-                  <div
-                    class="moq-progress-bar"
-                    :style="{ width: Math.min(100, product.moq_progress.percentage) + '%' }"
-                  ></div>
-                  <span class="moq-progress-text">
-                    {{ product.moq_progress.percentage }}%
-                  </span>
+                <div v-if="product.inventory" class="inventory-info">
+                  <p class="availability">
+                    Available: <span class="stock-count">{{ product.inventory.quantity }}</span> units
+                  </p>
+                  <p
+                    v-if="product.inventory.quantity <= product.inventory.low_stock_threshold"
+                    class="low-stock-warning"
+                  >
+                    Only {{ product.inventory.quantity }} left!
+                  </p>
                 </div>
-                <div v-else class="moq-progress-container">
-                  <div
-                    class="moq-progress-bar"
-                    :style="{ width: 0 + '%' }"
-                  ></div>
-                  <span class="moq-progress-text">
-                    0%
-                  </span>
+                <div v-else class="inventory-info">
+                  <p class="availability">Out of Stock</p>
                 </div>
               </router-link>
             </article>
           </div>
           <div v-else class="no-products">
-            No products available
+            No products available for pickup
           </div>
         </article>
-        <!-- Lazy loading skeleton -->
         <div
-          v-if="store.loading.allhomeCategoriesWithProducts && store.allhomeCategoriesWithProducts?.length"
-          class="skeleton-container lazy-loading-skeleton"
+          v-if="store.loading && store.pickupCategories.length"
+          class="skeleton-container loading-skeleton"
         >
           <div v-for="n in 1" :key="'lazy-' + n" class="skeleton-category">
-            <div class="skeleton-title"></div>
+            <div class="skeleton"></div>
             <div class="skeleton-products">
               <div v-for="i in 4" :key="'lazy-product-' + i" class="skeleton-product"></div>
             </div>
           </div>
         </div>
-        <!-- Sentinel for lazy loading -->
         <div
-          v-if="store.homeCategoriesPagination.hasMore"
+          v-if="store.pickupCategoriesPagination.hasMorePages"
           ref="loadMoreSentinel"
           class="load-more-sentinel"
           aria-hidden="true"
         ></div>
-        <!-- Loading more text -->
         <div
-          v-if="store.loading.allhomeCategoriesWithProducts && store.allhomeCategoriesWithProducts?.length"
+          v-if="store.loading && store.pickupCategories.length"
           class="loading-more"
         >
-          Loading more categories...
+          Loading more...
         </div>
       </section>
     </main>
@@ -130,105 +107,18 @@
 </template>
 
 <script>
-import { onMounted, ref, onUnmounted, nextTick, computed } from 'vue';
+import { onMounted, ref, onUnmounted, nextTick } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import { useHead } from '@vueuse/head';
-import { useRouter } from 'vue-router';
+import { toast } from 'vue3-toastify';
 import MainLayout from '@/components/navigation/MainLayout.vue';
-import RecentCampaigns from '@/components/home/recents/RecentCampaigns.vue';
-import RecentSearches from '@/components/home/recents/RecentSearches.vue';
-import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
-
 export default {
+  name: 'PayAndPick',
   setup() {
     const store = useEcommerceStore();
-    const router = useRouter();
     const loadMoreSentinel = ref(null);
-    const isMobile = ref(window.innerWidth <= 650);
     let observer = null;
     const maxRetries = 5;
-    let retryCount = 0;
-
-    const allhomeCategoriesWithProducts = computed(() => store.allhomeCategoriesWithProducts || []);
-    const isAdmin = computed(() => store.user?.user_type === 'admin');
-
-    useHead({
-      title: 'MustardImports - Buy Quality Products Online',
-      meta: [
-        {
-          name: 'description',
-          content: 'Shop a wide range of quality products at MustardImports. Discover top categories, exclusive deals, and fast delivery across Kenya.',
-        },
-        {
-          name: 'keywords',
-          content: 'e-commerce, online shopping, Kenya, electronics, home appliances, clothing, footwear',
-        },
-        {
-          property: 'og:title',
-          content: 'MustardImports - Buy Quality Products Online',
-        },
-        {
-          property: 'og:description',
-          content: 'Explore top categories and exclusive deals at MustardImports. Shop now for fast delivery across Kenya!',
-        },
-        {
-          property: 'og:type',
-          content: 'website',
-        },
-        {
-          property: 'og:url',
-          content: window.location.href,
-        },
-        {
-          property: 'og:image',
-          content: 'https://yourdomain.com/images/og-image.jpg',
-        },
-        {
-          name: 'twitter:card',
-          content: 'summary_large_image',
-        },
-        {
-          name: 'twitter:title',
-          content: 'MustardImports - Buy Quality Products Online',
-        },
-        {
-          name: 'twitter:description',
-          content: 'Shop quality products with fast delivery at MustardImports. Explore now!',
-        },
-        {
-          name: 'twitter:image',
-          content: 'https://yourdomain.com/images/twitter-image.jpg',
-        },
-      ],
-      link: [
-        {
-          rel: 'canonical',
-          href: window.location.href,
-        },
-      ],
-      script: [
-        {
-          type: 'application/ld+json',
-          innerHTML: computed(() => JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'CollectionPage',
-            name: 'MustardImports Home',
-            description: 'Shop a wide range of quality products at MustardImports.',
-            url: window.location.href,
-            publisher: {
-              '@type': 'Organization',
-              name: 'MustardImports',
-              logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
-            },
-            hasPart: (allhomeCategoriesWithProducts.value || []).map(category => ({
-              '@type': 'Collection',
-              name: category.name,
-              url: `${window.location.origin}/category/${category.slug}/products`,
-            })),
-          })),
-        },
-      ],
-    });
 
     const debounce = (func, wait) => {
       let timeout;
@@ -238,28 +128,31 @@ export default {
       };
     };
 
-    const retryFetch = () => {
+    const fetchPickupCategories = async () => {
+      store.pickupCategories = [];
+      store.pickupCategoriesPagination = { nextPage: 1, hasMorePages: true, totalCount: 0 };
+      if (observer && loadMoreSentinel.value) {
+        observer.unobserve(loadMoreSentinel.value);
+        observer = null;
+      }
+      await store.fetchPickupCategories(1);
+      if (store.pickupCategories.length && store.pickupCategoriesPagination.hasMorePages) {
+        await nextTick(() => setupObserver());
+      }
+    };
+
+    const retryFetch = async () => {
       console.log('Retrying fetch for page 1');
-      store.error.allhomeCategoriesWithProducts = null;
-      store.allhomeCategoriesWithProducts = [];
-      store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
-      store.fetchHomeCategories(1).then(() => {
-        if (!allhomeCategoriesWithProducts.value?.length) {
-          store.error.allhomeCategoriesWithProducts = 'No categories found. Please add categories in the admin panel.';
-        } else if (store.homeCategoriesPagination.hasMore) {
-          nextTick(() => setupObserver());
-        }
-      }).catch((err) => {
-        store.error.allhomeCategoriesWithProducts = err.message || 'Failed to fetch categories.';
-      });
+      await fetchPickupCategories();
     };
 
     const setupObserver = async () => {
-      if (!allhomeCategoriesWithProducts.value?.length) {
+      if (!store.pickupCategories.length || !store.pickupCategoriesPagination.hasMorePages) {
+        console.log('No categories or no more pages, skipping observer setup');
         return;
       }
       await nextTick();
-      retryCount = 0;
+      let retryCount = 0;
       const trySetup = () => {
         if (loadMoreSentinel.value) {
           console.log('Setting up IntersectionObserver for sentinel');
@@ -267,11 +160,11 @@ export default {
             debounce((entries) => {
               if (
                 entries[0].isIntersecting &&
-                store.homeCategoriesPagination.hasMore &&
-                !store.loading.allhomeCategoriesWithProducts
+                store.pickupCategoriesPagination.hasMorePages &&
+                !store.loading.pickupCategories
               ) {
-                console.log('Fetching next page:', store.homeCategoriesPagination.nextPage);
-                store.fetchHomeCategories(store.homeCategoriesPagination.nextPage);
+                console.log('Fetching next page:', store.pickupCategoriesPagination.nextPage);
+                store.fetchPickupCategories(store.pickupCategoriesPagination.nextPage);
               }
             }, 300),
             {
@@ -292,50 +185,109 @@ export default {
       trySetup();
     };
 
-    const goToAdminPanel = () => {
-      router.push('/admin');
-    };
+    useHead({
+      title: 'MustardImports - Pay & Pick',
+      meta: [
+        {
+          name: 'description',
+          content: 'Shop products available for pickup at MustardImports Store, Nairobi CBD. Select items, pay, and collect quickly.',
+        },
+        {
+          name: 'keywords',
+          content: 'pay and pick, pickup, e-commerce, Kenya, MustardImports',
+        },
+        {
+          property: 'og:title',
+          content: 'MustardImports - Pay & Pick',
+        },
+        {
+          property: 'og:description',
+          content: 'Select and pay for products to pick up at MustardImports Store.',
+        },
+        {
+          property: 'og:type',
+          content: 'website',
+        },
+        {
+          property: 'og:url',
+          content: window.location.href,
+        },
+        {
+          property: 'og:image',
+          content: 'https://yourdomain.com/images/og-image.jpg',
+        },
+        {
+          name: 'twitter:card',
+          content: 'summary_large_image',
+        },
+        {
+          name: 'twitter:title',
+          content: 'MustardImports - Pay & Pick',
+        },
+        {
+          name: 'twitter:description',
+          content: 'Shop and pick up products with ease at MustardImports Store.',
+        },
+        {
+          name: 'twitter:image',
+          content: 'https://yourdomain.com/images/twitter-image.jpg',
+        },
+      ],
+      link: [
+        {
+          rel: 'canonical',
+          href: window.location.href,
+        },
+      ],
+      script: [
+        {
+          type: 'application/ld+json',
+          children: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: 'MustardImports Pay & Pick',
+            description: 'Shop products available for pickup at MustardImports Store.',
+            url: window.location.href,
+            publisher: {
+              '@type': 'Organization',
+              name: 'MustardImports',
+              logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+            },
+            hasPart: store.pickupCategories.slice(0, 4).map(category => ({
+              '@type': 'Collection',
+              name: category.name,
+              url: `${window.location.origin}/category/${category.slug}/products?pickup=true`,
+            })),
+          }),
+        },
+      ],
+    });
 
-    onMounted(() => {
-      store.allhomeCategoriesWithProducts = [];
-      store.homeCategoriesPagination = { nextPage: 1, hasMore: true, totalCount: 0 };
-      store.fetchHomeCategories(1).then(() => {
-        if (!allhomeCategoriesWithProducts.value?.length) {
-          store.error.allhomeCategoriesWithProducts = 'No categories found. Please add categories in the admin panel.';
-        } else if (store.homeCategoriesPagination.hasMore) {
-          nextTick(() => setupObserver());
-        }
-      });
-      window.addEventListener('resize', updateScreenSize);
+    onMounted(async () => {
+      await fetchPickupCategories();
     });
 
     onUnmounted(() => {
-      if (observer && loadMoreSentinel.value) {
-        console.log('Cleaning up IntersectionObserver');
-        observer.unobserve(loadMoreSentinel.value);
+      if (observer) {
+        observer.disconnect();
         observer = null;
       }
-      window.removeEventListener('resize', updateScreenSize);
     });
 
-    const updateScreenSize = () => {
-      isMobile.value = window.innerWidth <= 650;
+    return {
+      store,
+      loadMoreSentinel,
+      retryFetch,
     };
-
-    return { store, loadMoreSentinel, retryFetch, isMobile, isAdmin, goToAdminPanel, allhomeCategoriesWithProducts };
   },
   components: {
     MainLayout,
-    RecentCampaigns,
-    RecentSearches,
-    HomeCarousel,
   },
 };
 </script>
 
 <style scoped>
 /* Base styles */
-
 .load-more-sentinel {
   height: 50px;
   width: 100%;
@@ -516,50 +468,6 @@ export default {
   color: #D4A017;
 }
 
-.below-moq-price {
-  font-size: 0.75rem;
-}
-
-.moq-info {
-  font-size: 0.8rem;
-  margin: 0.5rem 0;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: inline-block;
-}
-
-.moq-progress-container {
-  position: relative;
-  width: 100%;
-  height: 20px;
-  background-color: #e6f4ea;
-  border-radius: 20px;
-  overflow: hidden;
-  margin-top: auto;
-}
-
-.moq-progress-bar {
-  height: 100%;
-  padding: 2px;
-  background: linear-gradient(45deg, #62c87a, #6dc480);
-  transition: width 0.5s ease;
-}
-
-.moq-progress-text {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #333;
-  font-size: 0.65rem;
-  font-weight: bold;
-  text-shadow: 0 0 2px #fff;
-}
-
 .no-products {
   display: flex;
   justify-content: center;
@@ -590,7 +498,7 @@ export default {
   justify-content: space-between;
 }
 
-.lazy-loading-skeleton {
+.loading-skeleton {
   margin-top: 1rem;
   width: 100%;
 }
@@ -614,7 +522,7 @@ export default {
 
 .skeleton-products {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
 }
 
@@ -624,20 +532,6 @@ export default {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 10px;
-}
-
-/* In HomePage.vue or a shared stylesheet */
-.top-row-home {
-  display: flex;
-  flex-direction: row;
-  gap: 1rem;
-  margin: 1rem 2%;
-  align-items: center;
-  max-width: 100%;
-  box-sizing: border-box;
-  flex-wrap: nowrap;
-  height: 100%; /* Ensure full height */
-  justify-content:center;
 }
 
 @keyframes shimmer {
@@ -725,16 +619,8 @@ export default {
 
 /* Mobile adjustments for <650px */
 @media (max-width: 650px) {
-  .top-row-home {
-    flex-direction: column;
-    gap: 0.5rem;
-    margin: 0.5rem 2%;
-    margin-bottom: 0;
-    padding-top: 6rem;
-    height: 100%; /* Full height on mobile */
-  }
   .categories-container {
-    padding: 0 2%; /* Reduced padding-top */
+    padding: 0 2%;
     gap: 1rem;
     flex-direction: column;
   }
@@ -792,19 +678,6 @@ export default {
   .price-highlight {
     font-size: 0.9rem;
   }
-  .below-moq-price {
-    font-size: 0.7rem;
-  }
-  .moq-info {
-    font-size: 0.75rem;
-    padding: 2px 6px;
-  }
-  .moq-progress-container {
-    height: 16px;
-  }
-  .moq-progress-text {
-    font-size: 0.6rem;
-  }
   .retry-button {
     padding: 0.6rem 1.2rem;
     font-size: 0.9rem;
@@ -816,17 +689,6 @@ export default {
   .load-more-sentinel {
     height: 40px;
     margin-top: 15px;
-  }
-  .top-row-home > * {
-    width: 100%; /* Ensure each section uses full width on mobile */
-    height: 100%; /* Ensure full height on mobile */
-  }
-  .HomeCarousel {
-    flex: 1; /* Allow carousel to expand and fit */
-    min-height: 100px; /* Match mobile height */
-    margin: 0; /* Preserve padding while fitting */
-    padding: 0 1rem; /* Maintain existing padding */
-    
   }
 }
 
@@ -846,19 +708,80 @@ export default {
   .product-price {
     font-size: 0.85rem;
   }
-  .moq-info {
-    font-size: 0.7rem;
-  }
   .skeleton-product {
     height: 260px;
   }
   .products-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    gap: 1rem;
   }
   .skeleton-products {
     grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    gap: 1rem;
+  }
+}
+
+.product-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  cursor: pointer;
+}
+
+.product-link:hover .product-name,
+.product-link:hover .price-highlight {
+  color: #e67d21;
+}
+
+.low-stock-warning {
+  color: #d9534f;
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-top: 0.25rem;
+}
+
+.pickup-header {
+  padding: 1.5rem 3%;
+  text-align: center;
+}
+
+.pickup-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #D4A017;
+  margin-bottom: 0.5rem;
+}
+
+.pickup-info {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.inventory-info {
+  margin-top: 0.5rem;
+}
+
+.availability {
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.stock-count {
+  font-weight: 600;
+  color: #D4A017;
+}
+
+@media (max-width: 650px) {
+  .pickup-header {
+    padding-top: 4.0rem ;
+
+  }
+  .pickup-title {
+    font-size: 1.25rem;
+  }
+  .pickup-info {
+    font-size: 0.9rem;
   }
 }
 </style>

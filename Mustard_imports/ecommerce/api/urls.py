@@ -11,13 +11,13 @@ from .views import (
     update_cart_item_quantity, remove_cart_item, 
     get_user_orders, test_image, 
     process_payment, get_payment_details, DeliveryLocationView,
-    autocomplete, place_details, logout_view, mpesa_callback, 
+    logout_view, mpesa_callback, 
     create_order_from_cart, update_order_shipping, GoogleAuthView,
     ChangePasswordView, latest_products, random_products,
     AdminRegisterView, AdminLoginView, AdminLogoutView, 
     AdminProfileView, admin_dashboard, ProductReviewsView,
     RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods,shipping_methods1, shipping_method_detail1,
+    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods,shipping_methods1, shipping_method_detail1,pickup_home_categories,CountiesView,WardsView, SendOTPView, ForgotPasswordView, ResetPasswordView, VerifyOTPView
 )
 
 router = routers.DefaultRouter()
@@ -58,6 +58,10 @@ urlpatterns = [
     path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
     path('auth/change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('auth/user/me', get_current_user, name='get_current_user'),
+    path('auth/send-otp/', SendOTPView.as_view(), name='send-otp'),
+    path('auth/verify-otp/',VerifyOTPView.as_view(), name='verify-otp'),
+    path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
+    path('auth/reset-password/<str:token>/', ResetPasswordView.as_view(), name='reset-password'),
 
     # Products and search
     path('products/search/', search, name='search'), 
@@ -71,7 +75,8 @@ urlpatterns = [
     path('all-categories-with-products/', AllCategoriesWithProductsView.as_view(), name='all-categories-with-products'),
     path('test-image/', test_image, name='test-image'),
     path('home-categories/', HomeCategoriesView.as_view(), name='home-categories'),
-
+    path('home-categories/pickup/', pickup_home_categories, name='pickup_home_categories'),
+    
     # Cart and orders
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
     path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),
@@ -99,6 +104,8 @@ urlpatterns = [
     path('user/delivery-locations/', DeliveryLocationView.as_view(), name='delivery_locations'),
     path('user/delivery-locations/<int:location_id>/', DeliveryLocationView.as_view(), name='delivery_location_detail'),
     path('user/delivery-locations/<int:location_id>/set-default/', DeliveryLocationView.as_view(), name='set_default_location'),
-    path('autocomplete/', autocomplete, name='autocomplete'),
-    path('place-details/', place_details, name='place_details'),
+    path('delivery-locations/', DeliveryLocationView.as_view(), name='delivery_locations'),
+    path('counties/', CountiesView.as_view(), name='counties'),
+    path('wards/', WardsView.as_view(), name='wards'),
+
 ]

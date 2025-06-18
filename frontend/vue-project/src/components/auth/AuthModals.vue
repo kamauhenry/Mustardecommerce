@@ -1,67 +1,23 @@
 <template>
   <div class="auth-buttons">
     <template v-if="store.isAuthenticated">
-      <!-- <span class="welcome-text">Welcome, {{ store.username }}</span> -->
       <button @click="store.logout" class="icon-button">
         <LogoutIcon />
       </button>
     </template>
     <template v-else>
-      <button @click="openLoginModal" class="icon-button">
+      <button @click="openAuthModal" class="icon-button">
         <LoginIcon />
       </button>
     </template>
 
-    <Modal :isOpen="showLoginModal" @close="closeModals">
+    <Modal :isOpen="showAuthModal" @close="closeModal">
       <div class="modal-header">
         <div class="logo">
           <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
         </div>
-        <div class="tabs">
-          <button
-            class="tab active"
-            @click="switchToLogin"
-          >
-            LOGIN
-          </button>
-          <button
-            class="tab"
-            @click="switchToRegister"
-          >
-            REGISTER
-          </button>
-        </div>
       </div>
-      <LoginModal
-        @switch-to-register="switchToRegister"
-        @close="closeModals"
-      />
-    </Modal>
-
-    <Modal :isOpen="showRegisterModal" @close="closeModals">
-      <div class="modal-header">
-        <div class="logo">
-          <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
-        </div>
-        <div class="tabs">
-          <button
-            class="tab"
-            @click="switchToLogin"
-          >
-            LOGIN
-          </button>
-          <button
-            class="tab active"
-            @click="switchToRegister"
-          >
-            REGISTER
-          </button>
-        </div>
-      </div>
-      <RegisterModal
-        @switch-to-login="switchToLogin"
-        @close="closeModals"
-      />
+      <AuthModal @close="closeModal" />
     </Modal>
   </div>
 </template>
@@ -70,60 +26,41 @@
 import { ref, watch, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import Modal from '@/components/auth/Modal.vue';
-import LoginModal from '@/components/auth/LoginModal.vue';
-import RegisterModal from '@/components/auth/RegisterModal.vue';
-
-// Import the provided SVG icons as components
+import AuthModal from '@/components/auth/AuthModal.vue';
 import LoginIcon from '@/components/icons/IconLogin.vue';
 import LogoutIcon from '@/components/icons/IconLogout.vue';
 
 const props = defineProps({
   autoShowLogin: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
 
 const store = useEcommerceStore();
-const showLoginModal = ref(false);
-const showRegisterModal = ref(false);
-
+const showAuthModal = ref(false);
 
 onMounted(() => {
   if (props.autoShowLogin && !store.isAuthenticated) {
-    openLoginModal();
+    openAuthModal();
   }
 });
 
-watch(() => props.autoShowLogin, (newValue) => {
-  if (newValue && !store.isAuthenticated) {
-    openLoginModal();
+watch(
+  () => props.autoShowLogin,
+  (newValue) => {
+    if (newValue && !store.isAuthenticated) {
+      openAuthModal();
+    }
   }
-});
+);
 
-const openLoginModal = () => {
-  showLoginModal.value = true;
-  showRegisterModal.value = false;
+const openAuthModal = () => {
+  showAuthModal.value = true;
 };
 
-const openRegisterModal = () => {
-  showRegisterModal.value = true;
-  showLoginModal.value = false;
-};
-
-const switchToRegister = () => {
-  showLoginModal.value = false;
-  showRegisterModal.value = true;
-};
-
-const switchToLogin = () => {
-  showRegisterModal.value = false;
-  showLoginModal.value = true;
-};
-
-const closeModals = () => {
-  showLoginModal.value = false;
-  showRegisterModal.value = false;
+const closeModal = () => {
+  showAuthModal.value = false;
 };
 </script>
 
@@ -132,11 +69,6 @@ const closeModals = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.welcome-text {
-  font-size: 0.9rem;
-  color: #333;
 }
 
 .modal-header {
@@ -160,36 +92,6 @@ const closeModals = () => {
   margin-bottom: 0.5rem;
 }
 
-.tabs {
-  display: flex;
-  justify-content: center;
-  gap: 0;
-  width: 70%;
-}
-
-.tab {
-  flex: 1;
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #c9c9c9;
-  background-color: #ebebeb; /* Orange to match the screenshot */
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.tab.active {
-  background-color: #e2cf1f;
-  color: #ffffff;
-}
-
-.tab:hover {
-  background-color: #e2ce1f8f; /* Slightly darker orange on hover */
-}
-
-/* Style for the icon buttons */
 .icon-button {
   background: none;
   border: none;
@@ -202,28 +104,11 @@ const closeModals = () => {
   justify-content: center;
   width: 1.5rem;
   height: auto;
-  fill: #838636; /* Matches the fill color of the provided SVGs */
+  fill: #838636;
   transition: fill 0.3s ease;
 }
 
 .icon-button:hover svg {
-  fill:#D4A017; /* Orange on hover to match the theme */
-}
-
-/* Style for the text button (Register) */
-.text-button {
-  background: none;
-  border: none;
-  padding: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #838636;
-  cursor: pointer;
-  transition: color 0.3s ease;
-}
-
-.text-button:hover {
-  color:#D4A017; /* Orange on hover to match the theme */
+  fill: #D4A017;
 }
 </style>

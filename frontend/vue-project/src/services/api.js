@@ -20,7 +20,7 @@ const getCsrfTokenFromCookies = () => {
 export const createApiInstance = (store) => {
 
   const api = axios.create({
-    baseURL: 'https://mustardimports.co.ke/api/',
+    baseURL: 'http://127.0.0.1:8000/api/',
     timeout: 150000,
     withCredentials: true, // Ensure cookies are sent with requests
   });
@@ -28,19 +28,22 @@ export const createApiInstance = (store) => {
   // Request interceptor for auth token and CSRF token
   api.interceptors.request.use(
     (config) => {
-      // Add auth token
       const token = getAuthToken();
-
-      if (token) {
+      const publicEndpoints = [
+        'auth/forgot-password/',
+        'auth/send-otp/',
+        'auth/register/',
+        'auth/reset-password/', // Matches /auth/reset-password/{token}/
+        'auth/verify-otp/',
+        'auth/login/'
+      ];
+      if (token && !publicEndpoints.some(path => config.url.includes(path))) {
         config.headers['Authorization'] = `Token ${token}`;
       }
-      // Add CSRF token for non-safe methods
       if (['post', 'put', 'delete'].includes(config.method.toLowerCase())) {
         const csrfToken = getCsrfTokenFromCookies();
         if (csrfToken) {
           config.headers['X-CSRFToken'] = csrfToken;
-        } else {
-          console.warn('CSRF token not found in cookies');
         }
       }
       return config;
@@ -93,6 +96,7 @@ export const register = async (apiInstance, userData) => {
 export const login = async (apiInstance, username, password) => {
   if (!username || !password) {
     throw new Error('Username and password are required');
+    
   }
   
   try {
@@ -100,9 +104,11 @@ export const login = async (apiInstance, username, password) => {
     const token = response.data.token;
     localStorage.setItem('authToken', token);
     console.log('Login response:', response.data);
+    
     return response.data;
   } catch (error) {
     console.error('Login error details:', error.response?.data || error.message);
+    
     throw error;
   }
 };
@@ -124,7 +130,6 @@ export const googleAuth = async (apiInstance, googleToken) => {
 
 export const logout = async (api) => {
   try {
-    console.log('Sending logout request with token:', localStorage.getItem('authToken'));
     await api.post('auth/logout/');
     console.log('Logout successful');
   } catch (error) {
@@ -420,7 +425,15 @@ export const fetchAllCategoriesWithProducts = async (apiInstance) => {
   }
 };
 
-
+export const fetchPickupCategories = async (apiInstance, page = 1) => {
+  try {
+    const response = await apiInstance.get(`home-categories/pickup/?page=${page}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching pickup categories:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
 export const fetchHomeCategories = async (apiInstance, page = 1) => {
   try {
@@ -451,11 +464,21 @@ export const fetchCart = async (api, userId) => {
     throw error;
   }
 };
+export const fetchOrder = async (apiInstance, orderId) => {
+  try {
+    const cleanOrderId = orderId
+    const response = await apiInstance.get(`/orders/${cleanOrderId}/`);
+    return response.data;
+  } catch (error) {
+    console.error('Fetch order error:', error.response?.data || error.message);
+    throw error;
+  }
+};
 
 export const fetchOrders = async (api, userId) => {
   if (!userId) throw new Error('User ID not set');
   try {
-    const response = await api.get(`orders/user-orders/?user=${userId}`);
+    const response = await api.get(`orders/?user=${userId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching orders:', error.response?.data || error.message);
@@ -648,11 +671,50 @@ export const fetchAllOrdersAdmin = async (apiInstance, params = {}) => {
 
 export const getMOQFulfilledProducts = async (apiInstance) => {
   try {
-    const response = await apiInstance.get('admin/moq-fulfilled-products/');
+    const response = await apiInstance.get('admin/moq-fulfilled-products/', {
+      params: {
+        moq_status: 'active', // Explicitly filter for active MOQ status
+        _t: Date.now() // Cache-busting
+      }
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching MOQ fulfilled products:', error.response?.data || error.message);
     throw error;
+  }
+};
+export const searchOrders = async (apiInstance, query, status, page = 1, perPage = 10) => {
+  try {
+    const response = await apiInstance.get('admin/orders/', {
+      params: {
+        search: query,
+        delivery_status: status,
+        page,
+        per_page: perPage,
+        _t: Date.now()
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching orders:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export const searchSuggestions = async (apiInstance, query) => {
+  try {
+    const response = await apiInstance.get('admin/orders/', {
+      params: {
+        search: query,
+        per_page: 5,
+        fields: 'order_number',
+        _t: Date.now()
+      }
+    });
+    return response.data.results.map(order => order.order_number) || [];
+  } catch (error) {
+    console.error('Error fetching search suggestions:', error.response?.data || error.message);
+    return [];
   }
 };
 
@@ -758,6 +820,7 @@ export default {
   fetchAllCategoriesWithProducts,
   fetchCart,
   fetchOrders,
+  fetchOrder,
   fetchCompletedOrders,
   createCart,
   addToCart,
@@ -785,5 +848,10 @@ export default {
   deleteShippingMethod,
   updateShippingMethod,
   createShippingMethod,
+  fetchPickupCategories,
+  searchOrders,
+  searchSuggestions,
+
+  fetchDeliveryLocations: getDeliveryLocations,
 
 };

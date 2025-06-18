@@ -16,20 +16,7 @@
         <div class="logo">
           <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
         </div>
-        <div class="tabs">
-          <button
-            class="tab active"
-            @click="switchToLogin"
-          >
-            LOGIN
-          </button>
-          <button
-            class="tab"
-            @click="switchToRegister"
-          >
-            REGISTER
-          </button>
-        </div>
+
       </div>
       <LoginModal
         @switch-to-register="switchToRegister"
@@ -37,31 +24,7 @@
       />
     </Modal>
 
-    <Modal :isOpen="showRegisterModal" @close="closeModals">
-      <div class="modal-header">
-        <div class="logo">
-          <img src="@/assets/images/mustard-imports.png" alt="Mustard Imports Logo" class="logo-image" />
-        </div>
-        <div class="tabs">
-          <button
-            class="tab"
-            @click="switchToLogin"
-          >
-            LOGIN
-          </button>
-          <button
-            class="tab active"
-            @click="switchToRegister"
-          >
-            REGISTER
-          </button>
-        </div>
-      </div>
-      <RegisterModal
-        @switch-to-login="switchToLogin"
-        @close="closeModals"
-      />
-    </Modal>
+
   </div>
 </template>
 
@@ -69,8 +32,8 @@
 import { ref, watch, onMounted } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import Modal from '@/components/auth/Modal.vue';
-import LoginModal from '@/components/auth/LoginModal.vue';
-import RegisterModal from '@/components/auth/RegisterModal.vue';
+import LoginModal from '@/components/auth/AuthModal.vue';
+
 
 // Import the provided SVG icons as components
 import IconCart from '../icons/IconCart.vue';
@@ -81,10 +44,12 @@ const props = defineProps({
     default: false
   }
 });
+const emit = defineEmits(['close']);
+const closeModals = () => emit('close');
 
 const store = useEcommerceStore();
 const showLoginModal = ref(false);
-const showRegisterModal = ref(false);
+
 
 
 onMounted(() => {
@@ -101,28 +66,10 @@ watch(() => props.autoShowLogin, (newValue) => {
 
 const openLoginModal = () => {
   showLoginModal.value = true;
-  showRegisterModal.value = false;
+  
 };
 
-const openRegisterModal = () => {
-  showRegisterModal.value = true;
-  showLoginModal.value = false;
-};
 
-const switchToRegister = () => {
-  showLoginModal.value = false;
-  showRegisterModal.value = true;
-};
-
-const switchToLogin = () => {
-  showRegisterModal.value = false;
-  showLoginModal.value = true;
-};
-
-const closeModals = () => {
-  showLoginModal.value = false;
-  showRegisterModal.value = false;
-};
 </script>
 
 <style scoped>
