@@ -161,16 +161,16 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 # Database configuration using .env, inspired by your guide
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres.lexsjxgnhvkbyebwykrh',
-        'PASSWORD': 'mustardkuza1!!',
-        'HOST': 'aws-0-ap-south-1.pooler.supabase.com',
-        'PORT': '6543',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'mustardi_mustard_ecommerce',
+        'USER': 'mustardi_imports_ecommerce',
+        'PASSWORD': 'mustardpassword123',
+        'HOST': 'localhost',
+        'PORT': '3306',
         'OPTIONS': {
-            'options': '-c timezone=UTC',
-
-
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'collation': 'utf8mb4_bin',
         },
     }
 }

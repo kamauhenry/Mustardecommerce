@@ -46,7 +46,7 @@
 
         <div class="contact-info">
           <h3>Contact Us</h3>
-          <p>Location: XYZ</p>
+          <p>Location: Reli-Coop house 1st floor F71</p>
           <p>Email: <a href="mailto:mustardimports@gmail.com">mustardimports@gmail.com</a></p>
           <p>Telephone: <a href="tel:+254724028971">+254 724 028971</a></p>
           <router-link to="/faq" class="faq-link footer-router-link">Frequently Asked Questions</router-link>
@@ -54,7 +54,13 @@
       </div>
 
       <div class="copyright">
-        Mustard Imports © {{ currentYear }}
+        <p>
+          Created by 
+          Henry <a href="https://github.com/kamauhenry" target="_blank" rel="noopener" aria-label="Henry's GitHub"><i class="fab fa-github"></i></a> 
+          and 
+          Allan <a href="https://github.com/murungiallan" target="_blank" rel="noopener" aria-label="Allan's GitHub"><i class="fab fa-github"></i></a>
+        </p>
+        <p>Mustard Imports © {{ currentYear }}</p>
       </div>
     </footer>
 
@@ -353,6 +359,16 @@ h3 {
   margin-top: 1rem;
   font-size: 0.875rem;
   color: #E6E6E6;
+}
+
+.copyright a:hover {
+  color: #F2C94C; /* Mustard yellow hover to match theme */
+}
+
+.copyright .fab.fa-github {
+  font-size: 1rem; /* Adjust icon size */
+  vertical-align: middle;
+  margin-left: 0.25rem;
 }
 
 /* Cookie Consent Modal */

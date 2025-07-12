@@ -19,7 +19,7 @@ const formMessageType = ref('success');
 
 // Company information
 const companyInfo = reactive({
-  location: 'Nairobi, Kenya',
+  location: 'Reli-Coop house 1st floor F71, Nairobi, Kenya',
   email: 'mustardimports@gmail.com',
   telephone: '+254 724028971',
   callHours: '9:00 AM - 5:00 PM (Mon-Fri)'
