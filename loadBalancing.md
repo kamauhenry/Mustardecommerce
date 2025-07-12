@@ -31,7 +31,7 @@ python manage.py runserver 8002 &
 
 To verify, check:
 ```bash
-curl http://127.0.0.1:8000
+curl https://mustardimports.co.ke
 curl http://127.0.0.1:8001
 curl http://127.0.0.1:8002
 ```

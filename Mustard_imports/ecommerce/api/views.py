@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.core.cache.backends.base import InvalidCacheBackendError
 from rest_framework.authtoken.models import Token
+from rest_framework.parsers import MultiPartParser, FormParser
 from decimal import Decimal
 from .permissions import IsOwnerOrAdmin, IsAdminUser
 from datetime import datetime, timedelta
@@ -837,27 +838,36 @@ class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        id_token_str = request.data.get('access_token')
+        id_token_str = request.data.get('id_token')
         if not id_token_str:
-            logger.error('No access token provided in Google auth request')
+            logger.error('No ID token provided in Google auth request')
             return Response(
-                {'error': 'No access token provided'},
+                {'error': 'No ID token provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            # Log current server time for debugging
             server_time = timezone.now()
             server_timestamp = int(time.time())
             logger.info(f'Server time: {server_time} (UTC timestamp: {server_timestamp})')
 
-            # Verify the Google ID token
+            # Verify the Google ID token with clock skew tolerance
             idinfo = id_token.verify_oauth2_token(
                 id_token_str,
                 Request(),
-                settings.GOOGLE_CLIENT_ID
+                settings.GOOGLE_CLIENT_ID,
+                clock_skew_in_seconds=60  # Allow up to 60 seconds of clock skew
             )
             logger.info(f'Token info: {idinfo}')
+            
+            # Validate the token issuer
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                logger.error(f'Invalid token issuer: {idinfo["iss"]}')
+                return Response(
+                    {'error': 'Invalid token issuer'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             email = idinfo['email']
             name = idinfo.get('name', '')
             logger.info(f'Google token verified for email: {email}')
@@ -867,8 +877,15 @@ class GoogleAuthView(APIView):
                 user = User.objects.get(email=email)
                 logger.info(f'Existing user found: {email}')
             except User.DoesNotExist:
+                # Generate a unique username from email
+                username = email.split('@')[0]
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{email.split('@')[0]}_{counter}"
+                    counter += 1
+                
                 user = User.objects.create_user(
-                    username=email,
+                    username=username,
                     email=email,
                     first_name=name.split()[0] if name else '',
                     last_name=' '.join(name.split()[1:]) if name and len(name.split()) > 1 else '',
@@ -900,6 +917,7 @@ class GoogleAuthView(APIView):
                 {'error': 'Internal server error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -1523,7 +1541,7 @@ class CategoryProductsView(APIView):
             print(f"Cache error: {e}. Falling back to direct query.")
 
         try:
-            category = get_object_or_404(Category, slug=category_slug, is_active=True)
+            category = get_object_or_404(Category, slug=category_slug)
             products = Product.objects.filter(category=category).order_by('-created_at')
 
             page = int(request.query_params.get('page', 1))
@@ -1552,6 +1570,74 @@ class CategoryProductsView(APIView):
             return Response({'error': 'Category not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    queryset = Category.objects.all().select_related().prefetch_related('images')
+    serializer_class = CategorySerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name']
+    pagination_class = None
+    parser_classes = [MultiPartParser, FormParser]  # Add this for file uploads
+    
+    def get_queryset(self):
+        """Optimize queryset for list view"""
+        if self.action == 'list':
+            return Category.objects.all().only('id', 'name', 'slug').prefetch_related('images')
+        return Category.objects.all().prefetch_related('images')
+
+    def list(self, request, *args, **kwargs):
+        cache_key = 'categories_list'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Cache error: {e}. Falling back to direct query.")
+
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        response_data = serializer.data
+
+        try:
+            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
+        except (InvalidCacheBackendError, Exception) as e:
+            print(f"Failed to cache response: {e}")
+
+        return Response(response_data)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['categories_list', 'category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['categories_list', 'category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        # Invalidate category caches
+        cache_keys = ['categories_list', 'category_list', 'categories_with_products', 'all_categories_with_products']
+        for key in cache_keys:
+            try:
+                cache.delete(key)
+            except (InvalidCacheBackendError, Exception) as e:
+                print(f"Failed to invalidate cache {key}: {e}")
+        return response
 
 class CategoriesWithProductsViewSet(APIView):
     permission_classes = [permissions.AllowAny]
@@ -1612,7 +1698,12 @@ class AllCategoriesWithProductsView(APIView):
         except (InvalidCacheBackendError, Exception) as e:
             print(f"Cache error: {e}. Falling back to direct query.")
 
-        categories = Category.objects.prefetch_related('products')
+        # Fetch all categories and their products, ignoring default manager filters
+        from django.db.models import Prefetch
+        categories = Category.objects.prefetch_related(
+            Prefetch('products', queryset=Product.objects.all())
+        ).all()
+
         serializer = CategoriesProductsSerializer(categories, many=True, context={'request': request})
         response_data = serializer.data
 
@@ -1623,74 +1714,13 @@ class AllCategoriesWithProductsView(APIView):
 
         return Response(response_data)
 
-class CategoryViewSet(viewsets.ModelViewSet):
-    permission_classes = [AllowAny]
-    queryset = Category.objects.all().only('id', 'name', 'slug')
-    serializer_class = CategorySerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name']
-    pagination_class = None
-
-    def list(self, request, *args, **kwargs):
-        cache_key = 'categories_list'
-        try:
-            cached_data = cache.get(cache_key)
-            if cached_data:
-                return Response(cached_data)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Cache error: {e}. Falling back to direct query.")
-
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        response_data = serializer.data
-
-        try:
-            cache.set(cache_key, response_data, timeout=60 * 15)  # Cache for 15 minutes
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to cache response: {e}")
-
-        return Response(response_data)
-
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        # Invalidate category caches
-        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
-        for key in cache_keys:
-            try:
-                cache.delete(key)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache {key}: {e}")
-        return response
-
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        # Invalidate category caches
-        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
-        for key in cache_keys:
-            try:
-                cache.delete(key)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache {key}: {e}")
-        return response
-
-    def destroy(self, request, *args, **kwargs):
-        response = super().destroy(request, *args, **kwargs)
-        # Invalidate category caches
-        cache_keys = ['category_list', 'categories_with_products', 'all_categories_with_products']
-        for key in cache_keys:
-            try:
-                cache.delete(key)
-            except (InvalidCacheBackendError, Exception) as e:
-                print(f"Failed to invalidate cache {key}: {e}")
-        return response
 
 @api_view(['GET'])
 def pickup_home_categories(request):
     page = request.query_params.get('page', '1')
     products = Product.objects.filter(is_pick_and_pay=True)
     category_ids = products.values_list('category_id', flat=True).distinct()
-    categories = Category.objects.filter(id__in=category_ids, is_active=True)
+    categories = Category.objects.filter(id__in=category_ids)
     
     paginator = PageNumberPagination()
     paginator.page_size = 8  # Match HomePage.vue
@@ -1905,12 +1935,14 @@ class ProductReviewsView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
 class MOQRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MOQRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status']
     ordering_fields = ['created_at']
+    ordering = ['-created_at']  # Default ordering
 
     def get_queryset(self):
         if self.request.user.is_staff:
@@ -1923,14 +1955,41 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def update_status(self, request, pk=None):
         moq_request = self.get_object()
-        status = request.data.get('status')
-        if status not in [choice[0] for choice in MOQRequest.STATUS_CHOICES]:
-            return Response({"error": "Invalid status value"}, status=status.HTTP_400_BAD_REQUEST)
-        moq_request.status = status
+        status_value = request.data.get('status')
+        
+        if status_value not in [choice[0] for choice in MOQRequest.STATUS_CHOICES]:
+            return Response(
+                {"error": "Invalid status value"}, 
+                status=status.HTTP_400_BAD_REQUEST  # Fixed: use status module
+            )
+        
+        moq_request.status = status_value
         moq_request.save()
         serializer = MOQRequestSerializer(moq_request)
         return Response(serializer.data)
 
+    # Optional: Add a custom action to get user's own requests summary
+    @action(detail=False, methods=['get'])
+    def my_requests(self, request):
+        """Get current user's MOQ requests with status summary"""
+        queryset = self.get_queryset()
+        
+        # Get counts by status
+        status_counts = {}
+        for choice in MOQRequest.STATUS_CHOICES:
+            status_counts[choice[0]] = queryset.filter(status=choice[0]).count()
+        
+        # Get recent requests
+        recent_requests = queryset[:5]
+        serializer = self.get_serializer(recent_requests, many=True)
+        
+        return Response({
+            'status_counts': status_counts,
+            'recent_requests': serializer.data,
+            'total_requests': queryset.count()
+        })
+
+        
 class UserProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -2427,6 +2486,7 @@ class AttributeValueByAttributeView(APIView):
             return Response(serializer.data)
         except Attribute.DoesNotExist:
             return Response({"error": "Attribute not found"}, status=status.HTTP_404_NOT_FOUND)
+
 class BulkProductImportView(APIView):
     permission_classes = [permissions.IsAdminUser]
 
@@ -2524,10 +2584,8 @@ class BulkProductImportView(APIView):
         except Exception as e:
             logger.error(f"Failed to process file: {str(e)}")
             return Response({"error": f"Failed to process file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-class HomeCategoriesPagination(PageNumberPagination):
-    page_size = 4  # Load 4 categories per page
-    page_size_query_param = 'page_size'
-    max_page_size = 20
+
+
 
 class HomeCategoriesView(APIView):
     permission_classes = [AllowAny]
@@ -2535,6 +2593,7 @@ class HomeCategoriesView(APIView):
 
     def get(self, request, *args, **kwargs):
         cache_key = f'home_categories_with_products_page_{request.query_params.get("page", 1)}'
+        
         try:
             cached_data = cache.get(cache_key)
             if cached_data:
@@ -2544,16 +2603,45 @@ class HomeCategoriesView(APIView):
 
         try:
             # Fetch all active categories ordered by id
-            categories = Category.objects.filter(is_active=True).order_by('id')
+            categories = Category.objects.all().order_by('id')
+            
+            # Debug: Print the count
+            print(f"Found {categories.count()} active categories")
+            
             # Apply pagination
             paginator = self.pagination_class()
             paginated_categories = paginator.paginate_queryset(categories, request)
+            
+            # Debug: Print paginated count
+            print(f"Paginated categories count: {len(paginated_categories) if paginated_categories else 0}")
+            
             # Serialize the paginated queryset
-            serializer = HomeCategorySerializer(paginated_categories, many=True, context={'request': request})
-            # Return paginated response
-            return paginator.get_paginated_response(serializer.data)
+            serializer = HomeCategorySerializer(
+                paginated_categories, 
+                many=True, 
+                context={'request': request}
+            )
+            
+            # Debug: Print serialized data
+            print(f"Serialized data: {serializer.data}")
+            
+            # Get the paginated response
+            response = paginator.get_paginated_response(serializer.data)
+            
+            # Cache the response data (optional, but good for performance)
+            try:
+                cache.set(cache_key, response.data, timeout=300)  # Cache for 5 minutes
+            except Exception as e:
+                print(f"Cache set error: {e}")
+            
+            return response
+            
         except Exception as e:
-            return Response({'error': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"HomeCategoriesView error: {str(e)}")
+            return Response(
+                {'error': f'Server error: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 

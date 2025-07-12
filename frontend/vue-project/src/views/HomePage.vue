@@ -1,9 +1,9 @@
 <template>
   <MainLayout>
     <section class="top-row-home" aria-label="Featured Content">
-      <RecentCampaigns v-if="!isMobile" />
-      <HomeCarousel/>
-      <RecentSearches v-if="!isMobile" />
+      <RecentCampaigns v-if="!isMobile" class="side-section" />
+      <HomeCarousel class="carousel-container" />
+      <RecentSearches v-if="!isMobile" class="side-section" />
     </section>
     <main id="homePage" aria-label="Product Categories">
       <!-- Initial loading skeleton -->
@@ -47,7 +47,7 @@
           </header>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
             <article
-              v-for="product in category.products.slice(0, 3)"
+              v-for="product in category.products.slice(0, 4)"
               :key="product.id"
               class="product-card"
             >
@@ -59,7 +59,7 @@
                 class="product-link"
               >
                 <img
-                  :src="product.thumbnail || 'https://yourdomain.com/images/default-product.jpg'"
+                  :src="product.images.length > 0 ? product.images[0].image : ''"
                   :alt="product.name"
                   class="product-image"
                   loading="lazy"
@@ -181,7 +181,7 @@ export default {
         },
         {
           property: 'og:image',
-          content: 'https://yourdomain.com/images/og-image.jpg',
+          content: 'https://mustardimports.co.ke/images/og-image.jpg',
         },
         {
           name: 'twitter:card',
@@ -197,7 +197,7 @@ export default {
         },
         {
           name: 'twitter:image',
-          content: 'https://yourdomain.com/images/twitter-image.jpg',
+          content: 'https://mustardimports.co.ke/images/twitter-image.jpg',
         },
       ],
       link: [
@@ -218,7 +218,7 @@ export default {
             publisher: {
               '@type': 'Organization',
               name: 'MustardImports',
-              logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+              logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
             },
             hasPart: (allhomeCategoriesWithProducts.value || []).map(category => ({
               '@type': 'Collection',
@@ -515,6 +515,38 @@ export default {
   font-weight: 700;
   color: #D4A017;
 }
+.carousel-container {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  max-height: 500px;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+@media (max-width: 750px) {
+  .carousel-container {
+    width: 100%;
+    min-height: 280px;
+    max-height: 320px;
+    margin: 0;
+    padding: 0;
+    order: -1;
+  }
+  .carousel {
+    width: 100%;
+    min-height: 300px;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .side-section {
+    display: none;
+  }
+}
 
 .below-moq-price {
   font-size: 0.75rem;
@@ -632,13 +664,43 @@ export default {
   flex-direction: row;
   gap: 1rem;
   margin: 1rem 2%;
-  align-items: center;
+  align-items: stretch;
   max-width: 100%;
   box-sizing: border-box;
-  flex-wrap: nowrap;
-  height: 100%; /* Ensure full height */
-  justify-content:center;
+  height: auto;
+  min-height: 100%;
+  max-height: 100%;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
 }
+
+.top-row-home > * {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 33.33%;
+  height: 100%;
+}
+
+.side-section {
+  flex: 0 0 250px;
+  min-width: 250px;
+  max-width: 250px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.carousel {
+  width: 100%;
+  height: 100%;
+  min-height: 70px; /* Ensure carousel content fills the space */
+}
+:deep(.main-layout) {
+  position: relative;
+  z-index: 1;
+}
+
 
 @keyframes shimmer {
   0% {
@@ -724,17 +786,20 @@ export default {
 }
 
 /* Mobile adjustments for <650px */
-@media (max-width: 650px) {
+@media (max-width: 750px) {
   .top-row-home {
     flex-direction: column;
     gap: 0.5rem;
-    margin: 0.5rem 2%;
-    margin-bottom: 0;
-    padding-top: 6rem;
-    height: 100%; /* Full height on mobile */
+    margin: 0 0 1rem;
+    padding: 0;
+    min-height: 280px;
+    max-height: 320px;
+    height: auto;
+    width: 100%;
+    margin-top: 51px;
   }
   .categories-container {
-    padding: 0 2%; /* Reduced padding-top */
+    padding: 0.5rem 2%;
     gap: 1rem;
     flex-direction: column;
   }
@@ -818,8 +883,9 @@ export default {
     margin-top: 15px;
   }
   .top-row-home > * {
-    width: 100%; /* Ensure each section uses full width on mobile */
-    height: 100%; /* Ensure full height on mobile */
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
   }
   .HomeCarousel {
     flex: 1; /* Allow carousel to expand and fit */

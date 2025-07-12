@@ -248,6 +248,11 @@ export default {
 </script>
 
 <style scoped>
+
+.header, .navbar {
+  position: relative;
+  z-index: 2;
+}
 .main-layout {
   display: flex;
   flex-direction: column;

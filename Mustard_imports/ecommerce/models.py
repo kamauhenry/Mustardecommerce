@@ -158,7 +158,7 @@ class CategoryImage(models.Model):
   
     def get_image(self):
         if self.image:
-            return 'http://127.0.0.1:8000/' + self.image.url
+            return 'https://mustardimports.co.ke/' + self.image.url
         return ''
 
     def get_primary_image(self):

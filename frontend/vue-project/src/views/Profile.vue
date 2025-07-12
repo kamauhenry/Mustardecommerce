@@ -150,27 +150,7 @@
             </div>
           </div>
 
-          <!-- Order History -->
-          <div v-if="activeTab === 'orders'" class="tab-content">
-            <div class="orders-section">
-              <h2 class="profile-tabs-title">Order History</h2>
-              <div v-if="ordersLoading" class="loading">Loading order history...</div>
-              <div v-else-if="ordersError" class="error">{{ ordersError }}</div>
-              <div v-else-if="!completedOrders.length">No completed orders yet.</div>
-              <div v-else>
-                <ul class="orders-list">
-                  <li v-for="order in completedOrders" :key="order.id">
-                    <div class="order-details">
-                      <span class="order-number">Order {{ order.order_number }}</span>
-                      <span class="order-date">{{ formatDate(order.created_at) }}</span>
-                      <span class="order-status">{{ order.delivery_status }}</span>
-                      <span class="order-total">KES {{ formatPrice(order.total_price) }}</span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
+
 
           <!-- Security -->
           <div v-if="activeTab === 'security'" class="tab-content">
@@ -330,7 +310,7 @@ const store = useEcommerceStore();
 // Tabs
 const tabs = [
   { id: 'user-info', label: 'User Information' },
-  { id: 'orders', label: 'Order History' },
+
   { id: 'security', label: 'Security' },
   { id: 'locations', label: 'Location Information' },
 ];
@@ -535,7 +515,7 @@ onMounted(async () => {
     await Promise.all([
       store.fetchUserProfile(),
       store.fetchDeliveryLocations(),
-      store.fetchOrdersData(),
+
     ]);
   } catch (error) {
     console.error('Error loading profile data:', error);

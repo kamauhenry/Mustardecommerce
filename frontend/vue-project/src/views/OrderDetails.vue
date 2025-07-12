@@ -62,10 +62,11 @@
             <tr v-for="item in orderDetails.items" :key="item.id">
               <td>
                 <img
-                  v-if="item.product?.thumbnail"
-                  :src="item.product.thumbnail"
+                  v-if="item.product?.images.length > 0 ? product.images[0].image : ''"
+                  :src="item.product.images.length > 0 ? product.images[0].image : ''"
                   alt="Product image"
                   class="product-image"
+             
                 />
                 <span v-else>No image</span>
               </td>

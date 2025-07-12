@@ -117,7 +117,7 @@ const fetchSuggestions = async () => {
 
   try {
     const response = await axios.get(
-      `http://127.0.0.1:8000//api/autocomplete/?input=${encodeURIComponent(searchQuery.value)}`
+      `https://mustardimports.co.ke/api/autocomplete/?input=${encodeURIComponent(searchQuery.value)}`
     );
     if (response.data.status !== 'OK') {
       throw new Error(response.data.error_message || 'API request failed');
@@ -136,7 +136,7 @@ const debouncedFetchSuggestions = debounce(fetchSuggestions, 300);
 const selectSuggestion = async (suggestion) => {
   try {
     const response = await axios.get(
-      `http://127.0.0.1:8000//api/place-details/?place_id=${suggestion.place_id}`
+      `http://127.0.0.1:8000/api/place-details/?place_id=${suggestion.place_id}`
     );
     if (response.data.status !== 'OK') {
       throw new Error(response.data.error_message || 'Place details request failed');

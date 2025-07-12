@@ -10,7 +10,7 @@
       <li v-if="store.isAuthenticated"><a class="nav-link" @click="openRequestMOQ">Request MOQ Campaign</a></li>
       <li v-else><a class="nav-link" @click="openLoginModal">Request MOQ Campaign</a></li>
 
-      <li v-else><a class="nav-link" @click="openLoginModal">Track Order</a></li>
+
       <li><router-link class="nav-link" to="/about">About Us</router-link></li>
       <li><router-link class="nav-link" to="/contact">Contact Us</router-link></li>
     </ul>

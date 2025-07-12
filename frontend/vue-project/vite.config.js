@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-    base: mode === 'production' ? '/frontend/vue-project/dist/' : '/', // Use correct path in production
+    // Fix: Use relative path for assets in production
+    base: mode === 'production' ? '/' : '/',
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
@@ -32,49 +33,49 @@ export default defineConfig(({ mode }) => {
       historyApiFallback: true,
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true, // Set to true for HTTPS
         },
         '/static': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/login': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/register': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/logout': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/admin-page/login': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/admin-page/register': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/admin-page/dashboard': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
         '/admin-page/profile': {
-          target: 'http://localhost:8000',
+          target: 'https://mustardimports.co.ke',
           changeOrigin: true,
-          secure: false,
+          secure: true,
         },
       },
     },

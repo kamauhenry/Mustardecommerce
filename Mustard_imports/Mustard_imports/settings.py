@@ -24,10 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-DEBUG = True  # Disable debug mode for production
+DEBUG = False  # Disable debug mode for production
 ALLOWED_HOSTS = [os.getenv("DOMAIN"), "www." + os.getenv("DOMAIN"), "localhost", "127.0.0.1"]  # Add your domain, e.g., "example.com"
 SECRET_KEY = os.getenv('SECRET_KEY')  # Already set to use .env
 # Application definition
+
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -39,7 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'ecommerce',
-
+    'csp',
     'ecommerce.api.apps.CoreConfig',
     'corsheaders',
     'djoser',
@@ -93,24 +95,77 @@ MIDDLEWARE = [
 ]
 FRONTEND_URL = 'http://localhost:5173'
 
-CORS_ALLOW_ALL_ORIGINS = True  # Temporary for debugging
-# CORS Settings
+CORS_ALLOW_ALL_ORIGINS = False  # For development only
+CORS_ALLOW_CREDENTIALS = True
+
 CORS_ALLOWED_ORIGINS = [
     f"https://{os.getenv('DOMAIN')}",
     f"https://www.{os.getenv('DOMAIN')}",
     "http://localhost:5173",  # Vue dev server (Vite)
-    "http://127.0.0.1:8000",  # Django serving frontend
+    "https://mustardimports.co.ke",  # Django serving frontend
     "http://localhost:8000",  # Add this for consistency
 ]
-CORS_ALLOW_CREDENTIALS = True
+
+
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'authorization',  # Lowercase for consistency
+    'authorization',
     'content-disposition',
     'x-requested-with',
     'cache-control',
-    'pragma'
+    'pragma',
+    'accept',
+    'accept-encoding',
+    'accept-language',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
 ]
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
+
+CONTENT_SECURITY_POLICY = {
+    'DIRECTIVES': {
+        'connect-src': [
+            "'self'",
+            'https://accounts.google.com',
+            'https://play.google.com',
+            'https://www.google-analytics.com',
+            'http://localhost:8000',
+            'https://mustardimports.co.ke',
+        ],
+        'frame-src': [
+            "'self'",
+            'https://accounts.google.com',
+        ],
+        'script-src': [
+            "'self'",
+            'https://accounts.google.com/gsi/client',
+            'https://www.googletagmanager.com',
+            "'unsafe-inline'",
+        ],
+        'style-src': [
+            "'self'",
+            'https://fonts.googleapis.com',
+            'https://cdnjs.cloudflare.com',
+            'https://accounts.google.com',
+            "'unsafe-inline'",
+        ],
+        'font-src': [
+            "'self'",
+            'https://fonts.gstatic.com',
+            'https://cdnjs.cloudflare.com',
+        ],
+        'img-src': [
+            "'self'",
+            'data:',
+            'https://*.googleusercontent.com',
+            'https://accounts.google.com',
+        ],
+        'default-src': ["'self'"],
+    }
+}
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -126,17 +181,27 @@ CSRF_TRUSTED_ORIGINS = [
     f"https://{os.getenv('DOMAIN')}",
     f"https://www.{os.getenv('DOMAIN')}",
     "http://localhost:5173",
-    "http://127.0.0.1:8000",
+    "https://mustardimports.co.ke",
     "http://localhost:8000",
 ]
 CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_SECURE = True  # Set to True only in production with HTTPS
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = True  # Set to True only in production with HTTPS
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_SSL_REDIRECT = True  # Redirect all HTTP requests to HTTPS
 
 
-SESSION_COOKIE_SECURE = True
+#HSTS Settings
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True  # Enable HSTS preload list submission
+
+# URL configuration
 
 
 ROOT_URLCONF = 'Mustard_imports.urls'
-SITE_URL = 'http://127.0.0.1:8000/'
+SITE_URL = 'https://mustardimports.co.ke/'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -159,23 +224,37 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 # Load environment variables from .env
 # Database configuration using .env, inspired by your guide
-DATABASES = {
+#devconnection
+DATABASES = {#
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'mustardi_mustard_ecommerce',
-        'USER': 'mustardi_imports_ecommerce',
-        'PASSWORD': 'mustardpassword123',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',
+        'USER': 'postgres.ymeqfypcnminwscpbbrm',
+        'PASSWORD': 'y5FHPhaeR39gK83zgaNt',
+        'HOST': 'aws-0-eu-north-1.pooler.supabase.com',
+        'PORT': '5432',
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            'charset': 'utf8mb4',
-            'collation': 'utf8mb4_bin',
+
         },
     }
 }
 
-
+# Production Database
+#DATABASES = {
+ #   'default': {
+  #      'ENGINE': 'django.db.backends.mysql',
+   #     'NAME': 'mustardi_imports_ecommerce',
+    #    'USER': 'mustardi_imports_ecommerce',
+     #   'PASSWORD': 'y5FHPhaeR39gK83zgaNt',
+      #  'HOST': 'localhost',
+       # 'PORT': '3306',
+        #'OPTIONS': {
+         #   'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+          #  'charset': 'utf8mb4',
+           # 'collation': 'utf8mb4_bin',
+  #      },
+   # }
+#}
 
 AUTH_USER_MODEL = 'ecommerce.User'
 
@@ -212,6 +291,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+SECURE_REFERRER_POLICY = "same-origin"
+
 
 
 MEDIA_URL = '/media/'
@@ -238,9 +321,14 @@ ACCOUNT_EMAIL_REQUIRED = False
 
 import mimetypes
 mimetypes.add_type("image/jpeg", ".jpg")
+mimetypes.add_type("image/jpeg", ".jpeg")
+mimetypes.add_type("image/png", ".png")
+mimetypes.add_type("image/gif", ".gif")
+mimetypes.add_type("image/webp", ".webp")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 
-GOOGLE_CLIENT_ID = '974928309201-n6nkaqko0qcju8uvhuf0m827dhp2bn1l.apps.googleusercontent.com'
+GOOGLE_CLIENT_ID = '974928309201-vd4rncer6j963b30bpi55o3h8rh4ab3a.apps.googleusercontent.com'
 
 
 # Email Configuration
@@ -294,7 +382,3 @@ LOGGING = {
 # settings.py
 OXYLABS_USERNAME = 'mustardimports_SXOYJ'
 OXYLABS_PASSWORD = 'Mustardoxy1+'
-
-
-
-

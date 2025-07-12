@@ -5,6 +5,11 @@
       <div class="modal-body">
         <slot></slot>
       </div>
+      <RequestMOQModal 
+        v-if="showMOQModal" 
+        @close="closeMOQModal" 
+        @submitted="onMOQSubmitted" 
+      />
     </div>
   </div>
 </template>

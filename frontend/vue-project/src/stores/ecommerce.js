@@ -132,6 +132,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       return state.currentUser && state.currentUser.user_type === 'admin';
     },
   },
+
   actions: {
     initializeApiInstance() {
       console.log('Initializing apiInstance');
@@ -496,7 +497,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async fetchLatestProducts(limit) {
-      const response = await axios.get(`http://127.0.0.1:8000//api/products/latest/?limit=${limit}`, {
+      const response = await axios.get(`https://mustardimports.co.ke//api/products/latest/?limit=${limit}`, {
         headers: {
 
         },
@@ -539,7 +540,16 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     loadCartFromLocalStorage() {
       const storedCart = localStorage.getItem('cartItems');
-      return storedCart ? JSON.parse(storedCart) : [];
+      if (storedCart) {
+        try {
+          const items = JSON.parse(storedCart);
+          return items.filter(item => item && item.product_id != null && item.product_id !== undefined);
+        } catch (e) {
+          console.error('Error parsing cart items:', e);
+          return [];
+        }
+      }
+      return [];
     },
 
     async syncCartWithBackend() {
@@ -552,16 +562,28 @@ export const useEcommerceStore = defineStore('ecommerce', {
           await this.createCart();
         }
         for (const item of this.cartItems) {
-          await api.addToCart(
-            this.apiInstance,
-            this.cart.id,
-            item.product_id,
-            item.attributes,
-            item.quantity
-          );
+          // Determine product ID based on item structure
+          let productId = null;
+          if (item.product && item.product.id) {
+            productId = item.product.id; // Backend response format
+          } else if (item.product_id) {
+            productId = item.product_id; // Local storage format
+          }
+
+          if (productId) {
+            await api.addToCart(
+              this.apiInstance,
+              this.cart.id,
+              productId,
+              item.attributes,
+              item.quantity
+            );
+          } else {
+            console.warn('Skipping item without valid product ID:', item);
+          }
         }
         await this.fetchCart();
-        localStorage.removeItem('cartItems');
+        localStorage.removeItem('cartItems'); // Clear local storage after successful sync
         toast.success('Cart synced with backend!', { autoClose: 2000 });
       } catch (error) {
         console.error('Failed to sync cart with backend:', error.response?.data || error.message);
@@ -888,7 +910,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
     async fetchSearchSuggestions(query) {
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000//api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
+          `https://mustardimports.co.ke//api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
         );
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);

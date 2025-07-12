@@ -23,6 +23,7 @@ from .views import (
 router = routers.DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'admin/products', ProductViewSet, basename='product') 
+router.register(r'moqrequest', MOQRequestViewSet, basename='moq-request')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -76,7 +77,7 @@ urlpatterns = [
     path('test-image/', test_image, name='test-image'),
     path('home-categories/', HomeCategoriesView.as_view(), name='home-categories'),
     path('home-categories/pickup/', pickup_home_categories, name='pickup_home_categories'),
-    
+
     # Cart and orders
     path('users/<int:user_id>/create_cart/', create_cart, name='create-cart-for-user'),
     path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),

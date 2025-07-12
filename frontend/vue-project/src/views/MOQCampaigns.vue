@@ -68,7 +68,7 @@
             <router-link :to="`/product/${product.category_slug || 'uncategorized'}/${product.slug}`" class="product-link">
               <div class="product-image-wrapper">
                 <img
-                  :src="product.thumbnail || 'https://via.placeholder.com/200x200?text=Product+Image'"
+                  :src="product.images.length > 0 ? product.images[0].image : ''"
                   :alt="`${product.name} - MOQ Campaign Product Image`"
                   class="product-image"
                   loading="lazy"

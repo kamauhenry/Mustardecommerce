@@ -117,16 +117,19 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import api from '@/services/api';
 
 // State Management
 const currentView = ref('login');
 const store = useEcommerceStore();
+const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
 const emit = defineEmits(['close']);
+
 // Form Data
 const loginData = reactive({ username: '', password: '' });
 const registerData = reactive({
@@ -171,46 +174,142 @@ const isPasswordValid = computed(() => {
   );
 });
 
-// Load saved form data and initialize Google Sign-In
+
+const handleCredentialResponse = async (response) => {
+  const idToken = response.credential;
+  if (!idToken) {
+    console.error('No credential received from Google Sign-In');
+    errorMessage.value = 'Google login failed: No credential received';
+    return;
+  }
+  
+  loading.value = true;
+  errorMessage.value = ''; // Clear previous errors
+  
+  try {
+    // Use the store's googleLogin method with the ID token
+    const resp = await store.googleLogin(idToken);
+    console.log(`Logged in with Google as ${resp.username}`);
+    successMessage.value = 'Google login successful!';
+    
+    // Clear form and close modal
+    await nextTick();
+    emit('close');
+  } catch (err) {
+    console.error('Google login failed:', err);
+    const errorData = err.response?.data;
+    
+    if (errorData?.error) {
+      errorMessage.value = errorData.error;
+    } else {
+      errorMessage.value = 'Google login failed. Please try again.';
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
+const renderGoogleButton = () => {
+  if (!window.google || !window.google.accounts) {
+    console.warn('Google Sign-In script not loaded');
+    return;
+  }
+  
+  const googleButton = document.getElementById('g_id_signin');
+  if (!googleButton) {
+    console.warn('Google Sign-In div not found');
+    return;
+  }
+  
+  try {
+    // Clear any existing content
+    googleButton.innerHTML = '';
+    
+    window.google.accounts.id.renderButton(googleButton, {
+      theme: 'outline',
+      size: 'large',
+      type: 'standard',
+      text: 'signin_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width: 250,
+    });
+    console.log('Google Sign-In button rendered');
+  } catch (error) {
+    console.error('Error rendering Google button:', error);
+    errorMessage.value = 'Failed to load Google Sign-In button';
+  }
+};
+
+
 onMounted(async () => {
   // Load saved registration data
   const savedData = JSON.parse(localStorage.getItem('registerForm')) || {};
-  registerData.username = savedData.username || '';
-  registerData.email = savedData.email || '';
-  registerData.first_name = savedData.first_name || '';
-  registerData.last_name = savedData.last_name || '';
-  registerData.phone_number = savedData.phone_number || '';
+  Object.assign(registerData, savedData);
 
-  // Initialize Google Sign-In
-  window.google.accounts.id.initialize({
-    client_id: '974928309201-n6nkaqko0qcju8uvhuf0m827dhp2bn1l.apps.googleusercontent.com',
-    callback: handleCredentialResponse,
-  });
+  // Initialize Google Sign-In with retries
+  const maxRetries = 50;
+  let retryCount = 0;
 
-  // Render Google Sign-In button if login view is active
-  if (currentView.value === 'login') {
-    await nextTick();
-    renderGoogleButton();
-  }
+  const initializeGoogleSignIn = async () => {
+    try {
+      if (window.google && window.google.accounts) {
+        console.log('Initializing Google Sign-In');
+        
+        window.google.accounts.id.initialize({
+          client_id: '974928309201-vd4rncer6j963b30bpi55o3h8rh4ab3a.apps.googleusercontent.com',
+          callback: handleCredentialResponse,
+          auto_select: false,
+          context: 'signin',
+          ux_mode: 'popup',
+          cancel_on_tap_outside: true,
+          itp_support: true,
+          // Remove state_cookie_domain for localhost
+          use_fedcm_for_prompt: false,
+        });
+        
+        await nextTick();
+        renderGoogleButton();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error initializing Google Sign-In:', error);
+      return false;
+    }
+  };
+
+  const checkGoogleScript = async () => {
+    const initialized = await initializeGoogleSignIn();
+    
+    if (!initialized && retryCount < maxRetries) {
+      retryCount++;
+      console.log(`Google script not ready, retrying... (${retryCount}/${maxRetries})`);
+      setTimeout(checkGoogleScript, 100);
+    } else if (!initialized) {
+      console.error('Google Sign-In script failed to load after max retries');
+      errorMessage.value = 'Failed to load Google Sign-In. Please refresh the page.';
+    }
+  };
+
+  await checkGoogleScript();
 });
 
-// Watch currentView to render Google button when switching to login
 watch(currentView, async (newView) => {
   if (newView === 'login') {
     await nextTick();
-    renderGoogleButton();
+    // Add a small delay to ensure DOM is fully updated
+    setTimeout(renderGoogleButton, 100);
   }
 });
 
-// Render Google Sign-In button
-const renderGoogleButton = () => {
-  const googleButton = document.getElementById('g_id_signin');
-  if (googleButton) {
-    window.google.accounts.id.renderButton(googleButton, { theme: 'outline', size: 'large' });
-  } else {
-    console.warn('Google Sign-In div not found');
+window.addEventListener('error', (event) => {
+  if (event.message && event.message.includes('gsi')) {
+    console.error('Google Sign-In error:', event.message);
+    errorMessage.value = 'Google Sign-In encountered an error. Please try again.';
   }
-};
+});
+
 
 // Save form data to localStorage
 const saveFormData = () => {
@@ -352,17 +451,6 @@ const handleForgotPassword = async () => {
   }
 };
 
-const handleCredentialResponse = async (response) => {
-  const idToken = response.credential;
-  try {
-    const resp = await store.googleLogin(idToken);
-    console.log(`Logged in with Google as ${resp.username}`);
-    emit('close');
-  } catch (err) {
-    errorMessage.value = 'Google login failed';
-    console.error('Google login failed:', err);
-  }
-};
 
 // Watch for changes to save form data
 watch(

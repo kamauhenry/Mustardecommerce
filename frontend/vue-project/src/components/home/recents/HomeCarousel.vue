@@ -16,7 +16,7 @@
       <button @click="fetchCategories" class="retry-button">Retry</button>
     </div>
     <div
-      v-else
+      v-else-if="slides.length"
       class="carousel-slides"
       :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
     >
@@ -27,49 +27,80 @@
         :style="{ backgroundImage: `url(${item.image})` }"
         @click="goToCategory(item.slug)"
       >
+        <div class="slide-overlay"></div>
         <div class="slide-content">
-          <p class="slide-title">{{ item.name }}</p>
-          <p class="slide-description">{{ item.description || 'Explore our range of products in this category.' }}</p>
+          <h2 class="slide-title">{{ item.name }}</h2>
+          <p class="slide-description">{{ item.description }}</p>
+          <div class="slide-cta">
+            <span class="cta-text">Explore Category</span>
+            <span class="cta-arrow">→</span>
+          </div>
         </div>
       </div>
+    </div>
+    <div v-else class="no-slides">
+      No active categories available.
+    </div>
+    
+    <!-- Navigation dots -->
+    <div v-if="slides.length > 1" class="carousel-dots">
+      <button
+        v-for="(slide, index) in slides"
+        :key="index"
+        class="dot"
+        :class="{ active: currentSlide === index }"
+        @click="goToSlide(index)"
+      ></button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 
 const slides = ref([]);
 const currentSlide = ref(0);
 const loading = ref(false);
 const error = ref(null);
+let autoSlideInterval = null;
 
 const fetchCategories = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('http://127.0.0.1:8000//api/categories/');
+    const response = await axios.get('https://mustardimports.co.ke/api/categories/');
+    console.log('API response:', response.data);
     slides.value = response.data
-      .filter(category => category.is_active)
       .map(category => ({
         name: category.name,
         slug: category.slug,
-        image: category.image,
-        description: category.description,
+        image: category.primary_image,
+        description: category.description || 'Explore our range of products in this category.',
       }));
+    if (!slides.value.length) {
+      error.value = 'No active categories available.';
+    }
   } catch (err) {
     console.error('Error fetching categories:', err);
-    error.value = 'Failed to load categories.';
+    error.value = 'Failed to load categories. Please try again later.';
   } finally {
     loading.value = false;
   }
 };
 
 const startAutoSlide = () => {
-  setInterval(() => {
+  if (autoSlideInterval) {
+    clearInterval(autoSlideInterval);
+  }
+  autoSlideInterval = setInterval(() => {
     currentSlide.value = (currentSlide.value + 1) % slides.value.length;
   }, 5000);
+};
+
+const goToSlide = (index) => {
+  currentSlide.value = index;
+  startAutoSlide(); // Restart auto-slide timer
 };
 
 const goToCategory = (slug) => {
@@ -78,10 +109,17 @@ const goToCategory = (slug) => {
 
 onMounted(() => {
   fetchCategories().then(() => {
-    if (slides.value.length) {
+    console.log('Slides after fetch:', slides.value);
+    if (slides.value.length > 1) {
       startAutoSlide();
     }
   });
+});
+
+onUnmounted(() => {
+  if (autoSlideInterval) {
+    clearInterval(autoSlideInterval);
+  }
 });
 </script>
 
@@ -89,12 +127,14 @@ onMounted(() => {
 .carousel {
   flex: 1;
   height: 100%;
+  min-height: 400px;
+  max-height: 500px;
   overflow: hidden;
   position: relative;
-  min-width: 300px;
-  max-width: 100%;
+  width: 100%;
   box-sizing: border-box;
-  width: 100%; /* Utilize full available width */
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .carousel-slides {
@@ -108,7 +148,7 @@ onMounted(() => {
   flex: 0 0 100%;
   height: 100%;
   width: 100%;
-  background-size: contain;
+  background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   display: flex;
@@ -119,31 +159,117 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.slide:hover {
+  transform: scale(1.02);
+}
+
+.slide-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  z-index: 1;
 }
 
 .slide-content {
   text-align: center;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 1rem;
-  border-radius: 8px;
+  position: relative;
+  z-index: 2;
   max-width: 80%;
+  width: 100%;
+  padding: 2rem;
+  color: white;
 }
 
 .slide-title {
-  font-family: "Roboto", sans-serif;
-  font-size: 1.5rem;
-  font-weight: 900;
-  color: var(--vt-c-category-carousel, #fff);
-  padding-bottom: 0.1rem;
-  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  line-height: 1.2;
 }
 
 .slide-description {
-  font-family: "Roboto", sans-serif;
-  margin: 0.5rem 1rem 0;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--vt-c-category-carousel, #fff);
+  font-size: 1.2rem;
+  margin: 0 0 1.5rem 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0.95;
+  line-height: 1.4;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.slide-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(212, 160, 23, 0.9);
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-weight: 600;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.slide:hover .slide-cta {
+  background: rgba(212, 160, 23, 1);
+  border-color: white;
+  transform: translateY(-2px);
+}
+
+.cta-arrow {
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+}
+
+.slide:hover .cta-arrow {
+  transform: translateX(5px);
+}
+
+.carousel-dots {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 3;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.dot.active {
+  background: white;
+  transform: scale(1.2);
+}
+
+.dot:hover {
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .skeleton-container {
@@ -168,12 +294,16 @@ onMounted(() => {
   align-items: center;
   flex-direction: column;
   box-sizing: border-box;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 12px;
 }
 
 .skeleton-image {
-  width: 100%;
-  height: 70%;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 80%;
+  height: 60%;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
@@ -186,19 +316,19 @@ onMounted(() => {
 }
 
 .skeleton-title {
-  width: 150px;
-  height: 20px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 200px;
+  height: 24px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  margin: 0 auto 0.5rem;
+  margin: 0 auto 1rem;
   border-radius: 4px;
 }
 
 .skeleton-description {
-  width: 200px;
-  height: 15px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  width: 300px;
+  height: 18px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   margin: 0 auto;
@@ -208,7 +338,7 @@ onMounted(() => {
 .error-message {
   color: #e74c3c;
   text-align: center;
-  padding: 1rem;
+  padding: 2rem;
   background-color: #ffe6e6;
   border-radius: 8px;
   height: 100%;
@@ -218,14 +348,28 @@ onMounted(() => {
   justify-content: center;
 }
 
+.no-slides {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .retry-button {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #f28c38;
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #D4A017;
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s ease;
 }
 
 .retry-button:hover {
@@ -241,70 +385,98 @@ onMounted(() => {
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 800px) {
+/* Tablet adjustments */
+@media (max-width: 1024px) {
   .carousel {
-    margin-top: 0;
-    width: 100%;
-    min-height: 100px;
-    height: 100%; /* Full height on mobile */
+    min-height: 350px;
+    max-height: 400px;
   }
-  .skeleton-container,
-  .skeleton-slides,
-  .skeleton-slide {
-    height: 250px;
-    width: 100%;
-  }
+  
   .slide-title {
-    font-size: 1.2rem;
+    font-size: 2rem;
   }
+  
   .slide-description {
-    font-size: 0.8rem;
-    margin: 0.3rem 0.5rem 0;
+    font-size: 1.1rem;
   }
+  
   .slide-content {
-    padding: 0.75rem;
-    max-width: 100%;
-  }
-  .skeleton-title {
-    width: 120px;
-    height: 18px;
-  }
-  .skeleton-description {
-    width: 160px;
-    height: 12px;
+    padding: 1.5rem;
+    max-width: 90%;
   }
 }
 
-@media (max-width: 650px) {
+/* Mobile adjustments */
+@media (max-width: 768px) {
   .carousel {
-    height: 100%; /* Full height on mobile */
-    width: 100%;
-    margin: 0; /* Preserve padding while fitting perfectly */
-    padding: 0 1rem; /* Maintain existing padding */
+    min-height: 280px;
+    max-height: 320px;
+    border-radius: 8px;
   }
-  .skeleton-container,
-  .skeleton-slides,
-  .skeleton-slide {
-    height: 250px;
-    width: 100%;
-  }
-  .slide {
-    background-size: contain;
-  }
+  
   .slide-title {
-    font-size: 1rem;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
   }
+  
   .slide-description {
-    font-size: 0.75rem;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
   }
-  .skeleton-title {
-    width: 100px;
-    height: 16px;
+  
+  .slide-content {
+    padding: 1rem;
+    max-width: 95%;
   }
-  .skeleton-description {
-    width: 140px;
+  
+  .slide-cta {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .carousel-dots {
+    bottom: 15px;
+  }
+  
+  .dot {
+    width: 10px;
     height: 10px;
+  }
+}
+
+/* Small mobile adjustments */
+@media (max-width: 480px) {
+  .carousel {
+    min-height: 250px;
+    max-height: 280px;
+  }
+  
+  .slide-title {
+    font-size: 1.3rem;
+    margin-bottom: 0.4rem;
+  }
+  
+  .slide-description {
+    font-size: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  
+  .slide-content {
+    padding: 0.8rem;
+  }
+  
+  .slide-cta {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .carousel-dots {
+    bottom: 10px;
+  }
+  
+  .dot {
+    width: 8px;
+    height: 8px;
   }
 }
 </style>

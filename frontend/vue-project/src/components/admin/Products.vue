@@ -42,10 +42,11 @@
         <div class="import-section">
           <label>Import Products (CSV/Excel)</label>
           <input type="file" accept=".csv,.xlsx,.xls" @change="handleFileImport" />
+          <label>Upload Images (ZIP)</label>
+          <input type="file" accept=".zip" @change="handleImagesZipUpload" />
           <button @click="uploadProducts" :disabled="importLoading || !importFile">
             {{ importLoading ? 'Importing...' : 'Upload' }}
           </button>
-          <p class="help-text">Note: For attributes, use a column 'attributes' with format "Color:Red,Blue;Size:Large"</p>
         </div>
 
         <!-- Loading State -->
@@ -541,7 +542,7 @@ export default {
       );
     });
     const productSubTab = ref('All Products');
-    const productSubTabs = ['All Products', 'Formow Products', 'Pick and Pay Products'];
+    const productSubTabs = ['All Products', 'MOQ Products', 'Pick and Pay Products'];
 
     const allProducts = computed(() => filteredProducts.value);
     const formowProducts = computed(() => filteredProducts.value.filter(product => !product.is_pick_and_pay));
@@ -983,7 +984,7 @@ export default {
               availability: form.value.is_pick_and_pay && form.value.inventory_quantity > 0
                 ? 'https://schema.org/InStock'
                 : 'https://schema.org/PreOrder',
-              url: `https://yourdomain.com/products/${form.value.slug || form.value.id || 'product'}`
+              url: `https://mustardimports.co.ke/products/${form.value.slug || form.value.id || 'product'}`
             },
             brand: {
               '@type': 'Brand',

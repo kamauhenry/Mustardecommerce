@@ -11,7 +11,7 @@
 
       <!-- Category Header -->
       <div v-if="isLoading" class="skeleton-header"></div>
-      <div v-else class="category-header" :style="{ backgroundImage: `url(${categoryImage || 'https://via.placeholder.com/1200x400?text=Category+Image'})` }">
+      <div v-else class="category-header" :style="{ backgroundImage: `url(${categoryImage || ''})` }">
         <div class="category-header-content">
           <h1 class="category-title">{{ categoryName || 'Category' }}</h1>
           <p class="category-description">{{ categoryDescription || 'No description available.' }}</p>
@@ -121,7 +121,7 @@
             >
               <div class="product-image-wrapper">
                 <img
-                  :src="product.thumbnail || 'https://yourdomain.com/images/default-product.jpg'"
+                  :src="product.images.length > 0 ? product.images[0].image : ''"
                   :alt="product.name"
                   class="product-image"
                   loading="lazy"
@@ -222,7 +222,7 @@ export default {
     // Category details
     const categoryName = computed(() => store.categoryProducts[categorySlug.value]?.category?.name || '');
     const categoryDescription = computed(() => store.categoryProducts[categorySlug.value]?.category?.description || '');
-    const categoryImage = computed(() => store.categoryProducts[categorySlug.value]?.category?.image || '');
+    const categoryImage = computed(() => store.categoryProducts[categorySlug.value]?.category?.primary_image  || '');
 
     // Products
     const products = computed(() => store.categoryProducts[categorySlug.value]?.products || []);
@@ -282,7 +282,7 @@ export default {
       publisher: {
         '@type': 'Organization',
         name: 'MustardImports',
-        logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+        logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
       },
     }));
 

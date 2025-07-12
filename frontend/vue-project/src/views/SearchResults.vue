@@ -106,7 +106,7 @@
             >
               <div class="product-image-wrapper">
                 <img
-                  :src="product.thumbnail || product.image || 'https://yourdomain.com/images/default-product.jpg'"
+                  :src="product.images.length > 0 ? product.images[0].image : ''"
                   :alt="product.name"
                   class="product-image"
                   loading="lazy"
@@ -214,7 +214,7 @@ export default {
 
       ecommerceStore.setSearchLoading(true);
       try {
-        const response = await fetch(`http://127.0.0.1:8000/api/products/search/?search=${encodeURIComponent(query)}`);
+        const response = await fetch(`https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Failed to fetch products');
         const data = await response.json();
         ecommerceStore.setSearchResults(data.results || []);

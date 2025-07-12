@@ -3,7 +3,7 @@ from ecommerce.models import *
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 import logging
-
+from rest_framework.pagination import PageNumberPagination
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -151,18 +151,48 @@ class CategoryImageSerializer(serializers.ModelSerializer):
         fields = ['image']
 
 class CategorySerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-
+    image = serializers.ImageField(write_only=True, required=False)
+    primary_image = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description', 'is_active', 'image']
-
-    def get_image(self, obj):
-        request = self.context.get('request')
-        image = obj.images.first()
-        if image and image.image:
-            return request.build_absolute_uri(image.image.url) if request else image.image.url
+        fields = ['id', 'name', 'slug', 'description', 'is_active', 'image', 'primary_image',]
+    
+    def get_primary_image(self, obj):
+        """Get the primary image URL for the category"""
+        first_image = obj.images.first()
+        if first_image and first_image.image:
+            return first_image.get_image()
         return None
+    
+    def create(self, validated_data):
+        """Create category and handle image upload"""
+        image_data = validated_data.pop('image', None)
+        category = Category.objects.create(**validated_data)
+        
+        if image_data:
+            CategoryImage.objects.create(category=category, image=image_data)
+        
+        return category
+    
+    def update(self, instance, validated_data):
+        """Update category and handle image upload"""
+        image_data = validated_data.pop('image', None)
+        
+        # Update category fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Handle image update
+        if image_data:
+            # Delete existing images (optional - or you could keep them)
+            instance.images.all().delete()
+            # Create new image
+            CategoryImage.objects.create(category=instance, image=image_data)
+        
+        return instance
+
 
 class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -423,6 +453,11 @@ class SimpleUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
 
+class HomeCategoriesPagination(PageNumberPagination):
+    page_size = 4  # Load 4 categories per page
+    page_size_query_param = 'page_size'
+    max_page_size = 20
+
 class HomeCategorySerializer(serializers.ModelSerializer):
     products = serializers.SerializerMethodField()
 
@@ -432,11 +467,14 @@ class HomeCategorySerializer(serializers.ModelSerializer):
 
     def get_products(self, obj):
         pickup_only = self.context.get('pickup_only', False)
+        # Get only active products
         products = obj.products.all().order_by('-created_at')
         if pickup_only:
             products = products.filter(is_pick_and_pay=True)
-        return ProductSerializer(products[:6], many=True, context=self.context).data
-
+        
+        # Return empty list if no products, don't return None
+        product_list = products[:6]
+        return ProductSerializer(product_list, many=True, context=self.context).data
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
@@ -544,16 +582,30 @@ class CategoriesProductsSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'products']
 
 class MOQRequestSerializer(serializers.ModelSerializer):
+    usern = SimpleUserSerializer(read_only=True)
+    # Add direct access to user name and email
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_full_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = MOQRequest
-        fields = ['id', 'user', 'product_name', 'product_link',
-                  'quantity', 'description', 'status', 'created_at']
-        read_only_fields = ['user', 'status']
+        fields = ['id', 'user', 'usern', 'user_name', 'user_email', 'user_full_name',
+                  'product_name', 'product_link', 'quantity', 'description', 
+                  'status', 'created_at']
+        read_only_fields = ['user', 'usern', 'user_name', 'user_email', 'user_full_name', 'status']
+
+    def get_user_full_name(self, obj):
+        """Get the user's full name (first_name + last_name)"""
+        if obj.user.first_name and obj.user.last_name:
+            return f"{obj.user.first_name} {obj.user.last_name}"
+        return obj.user.username
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
 
+        
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment

@@ -415,7 +415,8 @@
               >
                 <div class="related-product-card">
                   <img
-                    :src="relatedProduct.thumbnail || placeholderImage"
+                    
+                    :src="relatedProduct.images.length > 0 ? relatedProduct.images[0].image : ''"
                     :alt="relatedProduct.name"
                     class="related-product-image"
                   />
@@ -686,28 +687,34 @@ export default {
     });
 
     const scrollThumbnails = async (direction) => {
-      if (direction === 'left' && thumbnailOffset.value > 0) {
-        thumbnailOffset.value -= thumbnailWidth.value;
-      } else if (direction === 'right' && thumbnailOffset.value < maxThumbnailOffset.value) {
-        thumbnailOffset.value += thumbnailWidth.value;
+      const step = thumbnailWidth.value; // Width of one thumbnail + margin
+      console.log('Direction:', direction, 'Offset:', thumbnailOffset.value, 'Max:', maxThumbnailOffset.value);
+      if (direction === 'left') {
+
+        thumbnailOffset.value = Math.max(0, thumbnailOffset.value - step);
+      } else if (direction === 'right') {
+        thumbnailOffset.value = Math.min(maxThumbnailOffset.value, thumbnailOffset.value + step);
       }
-      await nextTick();
+      await nextTick(); // Wait for DOM updates
       if (thumbnailContainer.value) {
         thumbnailContainer.value.style.transform = `translateX(-${thumbnailOffset.value}px)`;
       }
     };
 
     const scrollRelatedProducts = async (direction) => {
-      if (direction === 'left' && relatedScrollOffset.value > 0) {
-        relatedScrollOffset.value -= relatedCardWidth.value;
-      } else if (direction === 'right' && relatedScrollOffset.value < maxRelatedScrollOffset.value) {
-        relatedScrollOffset.value += relatedCardWidth.value;
+      const step = relatedCardWidth.value; // Width of one card + margin
+      console.log('Direction:', direction, 'Offset:', relatedScrollOffset.value, 'Max:', maxRelatedScrollOffset.value);
+      if (direction === 'left') {
+        relatedScrollOffset.value = Math.max(0, relatedScrollOffset.value - step);
+      } else if (direction === 'right') {
+        relatedScrollOffset.value = Math.min(maxRelatedScrollOffset.value, relatedScrollOffset.value + step);
       }
       await nextTick();
       if (relatedContainer.value) {
         relatedContainer.value.style.transform = `translateX(-${relatedScrollOffset.value}px)`;
       }
     };
+
 
     const fetchShippingMethods = async () => {
       if (!requiresShipping.value) return;
@@ -1318,6 +1325,8 @@ export default {
   width: 100%;
   overflow: hidden;
 }
+
+
 
 .thumbnail-container {
   display: flex;
@@ -1980,6 +1989,159 @@ export default {
 
 /* Responsiveness */
 @media (max-width: 768px) {
+    .skeleton-product-details {
+    padding: 15px;
+  }
+
+  .skeleton-product-content {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .skeleton-product-left {
+    width: 100%;
+    flex: none;
+  }
+
+  .skeleton-product-right {
+    width: 100%;
+    flex: none;
+    padding: 15px;
+    margin-top: 0;
+  }
+
+  .skeleton-tabs {
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+
+  .skeleton-tab {
+    width: 70px;
+    height: 18px;
+  }
+
+  .skeleton-main-image {
+    height: 250px;
+  }
+
+  .skeleton-thumbnails {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .skeleton-thumbnail {
+    width: 50px;
+    height: 50px;
+  }
+
+  .skeleton-price {
+    width: 60%;
+    height: 28px;
+  }
+
+  .skeleton-moq-info {
+    width: 80%;
+    height: 18px;
+  }
+
+  .skeleton-button {
+    height: 44px;
+  }
+
+  .skeleton-rating {
+    width: 40%;
+  }
+
+  .skeleton-breadcrumb {
+    width: 60%;
+    height: 18px;
+  }
+
+  .skeleton-product-title {
+    width: 80%;
+    height: 26px;
+  }
+    .skeleton-product-details {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .skeleton-product-content {
+    max-width: 100%;
+  }
+
+  .skeleton-product-left,
+  .skeleton-product-right {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+    .skeleton-breadcrumb,
+  .skeleton-product-title,
+  .skeleton-tab,
+  .skeleton-main-image,
+  .skeleton-thumbnail,
+  .skeleton-price,
+  .skeleton-moq-info,
+  .skeleton-button,
+  .skeleton-rating,
+  .skeleton-related-image,
+  .skeleton-related-name,
+  .skeleton-related-price,
+  .skeleton-shipping-option {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+    .skeleton-shipping {
+    gap: 8px;
+  }
+
+  .skeleton-shipping-option {
+    height: 18px;
+  }
+
+  /* Make skeleton elements more rounded on mobile for better visual appeal */
+  .skeleton-breadcrumb,
+  .skeleton-product-title,
+  .skeleton-tab,
+  .skeleton-price,
+  .skeleton-moq-info,
+  .skeleton-rating {
+    border-radius: 6px;
+  }
+
+  .skeleton-main-image,
+  .skeleton-thumbnail,
+  .skeleton-button {
+    border-radius: 8px;
+  }
+
+  .skeleton-related-image {
+    border-radius: 10px;
+  }
+    .skeleton-related-products {
+    padding: 0.5rem 1rem;
+    gap: 1rem;
+  }
+
+  .skeleton-related-product {
+    flex: 0 0 180px;
+  }
+
+  .skeleton-related-image {
+    height: 140px;
+  }
+
+  .skeleton-related-name {
+    width: 85%;
+    height: 20px;
+  }
+
+  .skeleton-related-price {
+    width: 60%;
+    height: 18px;
+  }
   .product-content {
     flex-direction: column;
     gap: 20px;

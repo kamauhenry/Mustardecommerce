@@ -1,88 +1,259 @@
 <template>
   <AdminLayout>
-    <div class="categories">
-      <h2>Manage Categories</h2>
+    <div class="admin-container">
+      <h2>Admin Dashboard</h2>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        Loading categories...
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button 
+          @click="activeTab = 'categories'" 
+          :class="{ active: activeTab === 'categories' }"
+          class="tab-button"
+        >
+          Manage Categories
+        </button>
+        <button 
+          @click="activeTab = 'moq-requests'" 
+          :class="{ active: activeTab === 'moq-requests' }"
+          class="tab-button"
+        >
+          MOQ Requests
+          <span v-if="moqRequestsCount > 0" class="badge">{{ moqRequestsCount }}</span>
+        </button>
       </div>
 
-      <!-- Error Message -->
-      <div v-if="error" class="error-message">
-        {{ error }}
-        <button @click="fetchAllCategoriesWithProducts" class="retry-button">Retry</button>
+      <!-- Categories Tab -->
+      <div v-if="activeTab === 'categories'" class="categories">
+        <!-- Loading State -->
+        <div v-if="loading" class="loading">
+          <div class="spinner"></div>
+          Loading categories...
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="error-message">
+          {{ error }}
+          <button @click="fetchAllCategoriesWithProducts" class="retry-button">Retry</button>
+        </div>
+
+        <!-- Form to Add/Edit Category -->
+        <div v-else class="category-form">
+          <h3>{{ editingCategory ? 'Edit Category' : 'Add New Category' }}</h3>
+          <form @submit.prevent="saveCategory">
+            <div class="form-group">
+              <label>Name</label>
+              <input v-model="form.name" required placeholder="Enter category name" @input="generateSlug" />
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea v-model="form.description" placeholder="Enter category description"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Category Image</label>
+              <input type="file" accept="image/*" @change="handleImageUpload" ref="imageInput" />
+              <div v-if="imagePreview" class="image-preview">
+                <img :src="imagePreview" alt="Image Preview" />
+                <button type="button" @click="clearImage" class="clear-image-btn">Remove Image</button>
+              </div>
+            </div>
+            <button type="submit" :disabled="formLoading">
+              {{ formLoading ? 'Saving...' : (editingCategory ? 'Update' : 'Add') }} Category
+            </button>
+            <button v-if="editingCategory" type="button" @click="cancelEdit" :disabled="formLoading">
+              Cancel
+            </button>
+          </form>
+        </div>
+
+        <!-- Categories List -->
+        <div v-if="!loading && !error" class="categories-list">
+          <h3>Categories</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Image</th>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="category in categories" :key="category.id">
+                <td>{{ category.id }}</td>
+                <td>
+                  <img v-if="category.image" :src="category.image" alt="Category Image" class="category-image" />
+                  <span v-else>N/A</span>
+                </td>
+                <td>{{ category.name }}</td>
+                <td>{{ category.slug || 'N/A' }}</td>
+                <td>
+                  <button @click="editCategory(category)" :disabled="formLoading">Edit</button>
+                  <button @click="deleteCategory(category.id)" :disabled="formLoading">Delete</button>
+                </td>
+              </tr>
+              <tr v-if="!categories.length">
+                <td colspan="5" class="no-data">No categories available.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <!-- Form to Add/Edit Category -->
-      <div v-else class="category-form">
-        <h3>{{ editingCategory ? 'Edit Category' : 'Add New Category' }}</h3>
-        <form @submit.prevent="saveCategory">
-          <div class="form-group">
-            <label>Name</label>
-            <input v-model="form.name" required placeholder="Enter category name" @input="generateSlug" />
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea v-model="form.description" placeholder="Enter category description"></textarea>
-          </div>
-          <div class="form-group">
-            <label>Category Image</label>
-            <input type="file" accept="image/*" @change="handleImageUpload" ref="imageInput" />
-            <div v-if="imagePreview" class="image-preview">
-              <img :src="imagePreview" alt="Image Preview" />
-              <button type="button" @click="clearImage" class="clear-image-btn">Remove Image</button>
+      <!-- MOQ Requests Tab -->
+      <div v-if="activeTab === 'moq-requests'" class="moq-requests">
+        <!-- Loading State -->
+        <div v-if="moqLoading" class="loading">
+          <div class="spinner"></div>
+          Loading MOQ requests...
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="moqError" class="error-message">
+          {{ moqError }}
+          <button @click="fetchMOQRequests" class="retry-button">Retry</button>
+        </div>
+
+        <!-- MOQ Requests Content -->
+        <div v-else class="moq-content">
+          <!-- Status Filter -->
+          <div class="filter-section">
+            <h3>MOQ Requests</h3>
+            <div class="filter-controls">
+              <label>Filter by Status:</label>
+              <select v-model="statusFilter" @change="fetchMOQRequests">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
             </div>
           </div>
-          <button type="submit" :disabled="formLoading">
-            {{ formLoading ? 'Saving...' : (editingCategory ? 'Update' : 'Add') }} Category
-          </button>
-          <button v-if="editingCategory" type="button" @click="cancelEdit" :disabled="formLoading">
-            Cancel
-          </button>
-        </form>
+
+          <!-- MOQ Requests Table -->
+          <div class="requests-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>User</th>
+                  <th>Product Name</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="request in moqRequests" :key="request.id">
+                  <td>{{ request.id }}</td>
+                  <td>{{ request.user_email }}</td>
+                  <td>
+                    <div class="product-info">
+                      <span class="product-name">{{ request.product_name }}</span>
+                      <a v-if="request.product_link" :href="request.product_link" target="_blank" class="product-link">
+                        View Product
+                      </a>
+                    </div>
+                  </td>
+                  <td>{{ request.quantity }}</td>
+                  <td>
+                    <span :class="['status-badge', `status-${request.status}`]">
+                      {{ request.status.charAt(0).toUpperCase() + request.status.slice(1) }}
+                    </span>
+                  </td>
+                  <td>{{ formatDate(request.created_at) }}</td>
+                  <td>
+                    <div class="action-buttons">
+                      <button @click="viewRequestDetails(request)" class="view-btn">
+                        View
+                      </button>
+                      <button 
+                        v-if="request.status === 'pending'"
+                        @click="updateRequestStatus(request.id, 'approved')" 
+                        class="approve-btn"
+                        :disabled="updatingStatus"
+                      >
+                        Approve
+                      </button>
+                      <button 
+                        v-if="request.status === 'pending'"
+                        @click="updateRequestStatus(request.id, 'rejected')" 
+                        class="reject-btn"
+                        :disabled="updatingStatus"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="!moqRequests.length">
+                  <td colspan="7" class="no-data">No MOQ requests found.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <!-- Categories List -->
-      <div v-if="!loading && !error" class="categories-list">
-        <h3>Categories</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Image</th>
-              <th>Name</th>
-              <th>Slug</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="category in categories" :key="category.id">
-              <td>{{ category.id }}</td>
-              <td>
-                <img v-if="category.image" :src="category.image" alt="Category Image" class="category-image" />
-                <span v-else>N/A</span>
-              </td>
-              <td>{{ category.name }}</td>
-              <td>{{ category.slug || 'N/A' }}</td>
-              <td>
-                <button @click="editCategory(category)" :disabled="formLoading">Edit</button>
-                <button @click="deleteCategory(category.id)" :disabled="formLoading">Delete</button>
-              </td>
-            </tr>
-            <tr v-if="!categories.length">
-              <td colspan="5" class="no-data">No categories available.</td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Request Details Modal -->
+      <div v-if="selectedRequest" class="modal-overlay" @click="closeModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h3>MOQ Request Details</h3>
+            <button @click="closeModal" class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="detail-row">
+              <strong>Request ID:</strong> {{ selectedRequest.id }}
+            </div>
+            <div class="detail-row">
+              <strong>User:</strong> {{ selectedRequest.user_email }}
+            </div>
+            <div class="detail-row">
+              <strong>Product Name:</strong> {{ selectedRequest.product_name }}
+            </div>
+            <div class="detail-row">
+              <strong>Product Link:</strong> 
+              <a v-if="selectedRequest.product_link" :href="selectedRequest.product_link" target="_blank">
+                {{ selectedRequest.product_link }}
+              </a>
+              <span v-else>N/A</span>
+            </div>
+            <div class="detail-row">
+              <strong>Quantity:</strong> {{ selectedRequest.quantity }}
+            </div>
+            <div class="detail-row">
+              <strong>Status:</strong> 
+              <span :class="['status-badge', `status-${selectedRequest.status}`]">
+                {{ selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1) }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <strong>Description:</strong> 
+              <p>{{ selectedRequest.description || 'No description provided' }}</p>
+            </div>
+            <div class="detail-row">
+              <strong>Created:</strong> {{ formatDate(selectedRequest.created_at) }}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button v-if="selectedRequest.status === 'pending'" @click="updateRequestStatus(selectedRequest.id, 'approved')" class="approve-btn">
+              Approve
+            </button>
+            <button v-if="selectedRequest.status === 'pending'" @click="updateRequestStatus(selectedRequest.id, 'rejected')" class="reject-btn">
+              Reject
+            </button>
+            <button @click="closeModal" class="cancel-btn">Close</button>
+          </div>
+        </div>
       </div>
     </div>
   </AdminLayout>
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useEcommerceStore } from '@/stores/ecommerce';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import api from '@/services/api';
@@ -91,6 +262,11 @@ export default {
   components: { AdminLayout },
   setup() {
     const store = useEcommerceStore();
+    
+    // Tab management
+    const activeTab = ref('categories');
+    
+    // Categories data
     const categories = ref([]);
     const form = ref({ name: '', description: '', slug: '', image: null });
     const editingCategory = ref(null);
@@ -100,6 +276,20 @@ export default {
     const imagePreview = ref(null);
     const imageInput = ref(null);
 
+    // MOQ Requests data
+    const moqRequests = ref([]);
+    const moqLoading = ref(false);
+    const moqError = ref(null);
+    const statusFilter = ref('');
+    const selectedRequest = ref(null);
+    const updatingStatus = ref(false);
+
+    // Computed properties
+    const moqRequestsCount = computed(() => {
+      return moqRequests.value.filter(req => req.status === 'pending').length;
+    });
+
+    // Categories methods
     const fetchAllCategoriesWithProducts = async () => {
       try {
         loading.value = true;
@@ -169,8 +359,13 @@ export default {
 
     const editCategory = (category) => {
       editingCategory.value = category;
-      form.value = { name: category.name, description: category.description || '', slug: category.slug, image: null };
-      imagePreview.value = category.image || null;
+      form.value = { 
+        name: category.name, 
+        description: category.description || '', 
+        slug: category.slug, 
+        image: null 
+      };
+      imagePreview.value = category.primary_image || null;
     };
 
     const cancelEdit = () => {
@@ -197,17 +392,95 @@ export default {
       }
     };
 
-    onMounted(() => {
-      fetchAllCategoriesWithProducts();
+    // MOQ Requests methods
+    const fetchMOQRequests = async () => {
+      try {
+        moqLoading.value = true;
+        moqError.value = null;
+        const apiInstance = api.createApiInstance(store);
+        
+        // Build query parameters
+        const params = {};
+        if (statusFilter.value) {
+          params.status = statusFilter.value;
+        }
+        
+        const response = await apiInstance.get('/moqrequest/', { params });
+        moqRequests.value = response.data.results || response.data || [];
+      } catch (err) {
+        moqError.value = err.response?.data?.error || 'Failed to load MOQ requests. Please try again.';
+        console.error('Failed to fetch MOQ requests:', err);
+      } finally {
+        moqLoading.value = false;
+      }
+    };
+
+    const updateRequestStatus = async (requestId, newStatus) => {
+      try {
+        updatingStatus.value = true;
+        const apiInstance = api.createApiInstance(store);
+        
+        await apiInstance.post(`/moqrequest/${requestId}/update_status/`, {
+          status: newStatus
+        });
+        
+        // Update the local data
+        const requestIndex = moqRequests.value.findIndex(req => req.id === requestId);
+        if (requestIndex !== -1) {
+          moqRequests.value[requestIndex].status = newStatus;
+        }
+        
+        // Update selected request if it's the same
+        if (selectedRequest.value && selectedRequest.value.id === requestId) {
+          selectedRequest.value.status = newStatus;
+        }
+        
+        alert(`Request ${newStatus} successfully`);
+        
+      } catch (err) {
+        moqError.value = err.response?.data?.error || 'Failed to update request status. Please try again.';
+        console.error('Failed to update request status:', err);
+      } finally {
+        updatingStatus.value = false;
+      }
+    };
+
+    const viewRequestDetails = (request) => {
+      selectedRequest.value = request;
+    };
+
+    const closeModal = () => {
+      selectedRequest.value = null;
+    };
+
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    };
+
+    // Watch for tab changes
+    watch(activeTab, (newTab) => {
+      if (newTab === 'moq-requests' && moqRequests.value.length === 0) {
+        fetchMOQRequests();
+      }
     });
 
+    // Watch for form name changes
     watch(() => form.value.name, (newName) => {
       if (!editingCategory.value) {
         generateSlug();
       }
     });
 
+    onMounted(() => {
+      fetchAllCategoriesWithProducts();
+    });
+
     return {
+      // Tab management
+      activeTab,
+      
+      // Categories
       categories,
       form,
       editingCategory,
@@ -223,17 +496,75 @@ export default {
       deleteCategory,
       handleImageUpload,
       clearImage,
+      
+      // MOQ Requests
+      moqRequests,
+      moqLoading,
+      moqError,
+      statusFilter,
+      selectedRequest,
+      updatingStatus,
+      moqRequestsCount,
+      fetchMOQRequests,
+      updateRequestStatus,
+      viewRequestDetails,
+      closeModal,
+      formatDate,
     };
   },
 };
 </script>
 
 <style scoped>
-.categories {
+.admin-container {
   padding: 20px;
   background-color: transparent;
   border-radius: 0;
   box-shadow: none;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  padding: 12px 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.tab-button:hover {
+  color: #4f46e5;
+  background-color: #f8f9fa;
+}
+
+.tab-button.active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+}
+
+.badge {
+  background-color: #e74c3c;
+  color: white;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+/* Existing category styles */
+.categories {
+  padding: 0;
 }
 
 h2 {
@@ -471,10 +802,251 @@ button:disabled {
   background-color: #5a32a3;
 }
 
+/* MOQ Requests Styles */
+.moq-requests {
+  padding: 0;
+}
+
+.moq-content {
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-controls label {
+  font-weight: 500;
+  color: #333;
+}
+
+.filter-controls select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  background-color: white;
+}
+
+.requests-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.requests-table th,
+.requests-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.requests-table th {
+  background-color: #6f42c1;
+  color: white;
+  font-weight: 600;
+}
+
+.requests-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-name {
+  font-weight: 500;
+}
+
+.product-link {
+  color: #6f42c1;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.product-link:hover {
+  text-decoration: underline;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.action-buttons button {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  margin-right: 0;
+}
+
+.view-btn {
+  background-color: #6f42c1;
+  color: white;
+}
+
+.view-btn:hover:not(:disabled) {
+  background-color: #5a32a3;
+}
+
+.approve-btn {
+  background-color: #28a745;
+  color: white;
+}
+
+.approve-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.reject-btn {
+  background-color: #dc3545;
+  color: white;
+}
+
+.reject-btn:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #4f46e5;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  margin: 0;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.detail-row {
+  margin-bottom: 15px;
+}
+
+.detail-row strong {
+  display: inline-block;
+  min-width: 120px;
+  color: #333;
+}
+
+.detail-row p {
+  margin: 5px 0 0 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #eee;
+}
+
+.cancel-btn {
+  background-color: #6c757d;
+  color: white;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .categories {
+  .admin-container {
     padding: 10px;
+  }
+
+  .tab-navigation {
+    margin-bottom: 15px;
+  }
+
+  .tab-button {
+    padding: 10px 16px;
+    font-size: 0.9rem;
   }
 
   h2 {
@@ -562,11 +1134,103 @@ button:disabled {
     padding: 6px 12px;
     font-size: 0.9rem;
   }
+
+  /* MOQ Requests Mobile */
+  .moq-content {
+    padding: 15px;
+  }
+
+  .filter-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .filter-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .filter-controls select {
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .requests-table table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .requests-table th,
+  .requests-table td {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .product-info {
+    min-width: 150px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .action-buttons button {
+    font-size: 0.8rem;
+    padding: 3px 6px;
+  }
+
+  .status-badge {
+    font-size: 0.8rem;
+    padding: 2px 6px;
+  }
+
+  .modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 15px;
+  }
+
+  .modal-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .detail-row strong {
+    min-width: 100px;
+    font-size: 0.9rem;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer button {
+    width: 100%;
+    margin-right: 0;
+  }
 }
 
 @media (max-width: 480px) {
-  .categories {
+  .admin-container {
     padding: 8px;
+  }
+
+  .tab-button {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  .badge {
+    font-size: 0.7rem;
+    padding: 1px 4px;
   }
 
   h2 {
@@ -651,6 +1315,76 @@ button:disabled {
 
   .retry-button {
     padding: 5px 10px;
+    font-size: 0.85rem;
+  }
+
+  /* MOQ Requests Mobile Small */
+  .moq-content {
+    padding: 10px;
+  }
+
+  .filter-controls label {
+    font-size: 0.85rem;
+  }
+
+  .filter-controls select {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+  }
+
+  .requests-table th,
+  .requests-table td {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+
+  .product-info {
+    min-width: 120px;
+  }
+
+  .product-name {
+    font-size: 0.8rem;
+  }
+
+  .product-link {
+    font-size: 0.75rem;
+  }
+
+  .action-buttons button {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+  }
+
+  .status-badge {
+    font-size: 0.7rem;
+    padding: 1px 4px;
+  }
+
+  .modal-content {
+    width: 98%;
+    margin: 5px;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 10px;
+  }
+
+  .modal-header h3 {
+    font-size: 1rem;
+  }
+
+  .detail-row {
+    margin-bottom: 10px;
+  }
+
+  .detail-row strong {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+
+  .detail-row p {
     font-size: 0.85rem;
   }
 }

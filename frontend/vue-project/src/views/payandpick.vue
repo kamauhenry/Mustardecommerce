@@ -35,7 +35,7 @@
           </header>
           <div v-if="category.products && category.products.length > 0" class="products-grid">
             <article
-              v-for="product in category.products.slice(0, 3)"
+              v-for="product in category.products.slice(0, 4)"
               :key="product.id"
               class="product-card"
             >
@@ -48,7 +48,7 @@
                 class="product-link"
               >
                 <img
-                  :src="product.thumbnail || 'https://yourdomain.com/images/default-product.jpg'"
+                  :src="product.images.length > 0 ? product.images[0].image : ''"
                   :alt="product.name"
                   class="product-image"
                   loading="lazy"
@@ -214,7 +214,7 @@ export default {
         },
         {
           property: 'og:image',
-          content: 'https://yourdomain.com/images/og-image.jpg',
+          content: 'https://mustardimports.co.ke/images/og-image.jpg',
         },
         {
           name: 'twitter:card',
@@ -230,7 +230,7 @@ export default {
         },
         {
           name: 'twitter:image',
-          content: 'https://yourdomain.com/images/twitter-image.jpg',
+          content: 'https://mustardimports.co.ke/images/twitter-image.jpg',
         },
       ],
       link: [
@@ -251,7 +251,7 @@ export default {
             publisher: {
               '@type': 'Organization',
               name: 'MustardImports',
-              logo: { '@type': 'ImageObject', url: 'https://yourdomain.com/images/logo.png' },
+              logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
             },
             hasPart: store.pickupCategories.slice(0, 4).map(category => ({
               '@type': 'Collection',

@@ -1,291 +1,384 @@
 <template>
-    <div class="modal-backdrop" v-if="isOpen" @click.self="closeModal">
+  <div class="modal-overlay" @click.self="$emit('close')">
+    <div class="request-moq-modal">
+      <div class="modal-header">
+        <h2>Request MOQ Campaign</h2>
+        <button @click="$emit('close')" class="close-button">×</button>
+      </div>
+      
       <div class="modal-content">
-        <div class="modal-header">
-          <h3>Request MOQ Campaign</h3>
-          <button class="close-button" @click="closeModal">&times;</button>
+        <div v-if="loading" class="loading-overlay">
+          <div class="spinner"></div>
         </div>
         
-        <div class="modal-body">
-          <form @submit.prevent="submitForm">
-            <div class="form-group">
-              <label for="productName">Product Name</label>
-              <input 
-                type="text" 
-                id="productName" 
-                v-model="formData.productName" 
-                required
-              >
-            </div>
-            
-            <div class="form-group">
-              <label for="productLink">Product Link</label>
-              <input 
-                type="text" 
-                id="productLink" 
-                v-model="formData.productLink" 
-                required
-              >
-            </div>
-            
-            <div class="form-group">
-              <label for="quantity">Quantity</label>
-              <input 
-                type="number" 
-                id="quantity" 
-                v-model="formData.quantity" 
-                required
-              >
-            </div>
-            
-            <div class="form-group">
-              <label for="description">Description</label>
-              <textarea 
-                id="description" 
-                v-model="formData.description" 
-                placeholder="(Optional) Describe the product weight, size, colors, etc."
-              ></textarea>
-            </div>
-            
-            <div class="form-group">
-              <label>Photo(s)</label>
-              <div class="file-upload">
-                <label for="photos" class="file-upload-btn">Choose Files</label>
-                <input 
-                  type="file" 
-                  id="photos" 
-                  @change="handleFileUpload" 
-                  multiple
-                  accept="image/*"
-                  class="file-input"
-                >
-                <span class="file-name">{{ fileStatus }}</span>
-              </div>
-            </div>
-            
-            <button type="submit" class="submit-btn" :disabled="isSubmitting">
-              {{ isSubmitting ? 'SUBMITTING...' : 'SUBMIT' }}
-            </button>
-          </form>
+        <div v-if="error" class="error-message">
+          {{ error }}
         </div>
+        
+        <div v-if="success" class="success-message">
+          MOQ request submitted successfully!
+        </div>
+        
+        <form @submit.prevent="submitRequest">
+          <div class="form-group">
+            <input 
+              type="text" 
+              v-model="productName" 
+              placeholder="Product Name*" 
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <input 
+              type="url" 
+              v-model="productLink" 
+              placeholder="Product Link*" 
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <input 
+              type="number" 
+              v-model="quantity" 
+              placeholder="Quantity*" 
+              min="1"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <textarea 
+              v-model="description" 
+              placeholder="(Optional) Describe the product weight, size, colors etc." 
+              rows="4"
+            ></textarea>
+          </div>
+          
+          <button type="submit" class="submit-button" :disabled="loading">
+            {{ loading ? 'Submitting...' : 'Submit' }}
+          </button>
+        </form>
       </div>
     </div>
-  </template>
-  
-  <script>
-  export default {
-    name: 'RequestMOQ',
-    props: {
-      isOpen: {
-        type: Boolean,
-        default: false
-      }
-    },
-    data() {
-      return {
-        formData: {
-          productName: '',
-          productLink: '',
-          quantity: '',
-          description: '',
-          photos: []
-        },
-        isSubmitting: false,
-        fileStatus: 'No file chosen'
-      };
-    },
-    methods: {
-      closeModal() {
-        this.$emit('close');
-      },
-      
-      handleFileUpload(event) {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-          this.formData.photos = Array.from(files);
-          this.fileStatus = files.length === 1 
-            ? files[0].name 
-            : `${files.length} files selected`;
-        } else {
-          this.formData.photos = [];
-          this.fileStatus = 'No file chosen';
-        }
-      },
-      
-      async submitForm() {
-        this.isSubmitting = true;
-        
-        try {
-          // Create FormData object to send files
-          const formData = new FormData();
-          formData.append('productName', this.formData.productName);
-          formData.append('productLink', this.formData.productLink);
-          formData.append('quantity', this.formData.quantity);
-          formData.append('description', this.formData.description);
-          
-          // Append all photos
-          this.formData.photos.forEach((file, index) => {
-            formData.append(`photo${index}`, file);
-          });
-          
-          // Replace with your actual API endpoint
-          const response = await fetch('https://your-api-endpoint.com/request-moq', {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (response.ok) {
-            // Success handling
-            this.$emit('success', 'Your MOQ request has been submitted successfully');
-            this.resetForm();
-            this.closeModal();
-          } else {
-            // Error handling
-            const error = await response.json();
-            this.$emit('error', error.message || 'Failed to submit the request');
-          }
-        } catch (error) {
-          console.error('Error submitting form:', error);
-          this.$emit('error', 'An error occurred while submitting your request');
-        } finally {
-          this.isSubmitting = false;
-        }
-      },
-      
-      resetForm() {
-        this.formData = {
-          productName: '',
-          productLink: '',
-          quantity: '',
-          description: '',
-          photos: []
-        };
-        this.fileStatus = 'No file chosen';
-      }
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'RequestMOQModal',
+  emits: ['close', 'submitted'],
+  props: {
+    store: {
+      type: Object,
+      default: null
     }
-  };
-  </script>
+  },
+  data() {
+    return {
+      productName: '',
+      productLink: '',
+      quantity: '',
+      description: '',
+      loading: false,
+      error: '',
+      success: false
+    };
+  },
   
-  <style scoped>
-  .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
+  methods: {
+    // Get auth token from localStorage
+    getAuthToken() {
+      return localStorage.getItem('authToken');
+    },
+
+    // Get CSRF token from cookies
+    getCsrfTokenFromCookies() {
+      const name = 'csrftoken';
+      const cookies = document.cookie.split(';');
+      for (let cookie of cookies) {
+        const [key, value] = cookie.trim().split('=');
+        if (key === name) {
+          return value;
+        }
+      }
+      return null;
+    },
+
+    // Make API request using fetch
+    async makeRequest(url, options = {}) {
+      const token = this.getAuthToken();
+      const csrfToken = this.getCsrfTokenFromCookies();
+      
+      const defaultOptions = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      };
+      
+      // Add auth token if available
+      if (token) {
+        defaultOptions.headers['Authorization'] = `Token ${token}`;
+      }
+      
+      // Add CSRF token for POST/PUT/DELETE requests
+      if (['POST', 'PUT', 'DELETE'].includes(options.method?.toUpperCase())) {
+        if (csrfToken) {
+          defaultOptions.headers['X-CSRFToken'] = csrfToken;
+        }
+      }
+      
+      const finalOptions = {
+        ...defaultOptions,
+        ...options,
+        headers: {
+          ...defaultOptions.headers,
+          ...options.headers
+        }
+      };
+      
+      const response = await fetch(url, finalOptions);
+      
+      // Handle authentication errors
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('authToken');
+        if (this.store && typeof this.store.logout === 'function') {
+          this.store.logout();
+        }
+        throw new Error('Authentication required');
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+
+    async submitRequest() {
+      // Validation
+      if (!this.productName || !this.productLink || !this.quantity) {
+        this.error = 'Please fill in all required fields';
+        return;
+      }
+      
+      this.loading = true;
+      this.error = '';
+      this.success = false;
+      
+      try {
+        const payload = {
+          product_name: this.productName,
+          product_link: this.productLink,
+          quantity: parseInt(this.quantity),
+          description: this.description || ''
+        };
+        
+        const response = await this.makeRequest('https://mustardimports.co.ke/api/moqrequest/', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        
+        this.success = true;
+        this.$emit('submitted', response);
+        
+        // Auto-close after 2 seconds
+        setTimeout(() => {
+          this.$emit('close');
+        }, 2000);
+        
+      } catch (error) {
+        console.error('Error submitting MOQ request:', error);
+        
+        if (error.message === 'Authentication required') {
+          this.error = 'Please log in to submit an MOQ request';
+        } else {
+          this.error = error.message || 'Failed to submit request. Please try again.';
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    resetForm() {
+      this.productName = '';
+      this.productLink = '';
+      this.quantity = '';
+      this.description = '';
+      this.error = '';
+      this.success = false;
+    }
+  },
   
-  .modal-content {
-    width: 90%;
-    max-width: 500px;
-    background-color: white;
-    border-radius: 8px;
-    overflow: hidden;
-  }
+  mounted() {
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    
+    // Focus on first input
+    this.$nextTick(() => {
+      const firstInput = this.$el.querySelector('input[type="text"]');
+      if (firstInput) {
+        firstInput.focus();
+      }
+    });
+  },
   
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    border-bottom: 1px solid #eee;
+  beforeUnmount() {
+    // Re-enable body scroll
+    document.body.style.overflow = '';
   }
-  
-  .modal-header h3 {
-    margin: 0;
-    color: #8a8f38;
-    font-weight: 500;
-  }
-  
-  .close-button {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #999;
-  }
-  
-  .modal-body {
-    padding: 20px;
-  }
-  
-  .form-group {
-    margin-bottom: 15px;
-  }
-  
-  .form-group label {
-    display: block;
-    margin-bottom: 5px;
-    color: #666;
-    font-size: 14px;
-  }
-  
-  input[type="text"],
-  input[type="number"],
-  textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #eee;
-    border-radius: 4px;
-    background-color: #f7f7f7;
-    font-size: 14px;
-  }
-  
-  textarea {
-    min-height: 80px;
-    resize: vertical;
-  }
-  
-  .file-upload {
-    display: flex;
-    align-items: center;
-  }
-  
-  .file-upload-btn {
-    display: inline-block;
-    padding: 8px 12px;
-    background-color: #f0f0f0;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    margin-right: 10px;
-  }
-  
-  .file-input {
-    display: none;
-  }
-  
-  .file-name {
-    color: #666;
-    font-size: 14px;
-  }
-  
-  .submit-btn {
-    width: 100%;
-    padding: 12px;
-    background-color: #e67e22;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    margin-top: 10px;
-  }
-  
-  .submit-btn:hover {
-    background-color: #d35400;
-  }
-  
-  .submit-btn:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-  }
-  </style>
+};
+</script>
+
+<style scoped>
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Request MOQ Modal */
+.request-moq-modal {
+  background: linear-gradient(145deg, #ffffff, #f9fafb);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  margin: auto;
+  font-family: 'Inter', sans-serif;
+  animation: fadeSlideIn 0.4s ease-out;
+  backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1f2a44;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.close-button:hover {
+  color: #1f2a44;
+  transform: scale(1.1);
+}
+
+.modal-content {
+  overflow-y: auto;
+  max-height: calc(90vh - 150px);
+  padding-right: 10px;
+  margin-right: -10px;
+}
+
+/* Scrollbar styling */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.form-group {
+  margin-bottom: 1.8rem;
+}
+
+.modal-content input,
+.modal-content textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  color: #1f2a44;
+  background-color: #f9fafb;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.modal-content input:focus,
+.modal-content textarea:focus {
+  border-color: #f6673b;
+  box-shadow: 0 0 10px rgba(246, 103, 59, 0.2);
+  background-color: #ffffff;
+  outline: none;
+}
+
+.modal-content input::placeholder,
+.modal-content textarea::placeholder {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.modal-content textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.submit-button {
+  background: linear-gradient(90deg, #f6673b, #fa9860);
+  color: #ffffff;
+  border: none;
+  padding: 1rem;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  width: 100%;
+  letter-spacing: 0.5px;
+  transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  font-size: 1.1rem;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: linear-gradient(90deg, #d45933, #c87a4d);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(246, 103, 59, 0.3);
+}
+
+.submit-button:active:not(:disabled) {
+  transform: translateY(0

@@ -20,7 +20,7 @@ const getCsrfTokenFromCookies = () => {
 export const createApiInstance = (store) => {
 
   const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/',
+    baseURL: 'https://mustardimports.co.ke/api/',
     timeout: 150000,
     withCredentials: true, // Ensure cookies are sent with requests
   });
@@ -114,10 +114,10 @@ export const login = async (apiInstance, username, password) => {
 };
 
 // Google Authentication APIs
-export const googleAuth = async (apiInstance, googleToken) => {
+export const googleAuth = async (apiInstance, idToken) => {
   try {
     const response = await apiInstance.post('auth/google/', {
-      access_token: googleToken,
+      id_token: idToken,
     });
     const token = response.data.token;
     localStorage.setItem('authToken', token);
@@ -499,7 +499,7 @@ export const fetchCompletedOrders = async (api, userId) => {
 
 export const createCart = async (api, userId) => {
   try {
-    console.log(`Creating cart at: /api/users/${userId}/create_cart/`);
+   
     const response = await api.post(`users/${userId}/create_cart/`, { userId: userId });
     return response.data;
   } catch (error) {
@@ -789,6 +789,15 @@ export const deleteShippingMethod = async (apiInstance, shippingMethodId) => {
     throw error;
   }
 };
+const fetchMOQRequests = async (apiInstance, params = {}) => {
+  const response = await apiInstance.get('/moqrequest/', { params });
+  return response.data;
+};
+
+const updateMOQRequestStatus = async (apiInstance, requestId, status) => {
+  const response = await apiInstance.post(`/moqrequest/${requestId}/update_status/`, { status });
+  return response.data;
+};
 
 
 export default {
@@ -796,6 +805,8 @@ export default {
   register,
   login,
   googleAuth,
+  updateMOQRequestStatus,
+  fetchMOQRequests,
   logout,
   fetchCurrentUserInfo,
   getUserProfile,

@@ -109,7 +109,7 @@ python manage.py collectstatic
 ### **API Testing with Django REST Framework**
 
 You can access the API endpoints at:
-<http://127.0.0.1:8000/api/>
+<https://mustardimports.co.ke/api/>
 
 Use Postman or Django’s browsable API to interact with the backend.
 
