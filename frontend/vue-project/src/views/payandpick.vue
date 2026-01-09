@@ -3,7 +3,7 @@
     <main id="payAndPickPage" aria-label="Pay & Pick Products">
       <section class="pickup-header" aria-label="Pay & Pick Information">
         <h2 class="pickup-title">Pay & Pick Up at Our Store</h2>
-        <p class="pickup-info">Select items, pay online, and pick up at MustardImports Store, Nairobi CBD.</p>
+        <p class="pickup-info">Select items, pay online, and pick up at Mustard Imports Store, Nairobi CBD.</p>
       </section>
       <div v-if="store.loading.pickupCategories && !store.pickupCategories.length" class="skeleton-container">
         <div v-for="n in 2" :key="n" class="skeleton-category">
@@ -186,23 +186,23 @@ export default {
     };
 
     useHead({
-      title: 'MustardImports - Pay & Pick',
+      title: 'Mustard Imports - Pay & Pick',
       meta: [
         {
           name: 'description',
-          content: 'Shop products available for pickup at MustardImports Store, Nairobi CBD. Select items, pay, and collect quickly.',
+          content: 'Shop products available for pickup at Mustar dImports Store, Nairobi CBD. Select items, pay, and collect quickly.',
         },
         {
           name: 'keywords',
-          content: 'pay and pick, pickup, e-commerce, Kenya, MustardImports',
+          content: 'pay and pick, pickup, e-commerce, Kenya, Mustard Imports',
         },
         {
           property: 'og:title',
-          content: 'MustardImports - Pay & Pick',
+          content: 'Mustard Imports - Pay & Pick',
         },
         {
           property: 'og:description',
-          content: 'Select and pay for products to pick up at MustardImports Store.',
+          content: 'Select and pay for products to pick up at Mustard Imports Store.',
         },
         {
           property: 'og:type',
@@ -222,11 +222,11 @@ export default {
         },
         {
           name: 'twitter:title',
-          content: 'MustardImports - Pay & Pick',
+          content: 'Mustard Imports - Pay & Pick',
         },
         {
           name: 'twitter:description',
-          content: 'Shop and pick up products with ease at MustardImports Store.',
+          content: 'Shop and pick up products with ease at Mustard Imports Store.',
         },
         {
           name: 'twitter:image',
@@ -245,12 +245,12 @@ export default {
           children: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'CollectionPage',
-            name: 'MustardImports Pay & Pick',
-            description: 'Shop products available for pickup at MustardImports Store.',
+            name: 'Mustard Imports Pay & Pick',
+            description: 'Shop products available for pickup at Mustard Imports Store.',
             url: window.location.href,
             publisher: {
               '@type': 'Organization',
-              name: 'MustardImports',
+              name: 'Mustard Imports',
               logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
             },
             hasPart: store.pickupCategories.slice(0, 4).map(category => ({

@@ -153,11 +153,11 @@ export default {
     const isAdmin = computed(() => store.user?.user_type === 'admin');
 
     useHead({
-      title: 'MustardImports - Buy Quality Products Online',
+      title: 'Mustard Imports - Buy Quality Products Online',
       meta: [
         {
           name: 'description',
-          content: 'Shop a wide range of quality products at MustardImports. Discover top categories, exclusive deals, and fast delivery across Kenya.',
+          content: 'Shop a wide range of quality products at Mustard Imports. Discover top categories, exclusive deals, and fast delivery across Kenya.',
         },
         {
           name: 'keywords',
@@ -165,11 +165,11 @@ export default {
         },
         {
           property: 'og:title',
-          content: 'MustardImports - Buy Quality Products Online',
+          content: 'Mustard Imports - Buy Quality Products Online',
         },
         {
           property: 'og:description',
-          content: 'Explore top categories and exclusive deals at MustardImports. Shop now for fast delivery across Kenya!',
+          content: 'Explore top categories and exclusive deals at Mustard Imports. Shop now for fast delivery across Kenya!',
         },
         {
           property: 'og:type',
@@ -189,11 +189,11 @@ export default {
         },
         {
           name: 'twitter:title',
-          content: 'MustardImports - Buy Quality Products Online',
+          content: 'Mustard Imports - Buy Quality Products Online',
         },
         {
           name: 'twitter:description',
-          content: 'Shop quality products with fast delivery at MustardImports. Explore now!',
+          content: 'Shop quality products with fast delivery at Mustard Imports. Explore now!',
         },
         {
           name: 'twitter:image',
@@ -212,12 +212,12 @@ export default {
           innerHTML: computed(() => JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'CollectionPage',
-            name: 'MustardImports Home',
-            description: 'Shop a wide range of quality products at MustardImports.',
+            name: 'Mustard Imports Home',
+            description: 'Shop a wide range of quality products at Mustard Imports.',
             url: window.location.href,
             publisher: {
               '@type': 'Organization',
-              name: 'MustardImports',
+              name: 'Mustard Imports',
               logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
             },
             hasPart: (allhomeCategoriesWithProducts.value || []).map(category => ({

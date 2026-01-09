@@ -281,23 +281,23 @@ export default {
       url: window.location.href,
       publisher: {
         '@type': 'Organization',
-        name: 'MustardImports',
+        name: 'Mustard Imports',
         logo: { '@type': 'ImageObject', url: 'https://mustardimports.co.ke/images/logo.png' },
       },
     }));
 
     useHead({
-      title: computed(() => `MustardImports - ${categoryName.value || 'Category'}`),
+      title: computed(() => `Mustard Imports - ${categoryName.value || 'Category'}`),
       meta: [
-        { name: 'description', content: categoryDescription.value || 'Browse products in this category at MustardImports.' },
-        { name: 'keywords', content: `e-commerce, Kenya, MustardImports, ${categoryName.value}` },
-        { property: 'og:title', content: computed(() => `MustardImports - ${categoryName.value}`) },
+        { name: 'description', content: categoryDescription.value || 'Browse products in this category at Mustard Imports.' },
+        { name: 'keywords', content: `e-commerce, Kenya, Mustard Imports, ${categoryName.value}` },
+        { property: 'og:title', content: computed(() => `Mustard Imports - ${categoryName.value}`) },
         { property: 'og:description', content: categoryDescription.value || 'Browse products in this category.' },
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: window.location.href },
         { property: 'og:image', content: 'https://example.com/images/og-image.jpg' },
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: computed(() => `MustardImports - ${categoryName.value}`) },
+        { name: 'twitter:title', content: computed(() => `Mustard Imports - ${categoryName.value}`) },
         { name: 'twitter:description', content: categoryDescription.value || 'Browse products in this category.' },
         { name: 'twitter:image', content: 'https://example.com/images/twitter-image.jpg' },
       ],

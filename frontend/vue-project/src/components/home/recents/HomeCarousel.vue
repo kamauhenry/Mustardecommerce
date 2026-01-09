@@ -24,9 +24,9 @@
         class="slide"
         v-for="(item, index) in slides"
         :key="index"
-        :style="{ backgroundImage: `url(${item.image})` }"
         @click="goToCategory(item.slug)"
       >
+        <img :src="item.image" class="slide-image" alt="Category Image" />
         <div class="slide-overlay"></div>
         <div class="slide-content">
           <h2 class="slide-title">{{ item.name }}</h2>
@@ -148,9 +148,6 @@ onUnmounted(() => {
   flex: 0 0 100%;
   height: 100%;
   width: 100%;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -161,8 +158,18 @@ onUnmounted(() => {
   box-sizing: border-box;
   position: relative;
   transition: transform 0.3s ease;
+  overflow: hidden; /* Ensure no overflow causes blank space */
 }
 
+.slide-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensures image covers the slide without blank space */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0; /* Place image behind overlay and content */
+}
 .slide:hover {
   transform: scale(1.02);
 }
