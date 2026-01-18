@@ -27,6 +27,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = False  # Disable debug mode for production
 ALLOWED_HOSTS = [os.getenv("DOMAIN"), "www." + os.getenv("DOMAIN"), "localhost", "127.0.0.1"]  # Add your domain, e.g., "example.com"
 SECRET_KEY = os.getenv('SECRET_KEY')  # Already set to use .env
+
+# REST API Configuration
+APPEND_SLASH = False  # RESTful APIs should not use trailing slash redirects
+
 # Application definition
 
 
@@ -184,7 +188,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://mustardimports.co.ke",
     "http://localhost:8000",
 ]
-CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True  # Set to True only in production with HTTPS
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = True  # Set to True only in production with HTTPS
@@ -225,17 +229,28 @@ WSGI_APPLICATION = 'Mustard_imports.wsgi.application'
 # Load environment variables from .env
 # Database configuration using .env, inspired by your guide
 #devconnection
-DATABASES = {#
+# DATABASES = {#
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres.ymeqfypcnminwscpbbrm',
+#         'PASSWORD': 'y5FHPhaeR39gK83zgaNt',
+#         'HOST': 'aws-0-eu-north-1.pooler.supabase.com',
+#         'PORT': '5432',
+#         'OPTIONS': {
+
+#         },
+#     }
+# }
+
+DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres.ymeqfypcnminwscpbbrm',
-        'PASSWORD': 'y5FHPhaeR39gK83zgaNt',
-        'HOST': 'aws-0-eu-north-1.pooler.supabase.com',
-        'PORT': '5432',
-        'OPTIONS': {
-
-        },
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -328,7 +343,7 @@ mimetypes.add_type("image/webp", ".webp")
 mimetypes.add_type("image/svg+xml", ".svg")
 
 
-GOOGLE_CLIENT_ID = '974928309201-vd4rncer6j963b30bpi55o3h8rh4ab3a.apps.googleusercontent.com'
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 
 # Email Configuration
@@ -380,5 +395,5 @@ LOGGING = {
 
 
 # settings.py
-OXYLABS_USERNAME = 'mustardimports_SXOYJ'
-OXYLABS_PASSWORD = 'Mustardoxy1+'
+OXYLABS_USERNAME = os.getenv('OXYLABS_USERNAME')
+OXYLABS_PASSWORD = os.getenv('OXYLABS_PASSWORD')

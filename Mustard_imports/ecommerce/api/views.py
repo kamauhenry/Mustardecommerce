@@ -36,25 +36,21 @@ from google.auth.transport import requests
 import random
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
-import logging
 from django.core.files.base import ContentFile
 import pandas as pd
 import io
-import requests
 from bs4 import BeautifulSoup
 from django.utils.text import slugify
 import time
-import json
-import requests
 from django.views.decorators.http import require_GET
 from googlemaps import Client
 from googlemaps.exceptions import ApiError, TransportError
-import re
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .locations import COUNTIES_AND_WARDS
 from django.utils.crypto import get_random_string
 from ecommerce.models import User
 from google.auth.transport.requests import Request
+from .utils import invalidate_order_caches, format_phone_number, MAX_RECENT_ITEMS, MAX_DASHBOARD_ITEMS
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -67,9 +63,6 @@ MPESA_PASSKEY = os.getenv('MPESA_PASSKEY')
 MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE')
 CALLBACK_URL = os.getenv('CALLBACK_URL')
 MPESA_BASE_URL = os.getenv('MPESA_BASE_URL')
-
-logger = logging.getLogger(__name__)
-
 
 
 class SendOTPView(APIView):
@@ -241,21 +234,6 @@ def query_stk_push(checkout_request_id):
         logger.error(f"Failed to query STK status: {str(e)}")
         return {"error": str(e)}
 
-def format_phone_number(phone_number):
-    logger.info(f"Formatting phone number: {phone_number}")
-    phone_number = phone_number.replace("+", "")
-    if re.match(r"254\d{9}$", phone_number):
-        logger.info(f"Phone number already in 254 format: {phone_number}")
-        return phone_number
-    elif phone_number.startswith("0") and len(phone_number) == 10:
-        formatted_number = "254" + phone_number[1:]
-        logger.info(f"Converted phone number to: {formatted_number}")
-        return formatted_number
-    else:
-        logger.error(f"Invalid phone number format: {phone_number}")
-        raise ValueError("Invalid phone number format")
-
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order_from_cart(request, cart_id):
@@ -281,7 +259,7 @@ def create_order_from_cart(request, cart_id):
     def create_order():
         with transaction.atomic():
             # Clean up incomplete orders
-            existing_orders = Order.objects.filter(user=request.user).select_for_update().order_by('-created_at')[:5]
+            existing_orders = Order.objects.filter(user=request.user).select_for_update().order_by('-created_at')[:MAX_RECENT_ITEMS]
             for existing_order in existing_orders:
                 if not existing_order.items.exists() and (timezone.now() - existing_order.created_at).seconds < 300:
                     logger.info(f"Found incomplete order #MI{existing_order.id}, deleting it")
@@ -772,7 +750,7 @@ def admin_dashboard(request):
         total_customers = User.objects.filter(user_type='customer').count()
         top_products = Product.objects.select_related('category').annotate(
             moq_count=Count('orderitem', filter=Q(orderitem__order__delivery_status__in=['processing', 'shipped']))
-        ).order_by('-moq_count')[:5]
+        ).order_by('-moq_count')[:MAX_DASHBOARD_ITEMS]
         top_products_data = ProductSerializer(top_products, many=True, context={'request': request}).data
 
         today = datetime.today()
@@ -802,7 +780,7 @@ def admin_dashboard(request):
         ]
 
         active_orders = Order.objects.filter(delivery_status__in=['processing', 'shipped']).count()
-        recent_orders = Order.objects.select_related('user', 'shipping_method').prefetch_related('items').order_by('-created_at')[:5].values(
+        recent_orders = Order.objects.select_related('user', 'shipping_method').prefetch_related('items').order_by('-created_at')[:MAX_DASHBOARD_ITEMS].values(
             'id', 'total_price', 'created_at', 'payment_status', 'delivery_status', 'user__email'
         )
 
@@ -818,7 +796,7 @@ def admin_dashboard(request):
             'recent_orders': list(recent_orders),
             'user_leaderboard': User.objects.filter(user_type='customer').annotate(
                 total_purchases=Count('order')
-            ).order_by('-total_purchases').values('id', 'username', 'email', 'total_purchases')[:5]
+            ).order_by('-total_purchases').values('id', 'username', 'email', 'total_purchases')[:MAX_DASHBOARD_ITEMS]
         }
 
         try:
@@ -1510,7 +1488,7 @@ class RelatedProductsView(APIView):
             queryset = Product.objects.filter(
                 category__slug=category_slug,
                 moq_status='active'
-            ).exclude(id=product_id)[:5]
+            ).exclude(id=product_id)[:MAX_DASHBOARD_ITEMS]
             if not queryset.exists():
                 response_data = {"detail": "No related products found."}
                 status_code = status.HTTP_204_NO_CONTENT
@@ -1788,23 +1766,32 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         order = self.get_object()
-        if order.delivery_status not in ['processing', 'shipped']:
-            return Response({"error": "Order cannot be cancelled in its current state"}, status=status.HTTP_400_BAD_REQUEST)
-        order.is_cancelled = True
-        order.delivery_status = 'cancelled'
-        order.save()
+        if order.delivery_status not in ['processing', 'pending']:
+            return Response(
+                {"error": "Only pending or processing orders can be cancelled"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # Invalidate orders cache
-        cache_key_orders = f'user_orders_{request.user.id}'
-        cache_key_order = f'user_order_{request.user.id}_{pk}'
-        try:
-            cache.delete(cache_key_orders)
-            cache.delete(cache_key_order)
-        except (InvalidCacheBackendError, Exception) as e:
-            print(f"Failed to invalidate cache: {e}")
+        with transaction.atomic():
+            # Restore inventory for Pick & Pay products
+            for item in order.items.all():
+                if hasattr(item.product, 'is_pick_and_pay') and item.product.is_pick_and_pay:
+                    try:
+                        inventory = Inventory.objects.get(product=item.product)
+                        inventory.quantity += item.quantity
+                        inventory.save()
+                        logger.info(f"Restored {item.quantity} units to inventory for product {item.product.id}")
+                    except Inventory.DoesNotExist:
+                        logger.warning(f"No inventory record for product {item.product.id}")
 
-        serializer = OrderSerializer(order)
-        return Response(serializer.data)
+            order.is_cancelled = True
+            order.delivery_status = 'cancelled'
+            order.save()
+
+            # Invalidate caches
+            invalidate_order_caches(order.user.id, order.id)
+
+        return Response({"message": "Order cancelled successfully"}, status=status.HTTP_200_OK)
 
 class CompletedOrderViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CompletedOrderSerializer
@@ -1980,7 +1967,7 @@ class MOQRequestViewSet(viewsets.ModelViewSet):
             status_counts[choice[0]] = queryset.filter(status=choice[0]).count()
         
         # Get recent requests
-        recent_requests = queryset[:5]
+        recent_requests = queryset[:MAX_DASHBOARD_ITEMS]
         serializer = self.get_serializer(recent_requests, many=True)
         
         return Response({

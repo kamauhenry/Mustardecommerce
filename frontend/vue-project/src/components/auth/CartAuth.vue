@@ -1,6 +1,6 @@
 <template>
   <div class="auth-buttons">
-    <template v-if="store.isAuthenticated">
+    <template v-if="authStore.isAuthenticated">
       <router-link to="/cart">
         <IconCart/>
       </router-link>
@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import Modal from '@/components/auth/Modal.vue';
 import LoginModal from '@/components/auth/AuthModal.vue';
 
@@ -47,19 +47,19 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const closeModals = () => emit('close');
 
-const store = useEcommerceStore();
+const authStore = useAuthStore();
 const showLoginModal = ref(false);
 
 
 
 onMounted(() => {
-  if (props.autoShowLogin && !store.isAuthenticated) {
+  if (props.autoShowLogin && !authStore.isAuthenticated) {
     openLoginModal();
   }
 });
 
 watch(() => props.autoShowLogin, (newValue) => {
-  if (newValue && !store.isAuthenticated) {
+  if (newValue && !authStore.isAuthenticated) {
     openLoginModal();
   }
 });

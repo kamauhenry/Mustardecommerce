@@ -1,29 +1,50 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import (
-    CategoryViewSet, UserProfileView, search, OrderViewSet, 
-    CompletedOrderViewSet, CustomerReviewViewSet, 
-    MOQRequestViewSet, UserViewSet, RegisterView, 
-    LoginView, get_current_user, ProductDetail, 
-    CategoryListView, CategoriesWithProductsViewSet, 
-    CategoryProductsView, AllCategoriesWithProductsView, 
-    create_cart, get_user_cart, add_item_to_cart, 
-    update_cart_item_quantity, remove_cart_item, 
-    get_user_orders, test_image, 
-    process_payment, get_payment_details, DeliveryLocationView,
-    logout_view, mpesa_callback, 
-    create_order_from_cart, update_order_shipping, GoogleAuthView,
-    ChangePasswordView, latest_products, random_products,
-    AdminRegisterView, AdminLoginView, AdminLogoutView, 
-    AdminProfileView, admin_dashboard, ProductReviewsView,
-    RelatedProductsView, get_all_orders, get_moq_fulfilled_products,
-    place_order_for_product, bulk_update_order_status,update_single_order_status,ProductViewSet, SupplierView, AttributeView, AttributeValueView,HomeCategoriesView,BulkProductImportView,AttributeValueByAttributeView,ScrapeProductsView, update_cart_shipping_method, get_shipping_methods,shipping_methods1, shipping_method_detail1,pickup_home_categories,CountiesView,WardsView, SendOTPView, ForgotPasswordView, ResetPasswordView, VerifyOTPView
+
+# Auth views
+from .views_auth import (
+    SendOTPView, VerifyOTPView, ForgotPasswordView, ResetPasswordView,
+    AdminRegisterView, AdminLoginView, AdminLogoutView, AdminProfileView,
+    GoogleAuthView, UserViewSet, LoginView, logout_view, RegisterView,
+    ChangePasswordView, get_current_user
 )
+
+# Product views
+from .views_products import (
+    search, random_products, latest_products, RelatedProductsView,
+    CategoryProductsView, CategoryViewSet, CategoriesWithProductsViewSet,
+    CategoryListView, AllCategoriesWithProductsView, pickup_home_categories,
+    ProductDetail, ProductViewSet, SupplierView, AttributeView,
+    AttributeValueView, AttributeValueByAttributeView, BulkProductImportView,
+    HomeCategoriesView, ScrapeProductsView
+)
+
+# Order views
+from .views_orders import (
+    create_order_from_cart, update_order_shipping, process_payment,
+    get_payment_details, mpesa_callback, get_user_orders, OrderViewSet,
+    CompletedOrderViewSet, CustomerReviewViewSet, ProductReviewsView,
+    MOQRequestViewSet, get_all_orders, get_moq_fulfilled_products,
+    place_order_for_product, bulk_update_order_status, update_single_order_status,
+    test_image, UserProfileView, DeliveryLocationView, CountiesView, WardsView,
+    cancel_order
+)
+
+# Cart views
+from .views_cart import (
+    create_cart, get_user_cart, add_item_to_cart,
+    update_cart_shipping_method, update_cart_item_quantity, remove_cart_item,
+    get_shipping_methods, shipping_methods1, shipping_method_detail1
+)
+
+# Admin views
+from .views_admin import admin_dashboard
 
 router = routers.DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
-router.register(r'admin/products', ProductViewSet, basename='product') 
+router.register(r'admin/products', ProductViewSet, basename='product')
 router.register(r'moqrequest', MOQRequestViewSet, basename='moq-request')
+router.register(r'completed-orders', CompletedOrderViewSet, basename='completed-orders')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -83,6 +104,7 @@ urlpatterns = [
     path('users/<int:user_id>/cart/', get_user_cart, name='get-user-cart'),
     path('orders/', get_user_orders, name='get-user-orders'),
     path('orders/<int:order_id>/', get_user_orders, name='get-order-detail'),
+    path('orders/<int:order_id>/cancel/', cancel_order, name='cancel-order'),
     path('create_cart/', create_cart, name='create-cart'),
     path('carts/<int:cart_id>/add_item/', add_item_to_cart, name='add-item-to-cart'),
     path('cart-items/<int:item_id>/update_cart_item_quantity/', update_cart_item_quantity, name='update-cart-item-quantity'),

@@ -58,19 +58,19 @@
 
 <script>
 import { computed, onMounted, ref } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useSearchStore } from '@/stores/modules/search';
 import { useRouter } from 'vue-router';
 import placeholder from '@/assets/images/placeholder.jpeg';
 
 export default {
   setup() {
-    const ecommerceStore = useEcommerceStore();
+    const searchStore = useSearchStore();
     const router = useRouter();
     const randomProducts = ref([]);
     const searchProducts = ref([]);
     const isLoading = ref(true);
 
-    const recentSearches = computed(() => ecommerceStore.recentSearches.slice(0, 3));
+    const recentSearches = computed(() => searchStore.recentSearches.slice(0, 3));
 
     const fetchRandomProducts = async () => {
       try {
@@ -150,7 +150,7 @@ export default {
     };
 
     const performSearch = (query) => {
-      ecommerceStore.addRecentSearch(query);
+      searchStore.addToRecentSearches(query);
       router.push({ name: 'search-results', query: { q: query } });
     };
 

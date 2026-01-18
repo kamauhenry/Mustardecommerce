@@ -501,7 +501,7 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import { toast } from 'vue3-toastify';
 import api from '@/services/api';
@@ -509,7 +509,7 @@ import api from '@/services/api';
 export default {
   components: { AdminLayout },
   setup() {
-    const store = useEcommerceStore();
+    const store = useProductsStore();
     const activeTab = ref('Products');
     const tabs = ['Products', 'Attributes', 'Suppliers', 'Import from E-commerce'];
     const products = ref([]);

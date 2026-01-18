@@ -45,7 +45,9 @@ class AdminLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(username=data.get('username'), password=data.get('password'))
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        # User model uses email as USERNAME_FIELD, so authenticate with email parameter
+        user = authenticate(request=request, email=data.get('username'), password=data.get('password'))
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
         if user.user_type != 'admin':
@@ -69,7 +71,9 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(username=data.get('username'), password=data.get('password'))
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        # User model uses email as USERNAME_FIELD, so authenticate with email parameter
+        user = authenticate(request=request, email=data.get('username'), password=data.get('password'))
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
         return {'user': user}
@@ -236,7 +240,7 @@ class ProductSerializer(serializers.ModelSerializer):
     )
     supplier = SupplierSerializer(read_only=True)
     supplier_id = serializers.PrimaryKeyRelatedField(
-        queryset=Supplier.objects.all(), source='supplier', write_only=True, allow_null=True
+        queryset=Supplier.objects.all(), source='supplier', write_only=True, allow_null=True, required=False
     )
     images = ProductImageSerializer(many=True, read_only=True)
     attributes = serializers.SerializerMethodField()

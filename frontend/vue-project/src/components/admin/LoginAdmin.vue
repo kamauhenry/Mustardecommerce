@@ -30,8 +30,8 @@
                 />
               </div>
             </div>
-            <button type="submit" :disabled="store.loading.auth" class="auth-button">
-              <span v-if="!store.loading.auth">Login</span>
+            <button type="submit" :disabled="authStore.isLoggingIn" class="auth-button">
+              <span v-if="!authStore.isLoggingIn">Login</span>
               <div v-else class="loader-container">
                 <div class="loader"></div>
                 <span>Logging in</span>
@@ -161,7 +161,7 @@
 
 <script setup>
 import { ref, reactive, nextTick } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 
@@ -170,7 +170,7 @@ const showForgotPassword = ref(false);
 const loginError = ref(null);
 const registerError = ref(null);
 const resetEmail = ref('');
-const store = useEcommerceStore();
+const authStore = useAuthStore();
 const router = useRouter();
 
 const loginForm = reactive({
@@ -201,24 +201,33 @@ const toggleForgotPassword = () => {
 
 const login = async () => {
   loginError.value = null;
-  try {
-    const response = await store.adminLogin({ 
-      username: loginForm.username, 
-      password: loginForm.password 
-    });
-    console.log(`Logged in as admin ${response.username}`);
+
+  // Use the same login method for admin
+  // The authStore.isAdmin computed property will determine admin status
+  const success = await authStore.login(loginForm.username, loginForm.password);
+
+  if (success) {
+    console.log(`Logged in as admin ${authStore.currentUser?.username}`);
     await nextTick();
-    router.push('/admin-page/dashboard');
-  } catch (err) {
-    loginError.value = 'Admin login failed: Wrong Password or Username';
-    console.error('Admin login failed:', err);
+
+    // Check if user is actually an admin
+    if (authStore.isAdmin) {
+      router.push('/admin-page/dashboard');
+    } else {
+      loginError.value = 'Access denied: Not an admin account';
+      await authStore.logout();
+    }
+  } else {
+    loginError.value = authStore.loginMessage || 'Admin login failed: Wrong Password or Username';
   }
 };
 
 const register = async () => {
   registerError.value = null;
   try {
-    const response = await store.adminRegister({
+    // Use direct API for admin registration (different endpoint than customer registration)
+    const apiInstance = api.createApiInstance({ authToken: null });
+    const response = await apiInstance.post('auth/register/', {
       username: registerForm.username,
       email: registerForm.email,
       first_name: registerForm.first_name,
@@ -227,18 +236,20 @@ const register = async () => {
       password: registerForm.password,
       user_type: 'admin',
     });
-    console.log(`Registered as admin ${response.username}`);
+    console.log(`Registered as admin ${response.data.username}`);
     showRegister.value = false;
     await nextTick();
   } catch (err) {
     // Extract the specific error message from the backend response
     const errorData = err.response?.data;
     if (errorData && errorData.username && Array.isArray(errorData.username)) {
-      registerError.value = errorData.username[0]; // Set the error message (e.g., "user with this username already exists.")
+      registerError.value = errorData.username[0];
+    } else if (errorData && errorData.email && Array.isArray(errorData.email)) {
+      registerError.value = errorData.email[0];
     } else if (errorData && errorData.error) {
-      registerError.value = errorData.error; // Fallback to generic error if available
+      registerError.value = errorData.error;
     } else {
-      registerError.value = 'Admin registration failed'; // Default fallback message
+      registerError.value = 'Admin registration failed';
     }
     console.error('Admin registration failed:', err.response?.data);
   }

@@ -402,14 +402,18 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useOrdersStore } from '@/stores/modules/orders';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import api from '@/services/api';
 import { toast } from 'vue3-toastify';
 import { debounce } from 'lodash';
 
 // Store
-const store = useEcommerceStore();
+const authStore = useAuthStore();
+const ordersStore = useOrdersStore();
+// Create minimal store object for api.js compatibility
+const store = { isAuthenticated: computed(() => authStore.isAuthenticated) };
 
 // Tab Management
 const tabs = [
@@ -638,8 +642,11 @@ const selectSuggestion = (suggestion) => {
 const debouncedFetchSuggestions = debounce(async () => {
   if (searchQuery.value.trim()) {
     try {
-      await store.fetchOrderSearchSuggestions(searchQuery.value);
-      suggestions.value = store.orderSearchSuggestions;
+      const apiInstance = api.createApiInstance(store);
+      const response = await apiInstance.get('/orders/search-suggestions/', {
+        params: { q: searchQuery.value }
+      });
+      suggestions.value = response.data || [];
       showSuggestions.value = true;
     } catch (err) {
       console.error('Failed to fetch suggestions:', err);

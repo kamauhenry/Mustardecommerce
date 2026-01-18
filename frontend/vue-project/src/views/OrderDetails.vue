@@ -85,7 +85,8 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useOrdersStore } from '@/stores/modules/orders';
 import { useRouter, useRoute } from 'vue-router';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import MainLayout from '@/components/navigation/MainLayout.vue';
@@ -97,20 +98,23 @@ export default {
     MainLayout,
   },
   setup() {
-    const store = useEcommerceStore();
+    const authStore = useAuthStore();
+    const ordersStore = useOrdersStore();
     const router = useRouter();
     const route = useRoute();
     const orderId = computed(() => parseInt(route.params.orderId));
-    const loading = computed(() => store.loading.orderDetails);
-    const error = computed(() => store.error.orderDetails);
-    const orderDetails = computed(() => store.orderDetails);
-    const isAdmin = computed(() => store.currentUser?.user_type === 'admin');
+    const loading = computed(() => ordersStore.isLoadingOrder);
+    const error = ref(null);
+    const orderDetails = computed(() => ordersStore.currentOrder);
+    const isAdmin = computed(() => authStore.isAdmin);
 
     const fetchOrderDetails = async () => {
       try {
-        await store.fetchOrderDetails(orderId.value);
+        error.value = null;
+        await ordersStore.fetchOrder(orderId.value);
       } catch (err) {
         console.error('Order details fetch error:', err);
+        error.value = 'Failed to load order details';
       }
     };
 

@@ -175,7 +175,7 @@
 <script>
 import { onMounted, computed, watch, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 import { useHead } from '@vueuse/head';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 
@@ -184,12 +184,12 @@ export default {
   components: { MainLayout },
   setup() {
     const route = useRoute();
-    const store = useEcommerceStore();
+    const store = useProductsStore();
     const selectedFilter = ref('all');
     const minPrice = 1000;
     const maxPrice = 34000;
     const priceRange = ref([minPrice, maxPrice]);
-    const isStoreReady = ref(false);
+    const isStoreReady = ref(true); // Store is always ready with new modular stores
     const searchQuery = ref('');
 
     // Category slug
@@ -200,13 +200,7 @@ export default {
 
     // Initialize store
     onMounted(() => {
-      if (!store.apiInstance) store.initializeApiInstance();
-      if (!store.loading) {
-        store.$patch({ loading: { categoryProducts: false } });
-      }
-      isStoreReady.value = true; // Mark store as ready after initialization
       if (categorySlug.value) {
-        console.log('Store loading state:', store.loading); // Debug
         store.fetchCategoryProducts(categorySlug.value);
       }
     });
@@ -216,7 +210,10 @@ export default {
     });
 
     onUnmounted(() => {
-      if (categorySlug.value) store.error.categoryProducts[categorySlug.value] = null;
+      // Clear error for this category when unmounting
+      if (categorySlug.value && store.categoryProductsErrors) {
+        store.categoryProductsErrors[categorySlug.value] = null;
+      }
     });
 
     // Category details
@@ -251,7 +248,7 @@ export default {
     });
 
     // Error
-    const categoryError = computed(() => store.error.categoryProducts[categorySlug.value] || null);
+    const categoryError = computed(() => store.categoryProductsErrors[categorySlug.value] || null);
 
     // Retry loading
     const retryLoading = () => {

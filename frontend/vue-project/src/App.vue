@@ -1,5 +1,6 @@
 <script>
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useCartStore } from '@/stores/modules/cart';
   export default {
     name: "app",
     data(){
@@ -11,20 +12,21 @@ import { useEcommerceStore } from '@/stores/ecommerce';
       }
     },
     setup(){
-      const store = useEcommerceStore
-      return {store};
+      const authStore = useAuthStore();
+      const cartStore = useCartStore();
+      return { authStore, cartStore };
     },
     created() {
     // If authenticated, fetch cart data
-    if (this.store.isAuthenticated) {
-      this.store.fetchCart();
+    if (this.authStore.isAuthenticated) {
+      this.cartStore.fetchCart();
     }
   },
 
     computed:{
       cartTotalLength() {
 
-      const items = this.store.cart.items || [];
+      const items = this.cartStore.items || [];
 
       //sum up quantities
       return items.reduce((total, item) => total + (item.quantity || 0), 0);

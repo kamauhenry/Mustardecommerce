@@ -4,6 +4,15 @@ import { toast } from 'vue3-toastify';
 
 export const useEcommerceStore = defineStore('ecommerce', {
   state: () => {
+    // SECURITY WARNING: localStorage is vulnerable to XSS attacks
+    // TODO: Migrate to httpOnly cookies for auth tokens (requires backend changes)
+    // Current implementation stores sensitive data in localStorage:
+    // - authToken: Authentication JWT
+    // - currentUser: User profile data
+    // - userId: User identifier
+    //
+    // Mitigation: All user input is sanitized via DOMPurify to prevent XSS
+    // Future: Move to httpOnly cookies or sessionStorage with server-side sessions
     const state = {
       authToken: localStorage.getItem('authToken') || null,
       currentUser: JSON.parse(localStorage.getItem('currentUser')) || null,
@@ -497,11 +506,7 @@ export const useEcommerceStore = defineStore('ecommerce', {
       }
     },
     async fetchLatestProducts(limit) {
-      const response = await axios.get(`https://mustardimports.co.ke//api/products/latest/?limit=${limit}`, {
-        headers: {
-
-        },
-      });
+      const response = await this.apiInstance.get(`/products/latest/?limit=${limit}`);
       return response.data;
     },
 
@@ -909,14 +914,15 @@ export const useEcommerceStore = defineStore('ecommerce', {
 
     async fetchSearchSuggestions(query) {
       try {
-        const response = await fetch(
-          `https://mustardimports.co.ke//api/products/search/?search=${encodeURIComponent(query)}&page=1&per_page=5&ordering=-created_at`
-        );
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const data = await response.json();
-        this.searchSuggestions = data.results || [];
+        const response = await this.apiInstance.get('/products/search/', {
+          params: {
+            search: query,
+            page: 1,
+            per_page: 5,
+            ordering: '-created_at'
+          }
+        });
+        this.searchSuggestions = response.data.results || [];
         console.log('Suggestions fetched:', this.searchSuggestions);
       } catch (error) {
         console.error('Error fetching suggestions:', error);

@@ -1,9 +1,12 @@
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig(({ mode }) => {
+  // Load env file based on mode
+  const env = loadEnv(mode, process.cwd(), '');
+
   return {
     plugins: [
       vue(),
@@ -14,70 +17,50 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-    // Fix: Use relative path for assets in production
-    base: mode === 'production' ? '/' : '/',
+    // Build optimization
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
       manifest: true,
+
+      // Code splitting
       rollupOptions: {
         output: {
-          entryFileNames: 'assets/[name].js',
-          chunkFileNames: 'assets/[name].js',
-          assetFileNames: 'assets/[name].[ext]',
-        },
+          manualChunks: {
+            'vendor': ['vue', 'vue-router', 'pinia'],
+            'axios': ['axios'],
+            'charts': ['chart.js', 'vue-chartjs'],
+          },
+          entryFileNames: 'assets/[name].[hash].js',
+          chunkFileNames: 'assets/[name].[hash].js',
+          assetFileNames: 'assets/[name].[hash].[ext]',
+        }
       },
+
+      // Source maps only in development
+      sourcemap: mode === 'development',
+
+      // Minification
+      minify: mode === 'production' ? 'terser' : false,
+
+      // Performance warnings
+      chunkSizeWarningLimit: 1000,
     },
     server: {
       port: 5173,
       historyApiFallback: true,
       proxy: {
         '/api': {
-          target: 'https://mustardimports.co.ke',
+          target: env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000',
           changeOrigin: true,
-          secure: true, // Set to true for HTTPS
-        },
-        '/static': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/login': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/register': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/logout': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/admin-page/login': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/admin-page/register': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/admin-page/dashboard': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
-        },
-        '/admin-page/profile': {
-          target: 'https://mustardimports.co.ke',
-          changeOrigin: true,
-          secure: true,
+          secure: false,
         },
       },
+    },
+
+    // Preview server (for production builds)
+    preview: {
+      port: 4173,
     },
   };
 });

@@ -52,14 +52,15 @@
 </template>
 
 <script>
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { computed } from 'vue';
+import { useCartStore } from '@/stores/modules/cart';
 
 export default {
   name: 'CartIcon',
   setup() {
-    const store = useEcommerceStore();
+    const cartStore = useCartStore();
     return {
-      cartItemCount: store.cartItemCount,
+      cartItemCount: computed(() => cartStore.cartItemCount),
     };
   },
 };

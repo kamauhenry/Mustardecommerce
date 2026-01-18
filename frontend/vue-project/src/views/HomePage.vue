@@ -131,7 +131,8 @@
 
 <script>
 import { onMounted, ref, onUnmounted, nextTick, computed } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
+import { useAuthStore } from '@/stores/modules/auth';
 import { useHead } from '@vueuse/head';
 import { useRouter } from 'vue-router';
 import MainLayout from '@/components/navigation/MainLayout.vue';
@@ -141,7 +142,8 @@ import HomeCarousel from '@/components/home/recents/HomeCarousel.vue';
 
 export default {
   setup() {
-    const store = useEcommerceStore();
+    const store = useProductsStore();
+    const authStore = useAuthStore();
     const router = useRouter();
     const loadMoreSentinel = ref(null);
     const isMobile = ref(window.innerWidth <= 650);
@@ -150,7 +152,7 @@ export default {
     let retryCount = 0;
 
     const allhomeCategoriesWithProducts = computed(() => store.allhomeCategoriesWithProducts || []);
-    const isAdmin = computed(() => store.user?.user_type === 'admin');
+    const isAdmin = computed(() => authStore.isAdmin);
 
     useHead({
       title: 'Mustard Imports - Buy Quality Products Online',

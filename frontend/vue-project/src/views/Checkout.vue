@@ -137,7 +137,10 @@
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useOrdersStore } from '@/stores/modules/orders';
+import { useUserStore } from '@/stores/modules/user';
+import { useApiInstance } from '@/stores/composables/useApiInstance';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 import grey from '@/assets/images/placeholder.jpeg';
@@ -145,7 +148,10 @@ import grey from '@/assets/images/placeholder.jpeg';
 export default {
   components: { MainLayout },
   setup() {
-    const store = useEcommerceStore();
+    const authStore = useAuthStore();
+    const ordersStore = useOrdersStore();
+    const userStore = useUserStore();
+    const { api } = useApiInstance();
     const router = useRouter();
     const route = useRoute();
     const loading = ref(false);
@@ -170,7 +176,7 @@ export default {
     const phoneError = ref(null);
 
     // Computed Properties
-    const isAuthenticated = computed(() => store.isAuthenticated);
+    const isAuthenticated = computed(() => authStore.isAuthenticated);
     const isPayAndPickOrder = computed(() => {
       return order.value?.items?.length > 0 && order.value.items.every(item => item.is_pick_and_pay);
     });
@@ -240,7 +246,7 @@ export default {
       orderId = orderId.replace(/^MI/, '');
       loading.value = true;
       try {
-        const response = await store.fetchOrder(orderId);
+        const response = await ordersStore.fetchOrder(orderId);
         order.value = response;
         error.value = null;
       } catch (err) {
@@ -253,7 +259,7 @@ export default {
 
     const fetchDeliveryLocations = async () => {
       try {
-        deliveryLocations.value = await store.fetchDeliveryLocations();
+        deliveryLocations.value = await userStore.fetchAddresses();
         const defaultLocation = deliveryLocations.value.find(loc => loc.is_default && (isPayAndPickOrder.value ? loc.is_shop_pickup : !loc.is_shop_pickup));
         if (defaultLocation) selectedDeliveryLocationId.value = defaultLocation.id;
       } catch (err) {
@@ -263,8 +269,8 @@ export default {
 
     const fetchCounties = async () => {
       try {
-        const response = await store.apiInstance.get('/counties/');
-        counties.value = response.data.counties;
+        const response = await api.get('/counties/');
+        counties.value = response.data?.counties || response.counties || [];
       } catch (err) {
         toast.error('Failed to fetch counties.', { autoClose: 3000 });
       }
@@ -276,8 +282,8 @@ export default {
         return;
       }
       try {
-        const response = await store.apiInstance.get(`/wards/?county=${newLocation.value.county}`);
-        wards.value = response.data.wards || [];
+        const response = await api.get(`/wards/?county=${newLocation.value.county}`);
+        wards.value = response.data?.wards || response.wards || [];
       } catch (err) {
         toast.error('Failed to fetch wards.', { autoClose: 3000 });
       }
@@ -294,7 +300,7 @@ export default {
           ...newLocation.value,
           is_shop_pickup: isPayAndPickOrder.value,
         };
-        const response = await store.addDeliveryLocation(locationData);
+        const response = await userStore.addAddress(locationData);
         deliveryLocations.value.push(response);
         selectedDeliveryLocationId.value = response.id;
         showAddLocationForm.value = false;
@@ -307,7 +313,7 @@ export default {
       }
     };
 
-    const initiatePayment = async () => {
+    const initiatePaymentHandler = async () => {
       phoneError.value = validatePhoneNumber(phoneNumber.value);
       if (phoneError.value) {
         toast.error(phoneError.value, { autoClose: 3000 });
@@ -320,9 +326,9 @@ export default {
       isProcessing.value.confirm = true;
       try {
         // Update order with delivery location
-        await store.updateOrderShipping(order.value.id, null, selectedDeliveryLocationId.value);
+        await ordersStore.updateOrderShipping(order.value.id, null, selectedDeliveryLocationId.value);
         // Initiate payment
-        const response = await store.initiatePayment(order.value.id, phoneNumber.value);
+        await ordersStore.initiatePayment(order.value.id, phoneNumber.value);
         router.push({ path: '/confirmation', query: { orderId: order.value.id } });
         toast.success('Payment initiated! Awaiting confirmation...', { autoClose: 3000 });
       } catch (err) {
@@ -333,7 +339,6 @@ export default {
     };
 
     onMounted(() => {
-      if (!store.apiInstance) store.initializeApiInstance();
       fetchOrder();
       fetchDeliveryLocations();
       fetchCounties();
@@ -364,7 +369,8 @@ export default {
       calculateLineTotal,
       goToLogin,
       goToCart,
-      initiatePayment,
+      initiatePayment: initiatePaymentHandler,
+      retryFetch: fetchOrder,
       grey,
     };
   },

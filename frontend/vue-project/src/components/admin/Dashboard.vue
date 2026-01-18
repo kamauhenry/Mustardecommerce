@@ -130,7 +130,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAdminStore } from '@/stores/modules/admin';
 import { useRouter } from 'vue-router';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import { Chart } from 'vue-chartjs';
@@ -154,10 +154,10 @@ export default {
     Chart,
   },
   setup() {
-    const store = useEcommerceStore();
+    const adminStore = useAdminStore();
     const router = useRouter();
     const error = ref(null);
-    const loading = computed(() => store.loading);
+    const loading = computed(() => ({ dashboard: adminStore.isLoadingStats }));
     const activeTab = ref('overview');
     const tabs = [
       { id: 'overview', label: 'Overview' },
@@ -167,7 +167,7 @@ export default {
     const fetchDashboard = async () => {
       try {
         error.value = null;
-        await store.fetchDashboardData();
+        await adminStore.fetchDashboardData();
       } catch (err) {
         error.value = err.message || 'Failed to load dashboard data. Please try again later.';
         console.error('Dashboard fetch error:', {
@@ -184,7 +184,7 @@ export default {
 
     onMounted(fetchDashboard);
 
-    const dashboardData = computed(() => store.dashboardData || {});
+    const dashboardData = computed(() => adminStore.dashboardStats || {});
 
     const revenueChartData = computed(() => ({
       labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
