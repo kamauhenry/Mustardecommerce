@@ -927,7 +927,7 @@ class UserProfileView(APIView):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'phone_number': user.phone_number,
-            'profile_photo': user.avatar,
+            'profile_photo': getattr(user, 'avatar', None),
             'points': getattr(user, 'points', 0),
             'affiliate_code': getattr(user, 'affiliate_code', ''),
         })
