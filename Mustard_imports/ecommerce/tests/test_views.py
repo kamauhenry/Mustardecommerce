@@ -149,8 +149,6 @@ class AuthenticationTest(TestCase):
             'username': 'test@example.com',  # Use email as USERNAME_FIELD is email
             'password': 'testpass'
         }
-        if response.status_code != 200:
-            print(f"Login error: {response.data}")
         response = self.client.post(reverse('login'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)

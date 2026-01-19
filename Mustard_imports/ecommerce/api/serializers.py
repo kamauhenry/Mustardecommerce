@@ -46,8 +46,8 @@ class AdminLoginSerializer(serializers.Serializer):
 
     def validate(self, data):
         request = self.context.get('request') if hasattr(self, 'context') else None
-        # User model uses email as USERNAME_FIELD, so authenticate with email parameter
-        user = authenticate(request=request, email=data.get('username'), password=data.get('password'))
+        # User model uses email as USERNAME_FIELD, but authenticate() still expects 'username' parameter
+        user = authenticate(request=request, username=data.get('username'), password=data.get('password'))
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
         if user.user_type != 'admin':
@@ -72,8 +72,8 @@ class LoginSerializer(serializers.Serializer):
 
     def validate(self, data):
         request = self.context.get('request') if hasattr(self, 'context') else None
-        # User model uses email as USERNAME_FIELD, so authenticate with email parameter
-        user = authenticate(request=request, email=data.get('username'), password=data.get('password'))
+        # User model uses email as USERNAME_FIELD, but authenticate() still expects 'username' parameter
+        user = authenticate(request=request, username=data.get('username'), password=data.get('password'))
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
         return {'user': user}

@@ -147,7 +147,7 @@ class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = AdminLoginSerializer(data=request.data)
+        serializer = AdminLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
@@ -347,7 +347,7 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        serializer = LoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
 
