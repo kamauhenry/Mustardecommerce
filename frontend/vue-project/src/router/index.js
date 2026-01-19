@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 
 // Main app components
 import ResetPassword from '@/components/auth/ResetPassword.vue';
@@ -84,8 +84,8 @@ const routes = [
     component: AdminDashboard,
     meta: { requiresAdmin: true },
     beforeEnter: (to, from, next) => {
-      const store = useEcommerceStore();
-      if (store.isAdmin) {
+      const authStore = useAuthStore();
+      if (authStore.isAdmin) {
         next();
       } else {
         next('/admin-page/login');
@@ -123,21 +123,21 @@ export default function createMyRouter(pinia) {
       return;
     }
 
-    const store = useEcommerceStore(pinia);
-    
+    const authStore = useAuthStore(pinia);
+
     // Ensure user info is fetched if authenticated
-    if (store.isAuthenticated && !store.currentUser) {
+    if (authStore.isAuthenticated && !authStore.user) {
       try {
-        await store.fetchCurrentUserInfo();
+        await authStore.fetchCurrentUserInfo();
       } catch (error) {
         console.error('Failed to fetch user info:', error);
-        store.logout();
+        authStore.logout();
       }
     }
 
     // Admin Routes
     if (to.meta.requiresAdmin) {
-      if (store.isAuthenticated && store.isAdmin) {
+      if (authStore.isAuthenticated && authStore.isAdmin) {
         next();
       } else {
         next('/admin-page/login');
@@ -145,7 +145,7 @@ export default function createMyRouter(pinia) {
     }
     // Guest Routes
     else if (to.meta.requiresGuest) {
-      if (store.isAuthenticated && store.isAdmin) {
+      if (authStore.isAuthenticated && authStore.isAdmin) {
         next('/admin-page/dashboard');
       } else {
         next();
@@ -153,7 +153,7 @@ export default function createMyRouter(pinia) {
     }
     // Authenticated Routes
     else if (to.meta.requiresAuth) {
-      if (store.isAuthenticated) {
+      if (authStore.isAuthenticated) {
         next();
       } else {
         next('/');

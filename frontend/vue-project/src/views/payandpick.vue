@@ -108,14 +108,14 @@
 
 <script>
 import { onMounted, ref, onUnmounted, nextTick } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 import { useHead } from '@vueuse/head';
 import { toast } from 'vue3-toastify';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 export default {
   name: 'PayAndPick',
   setup() {
-    const store = useEcommerceStore();
+    const store = useProductsStore();
     const loadMoreSentinel = ref(null);
     let observer = null;
     const maxRetries = 5;

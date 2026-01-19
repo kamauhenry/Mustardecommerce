@@ -1,0 +1,18 @@
+[run]
+source = Mustard_imports/ecommerce
+omit =
+    */migrations/*
+    */tests/*
+    */admin.py
+    */apps.py
+    */__init__.py
+    */conftest.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:

@@ -109,7 +109,7 @@
 <script>
 import { onMounted, computed } from 'vue';
 import MainLayout from '@/components/navigation/MainLayout.vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 import { useHead } from '@vueuse/head';
 
 export default {
@@ -118,7 +118,7 @@ export default {
     MainLayout,
   },
   setup() {
-    const store = useEcommerceStore();
+    const store = useProductsStore();
 
     // SEO Meta Tags
     useHead({
@@ -209,9 +209,6 @@ export default {
     });
 
     onMounted(() => {
-      if (!store.apiInstance) {
-        store.initializeApiInstance();
-      }
       if (!store.allCategoriesWithProducts.length) {
         store.fetchAllCategoriesWithProducts();
       }

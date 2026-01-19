@@ -100,14 +100,21 @@ class AdminUser(models.Model):
 
 class OTP(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    otp = models.CharField(max_length=6)
+    code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        """Check if OTP is expired (valid for 10 minutes)"""
+        from datetime import timedelta
+        expiration_time = timedelta(minutes=10)
+        return timezone.now() > (self.created_at + expiration_time)
 
 class DeliveryLocation(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='delivery_locations', null=True, blank=True)
-
+    name = models.CharField(max_length=100, default="Default Location")  # Added missing field
     county = models.CharField(max_length=100, default="shop pick up")
     ward = models.CharField(max_length=100, default="shop pick up")
+    address = models.TextField(blank=True, null=True)
     is_shop_pickup = models.BooleanField(default=False)
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -136,15 +143,27 @@ class Supplier(models.Model):
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
-    slug = models.SlugField(null=True, blank=True)
+    slug = models.SlugField(null=True, blank=True, unique=True)
     description = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
-    
+
     class Meta:
         ordering = ('name',)
-    
+
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        """Auto-generate slug from name if not provided"""
+        if not self.slug and self.name:
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Category.objects.filter(slug=slug).exclude(id=self.id).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         return f'/{self.slug}'
@@ -230,7 +249,9 @@ class Product(models.Model):
         super().save(*args, **kwargs)
 
     def current_moq_count(self):
-        if self.moq_status != 'active' or self.is_pick_and_pay:
+        # Always return actual count, regardless of MOQ status
+        # Pick & Pay products don't use MOQ, so return 0
+        if self.is_pick_and_pay:
             return 0
         order_items = OrderItem.objects.filter(
             product=self,
@@ -369,10 +390,22 @@ class Cart(models.Model):
 
     @property
     def shipping_cost(self):
-        # No shipping cost if all items are Pick and Pay
-        if all(item.product.is_pick_and_pay for item in self.items.all()):
-            return 0
-        return self.shipping_method.price if self.shipping_method else 0
+        """Return shipping cost as Decimal, handling edge cases"""
+        items = self.items.all()
+
+        # Empty cart returns 0
+        if not items:
+            return Decimal('0.00')
+
+        # All Pick & Pay items = no shipping
+        if all(item.product.is_pick_and_pay for item in items):
+            return Decimal('0.00')
+
+        # Return shipping method price or 0
+        if self.shipping_method:
+            return Decimal(str(self.shipping_method.price))
+
+        return Decimal('0.00')
 
     @property
     def total(self):
@@ -443,15 +476,21 @@ class Order(models.Model):
     delivery_location = models.ForeignKey('DeliveryLocation', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default='processing')
+    is_cancelled = models.BooleanField(default=False)
+    is_pick_and_pay = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
-        is_pick_and_pay_order = all(item.product.is_pick_and_pay for item in self.items.all()) if self.pk else False
-        if is_pick_and_pay_order:
+        # Use explicit is_pick_and_pay field instead of calculating from items
+        # This avoids edge case where all([]) returns True for orders with no items
+        if self.is_pick_and_pay:
             self.shipping_cost = Decimal('0.00')
             self.shipping_method = None
-            self.delivery_status = 'ready_for_pickup'
+            # Only auto-set to ready_for_pickup if status is still 'processing' (default)
+            # Don't override delivered or cancelled states
+            if self.delivery_status == 'processing':
+                self.delivery_status = 'ready_for_pickup'
         elif not self.pk and self.shipping_method:
             self.shipping_cost = Decimal(str(self.shipping_method.price))
 

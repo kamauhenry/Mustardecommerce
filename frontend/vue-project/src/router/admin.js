@@ -6,7 +6,7 @@ import Orders from '@/components/admin/Orders.vue';
 import Categories from '@/components/admin/Categories.vue';
 import LoginAdmin from '@/components/admin/LoginAdmin.vue';
 import RegistrationAdmin from '@/components/admin/RegisterAdmin.vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 
 const routes = [
   { path: '/admin-page/dashboard', component: Dashboard, meta: { requiresAdmin: true } },
@@ -30,9 +30,9 @@ const createAdminRouter = () => {
   });
 
   router.beforeEach((to, from, next) => {
-    const store = useEcommerceStore();
-    const isAuthenticated = store.isAuthenticated;
-    const isAdmin = store.isAdmin();
+    const authStore = useAuthStore();
+    const isAuthenticated = authStore.isAuthenticated;
+    const isAdmin = authStore.isAdmin();
 
     if (to.meta.requiresAdmin) {
       if (!isAuthenticated || !isAdmin) {

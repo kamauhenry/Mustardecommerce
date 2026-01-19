@@ -77,8 +77,8 @@
                 </div>
               </div>
             </div>
-            <button type="submit" :disabled="store.loading.auth" class="auth-button">
-              <span v-if="!store.loading.auth">Register</span>
+            <button type="submit" :disabled="authStore.loading" class="auth-button">
+              <span v-if="!authStore.loading">Register</span>
               <div v-else class="loader-container">
                 <div class="loader"></div>
                 <span>Registering</span>
@@ -91,7 +91,7 @@
           </p>
         </div>
       </div>
-      
+
       <!-- Login Side (Back) -->
       <div class="card-face card-face-back">
         <div class="auth-card">
@@ -121,8 +121,8 @@
                 />
               </div>
             </div>
-            <button type="submit" :disabled="store.loading.auth" class="auth-button">
-              <span v-if="!store.loading.auth">Login</span>
+            <button type="submit" :disabled="authStore.loading" class="auth-button">
+              <span v-if="!authStore.loading">Login</span>
               <div v-else class="loader-container">
                 <div class="loader"></div>
                 <span>Logging in</span>
@@ -141,13 +141,13 @@
 
 <script setup>
 import { ref, reactive, nextTick } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import { useRouter } from 'vue-router';
 
 const showLogin = ref(false);
 const loginError = ref(null);
 const registerError = ref(null);
-const store = useEcommerceStore();
+const authStore = useAuthStore();
 const router = useRouter();
 
 const loginForm = reactive({
@@ -174,9 +174,9 @@ const flipCard = () => {
 const login = async () => {
   loginError.value = null;
   try {
-    const response = await store.adminLogin({ 
-      username: loginForm.username, 
-      password: loginForm.password 
+    const response = await authStore.adminLogin({
+      username: loginForm.username,
+      password: loginForm.password
     });
     console.log(`Logged in as admin ${response.username}`);
     await nextTick(); // Ensure state updates
@@ -190,7 +190,7 @@ const login = async () => {
 const register = async () => {
   registerError.value = null;
   try {
-    const response = await store.adminRegister({
+    const response = await authStore.adminRegister({
       username: registerForm.username,
       email: registerForm.email,
       first_name: registerForm.first_name,
@@ -200,7 +200,7 @@ const register = async () => {
       user_type: 'admin',
     });
     console.log(`Registered as admin ${response.username}`);
-    
+
     // Flip to login form after successful registration
     showLogin.value = true;
     await nextTick();

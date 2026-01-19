@@ -34,14 +34,14 @@
 
 <script>
 import { ref, computed, watch } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useSearchStore } from '@/stores/modules/search';
 import { useRouter } from 'vue-router';
 
 export default {
   name: 'SearchBar',
   setup() {
     const query = ref('');
-    const ecommerceStore = useEcommerceStore();
+    const searchStore = useSearchStore();
     const router = useRouter();
     const showSuggestions = ref(false);
     let debounceTimeout = null;
@@ -49,8 +49,8 @@ export default {
 
     // Computed property to access search suggestions from the store
     const suggestions = computed(() => {
-      console.log('Computed suggestions:', ecommerceStore.searchSuggestions); // Debug
-      return ecommerceStore.searchSuggestions;
+      console.log('Computed suggestions:', searchStore.searchSuggestions); // Debug
+      return searchStore.searchSuggestions;
     });
 
     // Fetch suggestions with debounce
@@ -64,14 +64,14 @@ export default {
       debounceTimeout = setTimeout(() => {
         if (newQuery.trim()) {
           console.log('Fetching suggestions for:', newQuery);
-          ecommerceStore.fetchSearchSuggestions(newQuery);
+          searchStore.getSuggestions(newQuery);
           showSuggestions.value = true;
           hideTimeout = setTimeout(() => {
             showSuggestions.value = false;
             console.log('Suggestions hidden after 3s timeout');
           }, 6000);
         } else {
-          ecommerceStore.searchSuggestions = [];
+          searchStore.clearSuggestions();
           showSuggestions.value = false;
         }
       }, 200);
@@ -81,33 +81,20 @@ export default {
     const search = async () => {
       if (!query.value.trim()) return;
 
-      ecommerceStore.setSearchLoading(true);
-      try {
-        const response = await fetch(
-          `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query.value)}`
-        );
-        if (!response.ok) throw new Error('Failed to fetch products');
-        const data = await response.json();
+      // Use the new search store's unified search method
+      // It handles loading states, results, and recent searches automatically
+      await searchStore.search(query.value);
 
-        ecommerceStore.setSearchResults(data.results || []);
-        ecommerceStore.setTotalResults(data.count || 0);
-        ecommerceStore.addRecentSearch(query.value);
+      // Navigate to search results page
+      router.push({
+        name: 'search-results',
+        query: { q: query.value },
+      });
 
-        router.push({
-          name: 'search-results',
-          query: { q: query.value },
-        });
-
-        showSuggestions.value = false;
-        if (hideTimeout) {
-          clearTimeout(hideTimeout);
-        }
-      } catch (error) {
-        console.error('Error searching products:', error);
-        ecommerceStore.setSearchResults([]);
-        ecommerceStore.setTotalResults(0);
-      } finally {
-        ecommerceStore.setSearchLoading(false);
+      // Hide suggestions dropdown
+      showSuggestions.value = false;
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
       }
     };
 

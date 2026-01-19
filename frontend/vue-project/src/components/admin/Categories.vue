@@ -254,14 +254,16 @@
 
 <script>
 import { ref, onMounted, watch, computed } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import AdminLayout from '@/components/admin/AdminLayout.vue';
 import api from '@/services/api';
 
 export default {
   components: { AdminLayout },
   setup() {
-    const store = useEcommerceStore();
+    const authStore = useAuthStore();
+    // Create minimal store object for api.js compatibility
+    const store = { isAuthenticated: computed(() => authStore.isAuthenticated) };
     
     // Tab management
     const activeTab = ref('categories');

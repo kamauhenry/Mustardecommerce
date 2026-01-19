@@ -60,11 +60,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useOrdersStore } from '@/stores/modules/orders';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 
 const route = useRoute();
-const store = useEcommerceStore();
+const ordersStore = useOrdersStore();
 const order = ref(null);
 const loading = ref(true);
 const error = ref(null);
@@ -98,9 +98,8 @@ onMounted(async () => {
   }
 
   try {
-    if (!store.apiInstance) store.initializeApiInstance();
-    const response = await store.apiInstance.get(`/orders/${orderId.replace(/^MI/, '')}/`);
-    order.value = response.data;
+    const response = await ordersStore.fetchOrder(orderId.replace(/^MI/, ''));
+    order.value = response;
   } catch (err) {
     if (err.response) {
       if (err.response.status === 404) {

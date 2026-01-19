@@ -84,12 +84,12 @@
         </button>
 
         <div v-if="isCategoriesOpen" id="categories-dropdown" class="categories-dropdown">
-          <div v-if="store.loading.categories" class="loading">
+          <div v-if="productsStore.loading.categories" class="loading">
             Loading categories...
           </div>
-          <div v-else-if="store.error.categories" class="error">
-            {{ store.error.categories }}
-            <button @click="store.fetchCategories" class="retry-button">Retry</button>
+          <div v-else-if="productsStore.error.categories" class="error">
+            {{ productsStore.error.categories }}
+            <button @click="productsStore.fetchCategories" class="retry-button">Retry</button>
           </div>
           <ul v-else class="category-list" itemscope itemtype="http://schema.org/ItemList">
             <li v-for="category in categories" :key="category.id" itemprop="itemListElement" itemscope itemtype="http://schema.org/Thing">
@@ -107,9 +107,9 @@
         <li><router-link to="/" :class="isActive('/')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Home</span></router-link></li>
         <li><router-link to="/pay-and-pick" :class="isActive('/pay-and-pick')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Pay & Pick</span></router-link></li>
         <li><router-link to="/moq-campaigns" :class="isActive('/moq-campaigns')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">MOQ Campaigns</span></router-link></li>
-        <li v-if="store.isAuthenticated"><router-link to="/profile" :class="isActive('/profile')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Profile</span></router-link></li>
-        <li v-if="store.isAuthenticated"><router-link to="/orders" :class="isActive('/orders')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Orders</span></router-link></li>
-        <li v-if="store.isAuthenticated"><a @click="handleRequestMOQ" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
+        <li v-if="authStore.isAuthenticated"><router-link to="/profile" :class="isActive('/profile')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Profile</span></router-link></li>
+        <li v-if="authStore.isAuthenticated"><router-link to="/orders" :class="isActive('/orders')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">My Orders</span></router-link></li>
+        <li v-if="authStore.isAuthenticated"><a @click="handleRequestMOQ" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
         <li v-else><a @click="openLoginModal" class="nav-link" itemprop="url"><span itemprop="name">Request MOQ Campaign</span></a></li>
         <li><router-link to="/about" :class="isActive('/about')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">About Us</span></router-link></li>
         <li><router-link to="/contact" :class="isActive('/contact')" @click="handleNavigationWithSidebarClose" itemprop="url"><span itemprop="name">Contact Us</span></router-link></li>
@@ -131,7 +131,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch, inject, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
+import { useSearchStore } from '@/stores/modules/search';
+import { useAuthStore } from '@/stores/modules/auth';
 import IconHamburger from '../icons/IconHamburger.vue';
 import IconLightMode from '../icons/IconLightMode.vue';
 import IconCart from '../icons/IconCart.vue';
@@ -140,7 +142,9 @@ import AuthModals from '../auth/AuthModals.vue';
 
 const route = useRoute();
 const router = useRouter();
-const store = useEcommerceStore();
+const productsStore = useProductsStore();
+const searchStore = useSearchStore();
+const authStore = useAuthStore();
 
 // Use inject with fallbacks to prevent errors
 const openRequestMOQ = inject('openRequestMOQ', () => {
@@ -171,8 +175,8 @@ let shouldCloseSidebar = ref(false);
 
 // Computed property to access search suggestions from the store
 const suggestions = computed(() => {
-  console.log('Computed suggestions:', store.searchSuggestions);
-  return store.searchSuggestions;
+  console.log('Computed suggestions:', searchStore.suggestions);
+  return searchStore.suggestions;
 });
 
 // Fetch suggestions with debounce
@@ -186,7 +190,7 @@ watch(query, (newQuery) => {
   debounceTimeout = setTimeout(() => {
     if (newQuery.trim()) {
       console.log('Fetching suggestions for:', newQuery);
-      store.fetchSearchSuggestions(newQuery);
+      searchStore.fetchSuggestions(newQuery);
       showSuggestions.value = true;
       hideTimeout = setTimeout(() => {
         setTimeout(() => {
@@ -195,7 +199,7 @@ watch(query, (newQuery) => {
         }, 100);
       }, 6000);
     } else {
-      store.searchSuggestions = [];
+      searchStore.clearSuggestions();
       showSuggestions.value = false;
     }
   }, 200);
@@ -242,7 +246,7 @@ const toggleSearch = () => {
 const performSearch = async () => {
   if (!query.value.trim()) return;
 
-  store.setSearchLoading(true);
+  searchStore.setLoading(true);
   try {
     const response = await fetch(
       `https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query.value)}`
@@ -250,9 +254,9 @@ const performSearch = async () => {
     if (!response.ok) throw new Error('Failed to fetch products');
     const data = await response.json();
 
-    store.setSearchResults(data.results || []);
-    store.setTotalResults(data.count || 0);
-    store.addRecentSearch(query.value);
+    searchStore.setResults(data.results || []);
+    searchStore.setTotalResults(data.count || 0);
+    searchStore.addRecentSearch(query.value);
 
     router.push({
       name: 'search-results',
@@ -269,10 +273,10 @@ const performSearch = async () => {
     updateContentOffset();
   } catch (error) {
     console.error('Error searching products:', error);
-    store.setSearchResults([]);
-    store.setTotalResults(0);
+    searchStore.setResults([]);
+    searchStore.setTotalResults(0);
   } finally {
-    store.setSearchLoading(false);
+    searchStore.setLoading(false);
   }
 };
 
@@ -321,13 +325,13 @@ const updateScreenSize = () => {
   }, 100);
 };
 
-const categories = computed(() => store.categories);
+const categories = computed(() => productsStore.categories);
 
 onMounted(() => {
   window.addEventListener('resize', updateScreenSize);
   document.addEventListener('click', handleOutsideClick);
-  if (!store.categories.length) {
-    store.fetchCategories();
+  if (!productsStore.categories.length) {
+    productsStore.fetchCategories();
   }
   updateContentOffset();
 

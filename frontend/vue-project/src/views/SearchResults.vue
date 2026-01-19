@@ -160,7 +160,7 @@
 <script>
 import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useSearchStore } from '@/stores/modules/search';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 
 export default {
@@ -171,7 +171,7 @@ export default {
   setup() {
     const route = useRoute();
     const router = useRouter();
-    const ecommerceStore = useEcommerceStore();
+    const searchStore = useSearchStore();
 
     // Filter states
     const selectedFilter = ref('all');
@@ -181,9 +181,9 @@ export default {
     const refineQuery = ref('');
 
     const searchQuery = computed(() => route.query.q || '');
-    const searchResults = computed(() => ecommerceStore.searchResults || []);
-    const isLoading = computed(() => ecommerceStore.searchLoading);
-    const totalResults = computed(() => ecommerceStore.totalSearchResults);
+    const searchResults = computed(() => searchStore.searchResults || []);
+    const isLoading = computed(() => searchStore.isSearching);
+    const totalResults = computed(() => searchStore.totalResults);
 
     // Filtered products based on filters
     const filteredProducts = computed(() => {
@@ -212,20 +212,9 @@ export default {
     const fetchSearchResults = async (query) => {
       if (!query.trim()) return;
 
-      ecommerceStore.setSearchLoading(true);
-      try {
-        const response = await fetch(`https://mustardimports.co.ke/api/products/search/?search=${encodeURIComponent(query)}`);
-        if (!response.ok) throw new Error('Failed to fetch products');
-        const data = await response.json();
-        ecommerceStore.setSearchResults(data.results || []);
-        ecommerceStore.setTotalResults(data.count || 0);
-      } catch (error) {
-        console.error('Error fetching search results:', error);
-        ecommerceStore.setSearchResults([]);
-        ecommerceStore.setTotalResults(0);
-      } finally {
-        ecommerceStore.setSearchLoading(false);
-      }
+      // Use the new search store's unified search method
+      // It handles loading states, results, and error handling automatically
+      await searchStore.search(query);
     };
 
     // Apply filters

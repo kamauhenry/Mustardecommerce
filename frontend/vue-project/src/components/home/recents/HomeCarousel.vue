@@ -57,7 +57,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import axios from 'axios';
+import { apiClient } from '@/services/api';
 
 const slides = ref([]);
 const currentSlide = ref(0);
@@ -69,7 +69,7 @@ const fetchCategories = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('https://mustardimports.co.ke/api/categories/');
+    const response = await apiClient.get('/categories/');
     console.log('API response:', response.data);
     slides.value = response.data
       .map(category => ({

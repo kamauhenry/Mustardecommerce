@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(findstr:*)",
+      "Bash(pip install:*)",
+      "Bash(ls:*)",
+      "Bash(python manage.py check:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python manage.py test:*)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(coverage run:*)",
+      "Bash(coverage report:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

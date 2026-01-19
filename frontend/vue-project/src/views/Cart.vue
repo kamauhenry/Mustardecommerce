@@ -106,7 +106,10 @@
 <script>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useCartStore } from '@/stores/modules/cart';
+import { useUserStore } from '@/stores/modules/user';
+import { useApiInstance } from '@/stores/composables/useApiInstance';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 import grey from '@/assets/images/placeholder.jpeg';
@@ -114,16 +117,19 @@ import grey from '@/assets/images/placeholder.jpeg';
 export default {
   components: { MainLayout },
   setup() {
-    const store = useEcommerceStore();
+    const authStore = useAuthStore();
+    const cartStore = useCartStore();
+    const userStore = useUserStore();
+    const { api } = useApiInstance();
     const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
     const isCheckoutProcessing = ref(false);
 
     // Computed properties
-    const isAuthenticated = computed(() => store.isAuthenticated);
-    const cartItems = computed(() => store.cart?.items || []);
-    const cartItemCount = computed(() => store.cart?.items?.length || 0);
+    const isAuthenticated = computed(() => authStore.isAuthenticated);
+    const cartItems = computed(() => cartStore.cart?.items || []);
+    const cartItemCount = computed(() => cartStore.cart?.items?.length || 0);
     const cartSubtotal = computed(() => {
       return cartItems.value.reduce((sum, item) => {
         return sum + parseFloat(calculateLineTotal(item));
@@ -134,7 +140,7 @@ export default {
     });
     const shippingCost = computed(() => {
       if (isPayAndPickCart.value) return 0;
-      return Number(store.cart?.shipping_cost) || 0;
+      return Number(cartStore.cart?.shipping_cost) || 0;
     });
     const cartTotal = computed(() => {
       return (cartSubtotal.value + shippingCost.value).toFixed(2);
@@ -142,7 +148,7 @@ export default {
     const canCheckout = computed(() => {
       if (!cartItems.value.length) return false;
       if (isPayAndPickCart.value) return true; // Allow checkout for Pick and Pay carts with null shipping_method
-      return !!store.cart?.shipping_method; // Require shipping_method for non-Pick and Pay carts
+      return !!cartStore.cart?.shipping_method; // Require shipping_method for non-Pick and Pay carts
     });
 
     // Format price to 2 decimal places
@@ -161,8 +167,8 @@ export default {
     // Format attributes
     const formatAttributes = (attributes) => {
       return Object.entries(attributes || {}).map(([attribute_name, value]) => ({
-        attribute_name,
-        value
+        attribute_name: String(attribute_name),
+        value: String(value)
       }));
     };
 
@@ -174,8 +180,8 @@ export default {
     const loadCart = async () => {
       loading.value = true;
       try {
-        await store.fetchCurrentUserInfo();
-        await store.fetchCart();
+        await userStore.fetchProfile();
+        await cartStore.fetchCart();
         error.value = null;
       } catch (err) {
         error.value = 'Please login to view your cart';
@@ -199,12 +205,11 @@ export default {
         return;
       }
       try {
-        if (!store.apiInstance) store.initializeApiInstance();
-        await store.apiInstance.post(`/cart-items/${item.id}/update_cart_item_quantity/`, {
+        await api.post(`/cart-items/${item.id}/update_cart_item_quantity/`, {
           quantity: newQuantity,
-          cart_id: store.cart?.id,
+          cart_id: cartStore.cart?.id,
         });
-        await store.fetchCart();
+        await cartStore.fetchCart();
         toast.success('Quantity updated successfully!', { autoClose: 3000 });
       } catch (err) {
         console.error('Failed to update quantity:', err);
@@ -215,11 +220,10 @@ export default {
     // Remove item from cart
     const removeItem = async (itemId) => {
       try {
-        if (!store.apiInstance) store.initializeApiInstance();
-        await store.apiInstance.post(`/carts/${store.cart?.id}/remove_item/`, {
+        await api.post(`/carts/${cartStore.cart?.id}/remove_item/`, {
           item_id: itemId,
         });
-        await store.fetchCart();
+        await cartStore.fetchCart();
         toast.success('Item removed from cart!', { autoClose: 3000 });
       } catch (err) {
         console.error('Failed to remove item:', err);
@@ -239,7 +243,7 @@ export default {
       }
       isCheckoutProcessing.value = true;
       try {
-        const order = await store.createOrderFromCart();
+        const order = await cartStore.createOrderFromCart();
         router.push({ path: '/checkout', query: { orderId: order.order_number } });
       } catch (err) {
         console.error('Failed to proceed to checkout:', err);
@@ -273,7 +277,7 @@ export default {
       proceedToCheckout,
       isCheckoutProcessing,
       grey,
-      store,
+      store: cartStore,
       isPayAndPickCart,
       canCheckout,
       calculateLineTotal,

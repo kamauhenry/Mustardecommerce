@@ -7,7 +7,6 @@ import createMyRouter from './router/index';
 import axios from 'axios';
 import Vue3Toastify, { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
-import { useEcommerceStore } from '@/stores/ecommerce';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import {
@@ -55,11 +54,7 @@ const initializeApp = (router, mountPoint) => {
     theme: 'colored',
   });
 
-  const store = useEcommerceStore(pinia);
-  if (store.authToken && !store.apiInstance) {
-    console.log('Initializing apiInstance in main.js');
-    store.initializeApiInstance();
-  }
+  // API instance initialization is now handled by individual stores
 
   app.config.errorHandler = (err, vm, info) => {
     console.error('Vue Error:', err);

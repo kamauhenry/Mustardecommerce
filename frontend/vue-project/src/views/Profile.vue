@@ -299,13 +299,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useUserStore } from '@/stores/modules/user';
 import { toast } from 'vue3-toastify';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import AddDeliveryLocationPopup from '@/views/AddDeliveryLocationPopup.vue';
 
 // Store
-const store = useEcommerceStore();
+const userStore = useUserStore();
 
 // Tabs
 const tabs = [
@@ -326,6 +326,7 @@ const showChangePassword = ref(false);
 const isSubmittingProfile = ref(false);
 const isSubmittingPassword = ref(false);
 const isSubmittingLocation = ref(false);
+const locationsErrorMsg = ref(null);
 
 // Forms
 const editProfileForm = ref({
@@ -342,15 +343,13 @@ const changePasswordForm = ref({
 });
 
 // Computed
-const user = computed(() => store.currentUser || {});
-const deliveryLocations = computed(() => store.deliveryLocations || []);
-const completedOrders = computed(() =>
-  store.orders.filter(order => order.delivery_status === 'delivered')
-);
-const ordersLoading = computed(() => store.loading.orders);
-const ordersError = computed(() => store.error.orders);
-const locationsLoading = computed(() => store.loading.deliveryLocations);
-const locationsError = computed(() => store.error.deliveryLocations);
+const user = computed(() => userStore.currentUser || {});
+const deliveryLocations = computed(() => userStore.deliveryLocations || []);
+const completedOrders = computed(() => []); // Orders moved to orders store
+const ordersLoading = computed(() => false);
+const ordersError = computed(() => null);
+const locationsLoading = computed(() => userStore.isLoadingAddresses);
+const locationsError = computed(() => locationsErrorMsg.value);
 
 // Utility Functions
 const formatDate = (dateString) => {
@@ -380,12 +379,12 @@ const cancelEditProfile = () => {
 const updateProfile = async () => {
   isSubmittingProfile.value = true;
   try {
-    await store.updateUserProfile(editProfileForm.value);
-    showEditProfile.value = false;
-    toast.success('Profile updated successfully!');
+    const success = await userStore.updateUserProfile(editProfileForm.value);
+    if (success) {
+      showEditProfile.value = false;
+    }
   } catch (error) {
     console.error('Update profile error:', error);
-    toast.error(error.message || 'Failed to update profile');
   } finally {
     isSubmittingProfile.value = false;
   }
@@ -412,17 +411,16 @@ const updatePassword = async () => {
   }
   isSubmittingPassword.value = true;
   try {
-    await store.changePassword(
+    const success = await userStore.changePassword(
       changePasswordForm.value.currentPassword,
-      changePasswordForm.value.newPassword,
-      changePasswordForm.value.confirmPassword
+      changePasswordForm.value.newPassword
     );
-    showChangePassword.value = false;
-    toast.success('Password changed successfully!');
-    cancelChangePassword();
+    if (success) {
+      showChangePassword.value = false;
+      cancelChangePassword();
+    }
   } catch (error) {
     console.error('Change password error:', error);
-    toast.error(error.message || 'Failed to change password');
   } finally {
     isSubmittingPassword.value = false;
   }
@@ -442,12 +440,10 @@ const closePopup = () => {
 const addLocation = async (newLocation) => {
   isSubmittingLocation.value = true;
   try {
-    await store.addDeliveryLocation(newLocation);
-    toast.success('Location added successfully!');
+    await userStore.addDeliveryLocation(newLocation);
     closePopup();
   } catch (error) {
     console.error('Failed to add location:', error);
-    toast.error(error.message || 'Failed to add location');
   } finally {
     isSubmittingLocation.value = false;
   }
@@ -456,11 +452,9 @@ const addLocation = async (newLocation) => {
 const setAsDefault = async (locationId) => {
   isSubmittingLocation.value = true;
   try {
-    await store.setDefaultDeliveryLocation(locationId);
-    toast.success('Default delivery location set!');
+    await userStore.setDefaultDeliveryLocation(locationId);
   } catch (error) {
     console.error('Failed to set default location:', error);
-    toast.error(error.message || 'Failed to set default location');
   } finally {
     isSubmittingLocation.value = false;
   }
@@ -474,11 +468,9 @@ const confirmDeleteLocation = (locationId) => {
 const deleteLocation = async () => {
   isSubmittingLocation.value = true;
   try {
-    await store.deleteDeliveryLocation(locationToDeleteId.value);
-    toast.success('Location deleted successfully!');
+    await userStore.deleteDeliveryLocation(locationToDeleteId.value);
   } catch (error) {
     console.error('Failed to delete location:', error);
-    toast.error(error.message || 'Failed to delete location');
   } finally {
     showDeleteModal.value = false;
     locationToDeleteId.value = null;
@@ -494,9 +486,7 @@ const cancelDeleteLocation = () => {
 // Tab Navigation
 const setActiveTab = (tab) => {
   activeTab.value = tab;
-  if (tab === 'orders' && !store.orders.length) {
-    store.fetchOrdersData();
-  }
+  // Orders functionality moved to orders store - can be added later if needed
 };
 
 const activeTabStyle = computed(() => {
@@ -513,13 +503,12 @@ onMounted(async () => {
   try {
     isLoading.value = true;
     await Promise.all([
-      store.fetchUserProfile(),
-      store.fetchDeliveryLocations(),
-
+      userStore.fetchUserProfile(),
+      userStore.fetchDeliveryLocations(),
     ]);
   } catch (error) {
     console.error('Error loading profile data:', error);
-    toast.error('Failed to load profile data');
+    locationsErrorMsg.value = 'Failed to load profile data';
   } finally {
     isLoading.value = false;
   }

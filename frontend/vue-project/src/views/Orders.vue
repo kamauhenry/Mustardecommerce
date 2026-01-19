@@ -235,15 +235,19 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useOrdersStore } from '@/stores/modules/orders';
 import MainLayout from '@/components/navigation/MainLayout.vue';
 import { useRouter } from 'vue-router';
 import { toast } from 'vue3-toastify';
-import api from '@/services/api';
 import logo from '../assets/images/mustard-imports.png';
 
-const store = useEcommerceStore();
+const authStore = useAuthStore();
+const ordersStore = useOrdersStore();
 const router = useRouter();
+
+// Expose store for template
+const store = ordersStore;
 
 const dateFilter = ref('last1month');
 const statusFilter = ref('all');
@@ -323,7 +327,7 @@ const filteredOrders = computed(() => {
 const fetchOrdersData = async () => {
   try {
     loading.value = true;
-    await store.fetchOrdersData();
+    await ordersStore.fetchOrders();
   } catch (error) {
     console.error('Error fetching orders:', error);
     toast.error(error.response?.data?.error || 'Failed to load orders.');
@@ -336,8 +340,7 @@ const fetchOrderDetails = async (orderId) => {
   try {
     modalLoading.value = true;
     modalError.value = null;
-    const apiInstance = api.createApiInstance(store);
-    selectedOrder.value = await api.fetchOrder(apiInstance, orderId);
+    selectedOrder.value = await ordersStore.fetchOrder(orderId);
   } catch (error) {
     console.error('Error fetching order details:', error);
     modalError.value = error.response?.data?.error || 'Failed to load order details.';
@@ -625,17 +628,10 @@ const printReceipt = () => {
 };
 
 onMounted(async () => {
-  if (!store.isAuthenticated) {
+  if (!authStore.isAuthenticated) {
     router.push('/login');
     return;
   }
-  if (!store.userId) {
-    console.error('User ID is not set in the store');
-    toast.error('User ID not found. Please log in again.');
-    router.push('/login');
-    return;
-  }
-  const apiInstance = api.createApiInstance(store);
   try {
     await fetchOrdersData();
   } catch (error) {

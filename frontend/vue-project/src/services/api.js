@@ -1,5 +1,25 @@
 import axios from 'axios';
 
+// Get and validate API base URL from environment
+const getBaseURL = () => {
+  const url = import.meta.env.VITE_API_BASE_URL;
+
+  if (!url) {
+    throw new Error(
+      'VITE_API_BASE_URL is not defined. Please check your .env file.'
+    );
+  }
+
+  // Normalize URL (remove trailing slash)
+  return url.replace(/\/$/, '');
+};
+
+// Log configuration in development mode
+if (import.meta.env.DEV) {
+  console.log('[API] Base URL:', getBaseURL());
+  console.log('[API] Mode:', import.meta.env.MODE);
+}
+
 function getAuthToken() {
   return localStorage.getItem('authToken');
 }
@@ -11,16 +31,23 @@ const getCsrfTokenFromCookies = () => {
   for (let cookie of cookies) {
     const [key, value] = cookie.trim().split('=');
     if (key === name) {
-      return value;
+      // Validate token format (alphanumeric, 32-64 chars)
+      if (value && /^[a-zA-Z0-9]{32,64}$/.test(value)) {
+        return value;
+      } else {
+        console.error('Invalid CSRF token format detected');
+        return null;
+      }
     }
   }
+  console.warn('CSRF token not found in cookies');
   return null;
 };
 
 export const createApiInstance = (store) => {
 
   const api = axios.create({
-    baseURL: 'https://mustardimports.co.ke/api/',
+    baseURL: getBaseURL(),
     timeout: 150000,
     withCredentials: true, // Ensure cookies are sent with requests
   });
@@ -28,6 +55,23 @@ export const createApiInstance = (store) => {
   // Request interceptor for auth token and CSRF token
   api.interceptors.request.use(
     (config) => {
+      // Ensure trailing slash for Django (prevents 301 redirects)
+      if (config.url) {
+        const hasQueryParams = config.url.includes('?');
+        if (hasQueryParams) {
+          // URL has query params: add slash before the '?'
+          const [path, query] = config.url.split('?');
+          if (!path.endsWith('/')) {
+            config.url = `${path}/?${query}`;
+          }
+        } else {
+          // No query params: just add trailing slash if missing
+          if (!config.url.endsWith('/')) {
+            config.url = `${config.url}/`;
+          }
+        }
+      }
+
       const token = getAuthToken();
       const publicEndpoints = [
         'auth/forgot-password/',
@@ -800,6 +844,56 @@ const updateMOQRequestStatus = async (apiInstance, requestId, status) => {
 };
 
 
+// Create a default API client for components that don't need store context
+export const apiClient = axios.create({
+  baseURL: getBaseURL(),
+  timeout: 150000,
+  withCredentials: true,
+});
+
+// Add request interceptor for apiClient
+apiClient.interceptors.request.use(
+  (config) => {
+    // Ensure trailing slash for Django (prevents 301 redirects)
+    if (config.url) {
+      const hasQueryParams = config.url.includes('?');
+      if (hasQueryParams) {
+        // URL has query params: add slash before the '?'
+        const [path, query] = config.url.split('?');
+        if (!path.endsWith('/')) {
+          config.url = `${path}/?${query}`;
+        }
+      } else {
+        // No query params: just add trailing slash if missing
+        if (!config.url.endsWith('/')) {
+          config.url = `${config.url}/`;
+        }
+      }
+    }
+
+    const token = getAuthToken();
+    const publicEndpoints = [
+      'auth/forgot-password/',
+      'auth/send-otp/',
+      'auth/register/',
+      'auth/reset-password/',
+      'auth/verify-otp/',
+      'auth/login/'
+    ];
+    if (token && !publicEndpoints.some(path => config.url.includes(path))) {
+      config.headers['Authorization'] = `Token ${token}`;
+    }
+    if (['post', 'put', 'delete'].includes(config.method.toLowerCase())) {
+      const csrfToken = getCsrfTokenFromCookies();
+      if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 export default {
   createApiInstance,
   register,
@@ -844,7 +938,7 @@ export default {
   fetchProfile,
   updateProfile,
   fetchDashboardData,
-  fetchProductReviews, 
+  fetchProductReviews,
   submitProductReview,
   bulkUpdateOrderStatus,
   placeOrderForProduct,

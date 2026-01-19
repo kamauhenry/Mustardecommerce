@@ -96,7 +96,7 @@
 </template>
 
 <script>
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import { useRouter, useRoute } from 'vue-router';
 import { watch } from 'vue';
 
@@ -108,13 +108,13 @@ export default {
     };
   },
   setup() {
-    const store = useEcommerceStore();
+    const authStore = useAuthStore();
     const router = useRouter();
     const route = useRoute();
 
     const logout = async () => {
       try {
-        await store.logout();
+        await authStore.logout();
         router.push('/admin-page/login');
       } catch (error) {
         console.error('Logout failed:', error);

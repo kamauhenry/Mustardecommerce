@@ -118,12 +118,12 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import api from '@/services/api';
 
 // State Management
 const currentView = ref('login');
-const store = useEcommerceStore();
+const authStore = useAuthStore();
 const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref('');
@@ -182,16 +182,29 @@ const handleCredentialResponse = async (response) => {
     errorMessage.value = 'Google login failed: No credential received';
     return;
   }
-  
+
   loading.value = true;
   errorMessage.value = ''; // Clear previous errors
-  
+
   try {
-    // Use the store's googleLogin method with the ID token
-    const resp = await store.googleLogin(idToken);
-    console.log(`Logged in with Google as ${resp.username}`);
+    // TODO: Add googleLogin to auth store
+    // For now, use direct API call
+    const apiInstance = api.createApiInstance({ authToken: null });
+    const resp = await apiInstance.post('/users/google-login/', { id_token: idToken });
+
+    // Manually set auth data (similar to what auth store's login does)
+    if (resp.data.token) {
+      authStore.authToken = resp.data.token;
+      authStore.currentUser = resp.data.user;
+      authStore.userId = resp.data.user?.id;
+      localStorage.setItem('authToken', resp.data.token);
+      localStorage.setItem('currentUser', JSON.stringify(resp.data.user));
+      localStorage.setItem('userId', resp.data.user?.id);
+    }
+
+    console.log(`Logged in with Google as ${resp.data.username}`);
     successMessage.value = 'Google login successful!';
-    
+
     // Clear form and close modal
     await nextTick();
     emit('close');
@@ -352,30 +365,23 @@ const switchToForgotPassword = () => {
 const handleLogin = async () => {
   loading.value = true;
   errorMessage.value = ''; // Clear any previous error messages
-  try {
-    const response = await store.login(loginData.username, loginData.password);
-    console.log(`Logged in as ${response.username}`);
-    successMessage.value = 'Login successful!'; // Optional: Show success message
-    await nextTick(); // Ensure DOM updates before emitting close
+
+  // Use the new auth store's login method
+  // It returns a boolean and handles toasts automatically
+  const success = await authStore.login(loginData.username, loginData.password);
+
+  loading.value = false;
+
+  if (success) {
+    console.log(`Logged in as ${authStore.currentUser?.username}`);
+    successMessage.value = 'Login successful!';
+    await nextTick();
     loginData.username = ''; // Clear form data
     loginData.password = '';
-
     emit('close'); // Emit close event to parent component
-  } catch (err) {
-    // Handle specific backend error messages
-    const errorData = err.response?.data;
-    console.log('errorData:', errorData)
-    if (errorData && errorData.error) {
-      errorMessage.value = errorData.error; // Display specific backend error
-      console.log('error data 2')
-    } else {
-      errorMessage.value = 'Login failed: Wrong password or username';
-      console.log('error data 3')
-    }
-    console.error('Login failed:', err.response?.data);
-    console.log('auth modal failed ')
-  } finally {
-    loading.value = false;
+  } else {
+    // Error message is already shown via toast by the store
+    errorMessage.value = authStore.loginMessage || 'Login failed: Wrong password or username';
   }
 };
 
@@ -387,7 +393,10 @@ const handleRegister = async () => {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const response = await api.createApiInstance(store).post('auth/register/', {
+    // Use API directly for registration since it has OTP flow
+    // TODO: Consider moving OTP flow to auth store
+    const apiInstance = api.createApiInstance({ authToken: null });
+    const response = await apiInstance.post('auth/register/', {
       username: registerData.username,
       email: registerData.email,
       first_name: registerData.first_name,
@@ -397,7 +406,7 @@ const handleRegister = async () => {
       user_type: 'customer',
     });
     console.log(`Registered as ${response.data.username}`);
-    await api.createApiInstance(store).post('auth/send-otp/', { email: registerData.email });
+    await apiInstance.post('auth/send-otp/', { email: registerData.email });
     localStorage.removeItem('registerForm');
     successMessage.value = 'Registration successful. Please enter the OTP sent to your email.';
     switchToOtp();
@@ -423,7 +432,8 @@ const handleOtpVerification = async () => {
   loading.value = true;
   errorMessage.value = '';
   try {
-    await api.createApiInstance(store).post('auth/verify-otp/', {
+    const apiInstance = api.createApiInstance({ authToken: null });
+    await apiInstance.post('auth/verify-otp/', {
       email: registerData.email,
       otp: otpData.otp,
     });
@@ -441,7 +451,8 @@ const handleForgotPassword = async () => {
   loading.value = true;
   errorMessage.value = '';
   try {
-    await api.createApiInstance(store).post('auth/forgot-password/', { email: forgotPasswordData.email });
+    const apiInstance = api.createApiInstance({ authToken: null });
+    await apiInstance.post('auth/forgot-password/', { email: forgotPasswordData.email });
     successMessage.value = 'If the email exists, a reset link has been sent.';
     switchToLogin();
   } catch (err) {

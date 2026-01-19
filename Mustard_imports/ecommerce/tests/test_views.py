@@ -16,18 +16,17 @@ class OrderConcurrencyTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
-        self.product = Product.objects.create(name='Test Product', price=10.00, moq=1)
-        self.variant = ProductVariant.objects.create(product=self.product)
+        self.product = Product.objects.create(name='Test Product', description="Test product", price=10.00, moq=1, category=self.category)
         self.cart = Cart.objects.create(user=self.user)
         CartItem.objects.create(
             cart=self.cart,
             product=self.product,
-            variant=self.variant,
             quantity=1,
         )
-
+    
     def test_concurrent_order_creation(self):
         def create_order():
             response = self.client.post(
@@ -58,13 +57,14 @@ class BulkUpdateOrderStatusTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.admin)
         self.orders = [
             Order.objects.create(user=self.user, delivery_status='processing'),
             Order.objects.create(user=self.user, delivery_status='processing'),
         ]
-
+    
     def test_bulk_update_order_status(self):
         response = self.client.post(
             reverse('bulk_update_order_status'),
@@ -82,6 +82,7 @@ class BulkUpdateOrderStatusTest(TestCase):
 # Authentication Tests
 class AuthenticationTest(TestCase):
     def setUp(self):
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
 
     def test_admin_registration(self):
@@ -157,12 +158,12 @@ class CartManagementTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
-        self.product = Product.objects.create(name='Test Product', price=10.00, moq=1)
-        self.variant = ProductVariant.objects.create(product=self.product)
+        self.product = Product.objects.create(name='Test Product', description="Test product", price=10.00, moq=1, category=self.category)
         self.cart = Cart.objects.create(user=self.user)
-
+    
     def test_create_cart(self):
         response = self.client.get(reverse('get-user-cart', args=[self.user.id]))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -171,7 +172,6 @@ class CartManagementTest(TestCase):
     def test_add_item_to_cart(self):
         data = {
             'productId': self.product.id,
-            'variantId': self.variant.id,
             'quantity': 2
         }
         response = self.client.post(reverse('add-item-to-cart', args=[self.cart.id]), data, format='json')
@@ -183,7 +183,6 @@ class CartManagementTest(TestCase):
         cart_item = CartItem.objects.create(
             cart=self.cart,
             product=self.product,
-            variant=self.variant,
             quantity=1
         )
         data = {'quantity': 3, 'cart_id': self.cart.id}
@@ -196,7 +195,6 @@ class CartManagementTest(TestCase):
         cart_item = CartItem.objects.create(
             cart=self.cart,
             product=self.product,
-            variant=self.variant,
             quantity=1
         )
         data = {'item_id': cart_item.id}
@@ -211,6 +209,7 @@ class OrderManagementTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
         self.order = Order.objects.create(
@@ -219,7 +218,7 @@ class OrderManagementTest(TestCase):
             payment_status='pending',
             delivery_status='processing'
         )
-
+    
     def test_update_order_shipping(self):
         data = {'shipping_method': 'express'}
         response = self.client.put(reverse('update-order-shipping', args=[self.order.id]), data, format='json')
@@ -239,6 +238,7 @@ class PaymentTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
         self.order = Order.objects.create(
@@ -247,7 +247,7 @@ class PaymentTest(TestCase):
             payment_status='pending'
         )
 
-    @patch('ecommerce.views.send_stk_push')
+    @patch('ecommerce.views.send_stk_push')    
     def test_process_payment(self, mock_send_stk_push):
         mock_send_stk_push.return_value = {
             "ResponseCode": "0",
@@ -329,8 +329,9 @@ class AdminOperationTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.order = Order.objects.create(user=self.user, delivery_status='processing')
-
+    
     def test_admin_dashboard(self):
         response = self.client.get(reverse('admin_dashboard'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -378,9 +379,10 @@ class UserProfileDeliveryTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com', password='testpass'
         )
+        self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
-
+    
     def test_get_user_profile(self):
         response = self.client.get(reverse('user_profile'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)

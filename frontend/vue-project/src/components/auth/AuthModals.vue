@@ -1,7 +1,7 @@
 <template>
   <div class="auth-buttons">
-    <template v-if="store.isAuthenticated">
-      <button @click="store.logout" class="icon-button">
+    <template v-if="authStore.isAuthenticated">
+      <button @click="authStore.logout" class="icon-button">
         <LogoutIcon />
       </button>
     </template>
@@ -24,7 +24,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useAuthStore } from '@/stores/modules/auth';
 import Modal from '@/components/auth/Modal.vue';
 import AuthModal from '@/components/auth/AuthModal.vue';
 import LoginIcon from '@/components/icons/IconLogin.vue';
@@ -37,11 +37,11 @@ const props = defineProps({
   },
 });
 
-const store = useEcommerceStore();
+const authStore = useAuthStore();
 const showAuthModal = ref(false);
 
 onMounted(() => {
-  if (props.autoShowLogin && !store.isAuthenticated) {
+  if (props.autoShowLogin && !authStore.isAuthenticated) {
     openAuthModal();
   }
 });
@@ -49,7 +49,7 @@ onMounted(() => {
 watch(
   () => props.autoShowLogin,
   (newValue) => {
-    if (newValue && !store.isAuthenticated) {
+    if (newValue && !authStore.isAuthenticated) {
       openAuthModal();
     }
   }

@@ -23,13 +23,15 @@
 
   <script>
   import { ref, onMounted } from 'vue';
-  import { useEcommerceStore } from '@/stores/ecommerce';
+  import { useAuthStore } from '@/stores/modules/auth';
+  import { useUserStore } from '@/stores/modules/user';
   import AdminLayout from '@/components/admin/AdminLayout.vue';
 
   export default {
     components: { AdminLayout },
     setup() {
-      const store = useEcommerceStore();
+      const authStore = useAuthStore();
+      const userStore = useUserStore();
       const form = ref({
         username: '',
         email: '',
@@ -37,9 +39,9 @@
       });
 
       const fetchProfile = async () => {
-        await store.fetchProfile();
-        form.value.username = store.user.username;
-        form.value.email = store.user.email;
+        await userStore.fetchProfile();
+        form.value.username = userStore.profile.username;
+        form.value.email = userStore.profile.email;
       };
 
       const updateProfile = async () => {
@@ -48,7 +50,7 @@
           if (form.value.password) {
             data.password = form.value.password;
           }
-          await store.updateProfile(data);
+          await userStore.updateProfile(data);
           alert('Profile updated successfully');
         } catch (error) {
           alert('Failed to update profile: ' + (error.response?.data?.error || 'Unknown error'));

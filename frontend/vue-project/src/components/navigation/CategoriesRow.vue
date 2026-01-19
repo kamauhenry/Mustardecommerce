@@ -27,9 +27,9 @@
 </template>
 <script setup>
 import { onMounted, computed } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 
-const store = useEcommerceStore();
+const store = useProductsStore();
 
 onMounted(() => {
   if (!store.categories.length) {

@@ -13,11 +13,11 @@
 
 <script>
 import { onMounted } from 'vue';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
 
 export default {
   setup() {
-    const store = useEcommerceStore();
+    const store = useProductsStore();
 
     onMounted(() => {
       if (!store.allCategoriesWithProducts.length) store.fetchAllCategoriesWithProducts();

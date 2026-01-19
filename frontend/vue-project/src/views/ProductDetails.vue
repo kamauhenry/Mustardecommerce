@@ -468,7 +468,10 @@ import {
   fetchProductReviews,
   submitProductReview,
 } from '@/services/api';
-import { useEcommerceStore } from '@/stores/ecommerce';
+import { useProductsStore } from '@/stores/modules/products';
+import { useAuthStore } from '@/stores/modules/auth';
+import { useUserStore } from '@/stores/modules/user';
+import { useCartStore } from '@/stores/modules/cart';
 import { toast } from 'vue3-toastify';
 import MainLayout from '../components/navigation/MainLayout.vue';
 
@@ -480,15 +483,20 @@ export default {
     productSlug: { type: String, required: true },
   },
   setup(props) {
-    const store = useEcommerceStore();
+    const productsStore = useProductsStore();
+    const authStore = useAuthStore();
+    const userStore = useUserStore();
+    const cartStore = useCartStore();
     const route = useRoute();
+    // Create a temporary store object for backward compatibility with api.js
+    const store = { isAuthenticated: computed(() => authStore.isAuthenticated) };
     const api = createApiInstance(store);
-    const isAuthenticated = computed(() => store.isAuthenticated);
+    const isAuthenticated = computed(() => authStore.isAuthenticated);
     const isPayAndPick = computed(() => route.query.pickup === 'true');
 
     // Product data
     const productKey = computed(() => `${props.categorySlug}:${props.productSlug}`);
-    const product = computed(() => store.productDetails[productKey.value]);
+    const product = computed(() => productsStore.productDetails[productKey.value]);
     const isLoadingProduct = ref(true);
     const relatedProducts = ref([]);
     const relatedProductsError = ref(null);
@@ -545,7 +553,7 @@ export default {
     const isAddingToCart = ref(false);
 
     // Affiliate and Sharing state
-    const affiliateCode = computed(() => store.user?.affiliate_code || '');
+    const affiliateCode = computed(() => userStore.currentUser?.affiliate_code || '');
     const productUrl = computed(() =>
       `${window.location.origin}/products/${props.categorySlug}/${props.productSlug}/?aff=${affiliateCode.value}${isPayAndPick.value ? '&pickup=true' : ''}`
     );
@@ -745,15 +753,12 @@ export default {
       if (isAddingToCart.value) return;
       isAddingToCart.value = true;
       try {
-        const affiliateCodeFromUrl = new URLSearchParams(window.location.search).get('aff');
         const attributes = { ...selectedAttributes.value };
         console.log('Add to cart attributes:', attributes);
-        await store.addToCart(
-          product.value.id,
-          attributes,
+        await cartStore.addToCart(
+          product.value,
           quantity.value,
-          affiliateCodeFromUrl,
-          requiresShipping.value ? selectedShippingMethodId.value : null
+          attributes
         );
         toast.success(`Product added to ${isPayAndPick.value ? 'Pay & Pick' : 'cart'}!`, { autoClose: 3000 });
       } catch (error) {
@@ -804,7 +809,7 @@ export default {
         reviewRating.value = 1;
         showReviewForm.value = false;
         toast.success('Review submitted successfully!', { autoClose: 3000 });
-        await store.fetchProductDetails(props.categorySlug, props.productSlug);
+        await productsStore.fetchProductDetails(props.categorySlug, props.productSlug);
       } catch (error) {
         let errorMessage = 'Failed to submit review.';
         if (error.response?.data) {
@@ -830,8 +835,8 @@ export default {
       isLoadingProduct.value = true;
       const key = productKey.value;
       try {
-        await store.fetchProductDetails(props.categorySlug, props.productSlug);
-        const currentProduct = store.productDetails[key];
+        await productsStore.fetchProductDetails(props.categorySlug, props.productSlug);
+        const currentProduct = productsStore.productDetails[key];
         if (currentProduct && currentProduct.id) {
           currentImage.value = currentProduct.images?.[0]?.image || placeholderImage;
           isLoadingRelated.value = true;
