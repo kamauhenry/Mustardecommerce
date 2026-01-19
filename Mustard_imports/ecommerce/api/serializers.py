@@ -57,7 +57,7 @@ class AdminLoginSerializer(serializers.Serializer):
 class DeliveryLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryLocation
-        fields = ('id',  'county', 'ward', 'is_shop_pickup', 'is_default', 'created_at', 'updated_at')
+        fields = ('id', 'name', 'county', 'ward', 'address', 'is_shop_pickup', 'is_default', 'created_at', 'updated_at')
         read_only_fields = ('id', 'is_shop_pickup', 'created_at', 'updated_at')
 
 class ShippingMethodSerializer(serializers.ModelSerializer):

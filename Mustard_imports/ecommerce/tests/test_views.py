@@ -111,8 +111,10 @@ class AuthenticationTest(TestCase):
             password='adminpass',
             user_type='admin'
         )
+        admin.is_verified = True
+        admin.save()
         data = {
-            'username': 'adminuser',
+            'username': 'admin@example.com',  # Use email as USERNAME_FIELD is email
             'password': 'adminpass'
         }
         response = self.client.post(reverse('admin_login'), data, format='json')
@@ -130,20 +132,25 @@ class AuthenticationTest(TestCase):
         }
         response = self.client.post(reverse('register'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('token', response.data)
+        self.assertIn('requires_otp', response.data)
+        self.assertTrue(response.data['requires_otp'])
         user = User.objects.get(username='newuser')
         self.assertEqual(user.user_type, 'customer')
 
     def test_user_login(self):
-        User.objects.create_user(
+        user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
             password='testpass'
         )
+        user.is_verified = True
+        user.save()
         data = {
-            'username': 'testuser',
+            'username': 'test@example.com',  # Use email as USERNAME_FIELD is email
             'password': 'testpass'
         }
+        if response.status_code != 200:
+            print(f"Login error: {response.data}")
         response = self.client.post(reverse('login'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)
@@ -411,8 +418,9 @@ class UserProfileDeliveryTest(TestCase):
         # Avatar field removed from assertions
 
     def test_create_delivery_location(self):
-        data = {'name': 'Home', 'address': '123 Test St', 'latitude': 1.0, 'longitude': 2.0}
+        data = {'name': 'Home', 'address': '123 Test St', 'county': 'Nairobi', 'ward': 'Westlands'}
         response = self.client.post(reverse('delivery_locations'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         location = DeliveryLocation.objects.get(user=self.user)
         self.assertEqual(location.address, '123 Test St')
+        self.assertEqual(location.name, 'Home')

@@ -38,7 +38,7 @@ class SendOTPView(APIView):
             user = User.objects.get(email=email)
             if not user.is_verified:
                 otp = get_random_string(length=6, allowed_chars='0123456789')
-                OTP.objects.create(user=user, otp=otp)
+                OTP.objects.create(user=user, code=otp)
                 try:
                     send_mail(
                         'Your OTP',
@@ -414,7 +414,7 @@ class RegisterView(APIView):
             # Generate and send OTP
             otp = get_random_string(length=6, allowed_chars='0123456789')
             OTP.objects.filter(user=user).delete()  # Clear any existing OTPs
-            OTP.objects.create(user=user, otp=otp)
+            OTP.objects.create(user=user, code=otp)
 
             # Send OTP email
             try:

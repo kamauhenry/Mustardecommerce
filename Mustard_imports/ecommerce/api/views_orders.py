@@ -941,6 +941,36 @@ class DeliveryLocationView(APIView):
         serializer = DeliveryLocationSerializer(locations, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def post(self, request):
+        """Create a new delivery location for the authenticated user"""
+        serializer = DeliveryLocationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, location_id=None):
+        """Update an existing delivery location"""
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'error': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = DeliveryLocationSerializer(location, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, location_id=None):
+        """Delete a delivery location"""
+        try:
+            location = DeliveryLocation.objects.get(id=location_id, user=request.user)
+            location.delete()
+            return Response({'message': 'Location deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        except DeliveryLocation.DoesNotExist:
+            return Response({'error': 'Location not found'}, status=status.HTTP_404_NOT_FOUND)
+
 class CountiesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -1067,7 +1097,6 @@ def bulk_update_order_status(request):
 
             user_ids = set(orders.values_list('user_id', flat=True))
             for user_id in user_ids:
-                invalidate_order_caches(user_id)
                 for order in orders.filter(user_id=user_id):
                     invalidate_order_caches(user_id, order.id)
 

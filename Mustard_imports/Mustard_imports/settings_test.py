@@ -49,3 +49,9 @@ DEBUG = False
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
+
+# Allow testserver for API client tests
+ALLOWED_HOSTS = ['*']
+
+# Disable email sending during tests
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
