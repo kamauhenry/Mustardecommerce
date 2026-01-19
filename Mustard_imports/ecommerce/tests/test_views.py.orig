@@ -90,9 +90,6 @@ class AuthenticationTest(TestCase):
             'username': 'newadmin',
             'email': 'newadmin@example.com',
             'password': 'newadminpass',
-            'first_name': 'Admin',
-            'last_name': 'User',
-            'phone_number': '254712345678',
             'user_type': 'admin'
         }
         response = self.client.post(reverse('admin_register'), data, format='json')
@@ -120,10 +117,7 @@ class AuthenticationTest(TestCase):
         data = {
             'username': 'newuser',
             'email': 'newuser@example.com',
-            'password': 'newuserpass',
-            'first_name': 'New',
-            'last_name': 'User',
-            'phone_number': '254712345678'
+            'password': 'newuserpass'
         }
         response = self.client.post(reverse('register'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -152,7 +146,7 @@ class AuthenticationTest(TestCase):
             'name': 'Google User'
         }
         data = {'access_token': 'fake-token'}
-        response = self.client.post(reverse('google-auth'), data, format='json')
+        response = self.client.post(reverse('google_auth'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)
         user = User.objects.get(email='googleuser@example.com')
@@ -218,10 +212,9 @@ class OrderManagementTest(TestCase):
         self.category = Category.objects.create(name="Test Category", slug="test-category")
         self.client = APIClient()
         self.client.force_login(self.user)
-        self.shipping = ShippingMethod.objects.create(name='Standard', price=100.00)
         self.order = Order.objects.create(
             user=self.user,
-            shipping_method=self.shipping,
+            shipping_method='standard',
             payment_status='pending',
             delivery_status='processing'
         )
@@ -234,7 +227,7 @@ class OrderManagementTest(TestCase):
         self.assertEqual(self.order.shipping_method, 'express')
 
     def test_get_user_orders(self):
-        response = self.client.get(reverse('get-user-orders'))
+        response = self.client.get(reverse('get_user_orders'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.order.id)
@@ -254,7 +247,7 @@ class PaymentTest(TestCase):
             payment_status='pending'
         )
 
-    @patch('ecommerce.api.views_orders.send_stk_push')    
+    @patch('ecommerce.views.send_stk_push')    
     def test_process_payment(self, mock_send_stk_push):
         mock_send_stk_push.return_value = {
             "ResponseCode": "0",
@@ -270,7 +263,7 @@ class PaymentTest(TestCase):
         self.assertEqual(payment.payment_status, 'pending')
         self.assertEqual(payment.mpesa_checkout_request_id, 'ws_CO_123456789')
 
-    @patch('ecommerce.api.views_orders.query_stk_push')
+    @patch('ecommerce.views.query_stk_push')
     def test_get_payment_details(self, mock_query_stk_push):
         payment = Payment.objects.create(
             order=self.order,
@@ -315,7 +308,7 @@ class PaymentTest(TestCase):
             }
         }
         response = self.client.post(
-            reverse('mpesa-callback'),
+            reverse('mpesa_callback'),
             json.dumps(callback_data),
             content_type='application/json'
         )
@@ -371,12 +364,12 @@ class ProductCategoryTest(TestCase):
         self.assertEqual(response.data['results'][0]['name'], 'Test Product')
 
     def test_get_product_details(self):
-        response = self.client.get(reverse('product-detail', args=['test-category', 'test-product']))
+        response = self.client.get(reverse('product_detail', args=['test-category', 'test-product']))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['name'], 'Test Product')
 
     def test_get_category_products(self):
-        response = self.client.get(reverse('category-products', args=['test-category']))
+        response = self.client.get(reverse('category_products', args=['test-category']))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['products'][0]['name'], 'Test Product')
 
@@ -391,20 +384,20 @@ class UserProfileDeliveryTest(TestCase):
         self.client.force_login(self.user)
     
     def test_get_user_profile(self):
-        response = self.client.get(reverse('user-profile'))
+        response = self.client.get(reverse('user_profile'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['username'], 'testuser')
 
     def test_update_user_profile(self):
         data = {'first_name': 'New Name', 'email': 'newemail@example.com'}
-        response = self.client.put(reverse('user-profile'), data, format='json')
+        response = self.client.put(reverse('user_profile'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.first_name, 'New Name')
 
     def test_create_delivery_location(self):
         data = {'name': 'Home', 'address': '123 Test St', 'latitude': 1.0, 'longitude': 2.0}
-        response = self.client.post(reverse('delivery_locations'), data, format='json')
+        response = self.client.post(reverse('delivery_location'), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         location = DeliveryLocation.objects.get(user=self.user)
         self.assertEqual(location.address, '123 Test St')

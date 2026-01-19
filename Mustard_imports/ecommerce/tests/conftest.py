@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 
 # Set the DJANGO_SETTINGS_MODULE environment variable
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "Mustard_imports.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "Mustard_imports.settings_test")
 
 # Initialize Django before any tests are run
 django.setup()
